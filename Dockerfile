@@ -12,7 +12,7 @@ ENV AMAZON_SECRET_ACCESS_KEY=${AMAZON_SECRET_ACCESS_KEY}
 RUN pip install poetry==1.6.1
 RUN poetry config virtualenvs.create false
 WORKDIR /code
-COPY ./pyproject.toml ./poetry.lock* ./
+COPY ./feed/pyproject.toml ./feed/poetry.lock* ./feed/
 COPY ./README.md /code/
 COPY ./feed ./feed
 RUN poetry install  --no-interaction --no-ansi --no-root
