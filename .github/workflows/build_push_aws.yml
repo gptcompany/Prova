@@ -125,7 +125,7 @@ jobs:
             "memoryReservation": 300,
             "essential": true,
             "command": ["python", "-m", "${{env.TASK_DEFINITION_TAG}}"],
-            "workingDirectory": "/code/feed/"
+            "workingDirectory": "/code/feed/",
             "mountPoints": [
               {
                 "sourceVolume": "configVolume",
