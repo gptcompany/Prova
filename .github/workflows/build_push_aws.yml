@@ -190,7 +190,7 @@ jobs:
           --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true},maximumPercent=200,minimumHealthyPercent=100" \
           --scheduling-strategy REPLICA \
           --placement-strategy "type=spread,field=attribute:ecs.availability-zone" "type=spread,field=instanceId" \
-          --deployment-controller "type=ECS"
+          --deployment-controller "type=ECS" \
           --network-configuration "awsvpcConfiguration={subnets=[subnet-ab24e2e3,subnet-a035fc8b,subnet-a1d2e2fa],securityGroups=[sg-6c5b961e],assignPublicIp=DISABLED}" \
       
 
