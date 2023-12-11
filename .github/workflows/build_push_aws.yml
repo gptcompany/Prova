@@ -109,8 +109,8 @@ jobs:
 
     - name: Create ECS Task Definition if Not Exists
       env:
-          ECR_REGISTRY: ${{steps.login-ecr.outputs.registry}}
-          TASK_DEFINITION_TAG: nbbo
+        ECR_REGISTRY: ${{steps.login-ecr.outputs.registry}}
+        TASK_DEFINITION_TAG: nbbo
       if: env.TASK_DEFINITION_DOES_NOT_EXIST == 'true'
       run: |
         aws ecs register-task-definition \
@@ -119,7 +119,7 @@ jobs:
         --container-definitions '[
           {
             "name": "mycontainer",
-            "image": "$ECR_REGISTRY/${{env.REPO_NAME}}:${{env.IMAGE_TAG}}",
+            "image": "${{env.ECR_REGISTRY}}/${{env.REPO_NAME}}:${{env.IMAGE_TAG}}",
             "cpu": 300,
             "memory": 300,
             "memoryReservation": 300,
