@@ -1,0 +1,10 @@
+.git
+.gitignore
+.dockerignore
+Dockerfile
+LICENSE
+node_modules
+.env
+.env.*
+*.pyc
+__pycache__
