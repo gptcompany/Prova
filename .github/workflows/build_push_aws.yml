@@ -116,6 +116,10 @@ jobs:
 
     steps:
       # ... [steps specific to deployment]
+
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+      
     - name: Deploy CloudFormation Stack
       run: |
         aws cloudformation deploy \
