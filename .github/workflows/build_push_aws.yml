@@ -117,10 +117,11 @@ jobs:
           --stack-name test-${{env.TASK_FAMILY}} \
           --parameter-overrides \
           ECRRepositoryURI=${{env.ECR_URI}} \
-          # ECSExecutionRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskExecutionRole \
-          # ECSTaskRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskRole \
           ECSTaskFamily=${{env.TASK_FAMILY}} \
           ECSCluster=${{env.ECS_CLUSTER}}
+      # ECSExecutionRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskExecutionRole \
+      # ECSTaskRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskRole \
+          
 
     - name: Ensure CloudWatch Log Group and Stream Exist
       run: |
