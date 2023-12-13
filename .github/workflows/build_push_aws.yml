@@ -111,7 +111,7 @@ jobs:
       run: |
         echo "ECR URI: ${{needs.build-and-push.outputs.ecr_uri}}"
         echo "ECR URI: ${{env.ECR_URI}}"
-        aws cloudformation delete-stack --stack-name test-${{env.TASK_FAMILY}}
+        # aws cloudformation delete-stack --stack-name test-${{env.TASK_FAMILY}}
         aws cloudformation deploy \
           --template-file "./cloudformation/ecs_cloudformation.yaml" \
           --stack-name test-${{env.TASK_FAMILY}} \
