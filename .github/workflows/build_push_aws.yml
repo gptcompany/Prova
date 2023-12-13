@@ -119,7 +119,13 @@ jobs:
 
     - name: Checkout Repository
       uses: actions/checkout@v2
-      
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: ${{secrets.AWS_REGION}}
+        role-to-assume: arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/github_action
+
     - name: Deploy CloudFormation Stack
       run: |
         aws cloudformation deploy \
