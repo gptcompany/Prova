@@ -86,6 +86,13 @@ jobs:
       with:
         path: /tmp/.buildx-cache-new
         key: ${{ runner.os }}-buildx-${{ github.sha }}
+    
+    # - name: Copy CloudFormation file to EC2
+    #   run: |
+    #     scp -i /path/to/ssh-key -o StrictHostKeyChecking=no /path/to/ecs_cloudformation.yaml ec2-user@ec2-instance-ip:/desired/path/on/ec2
+    #   env:
+    #     SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+
 
     # Outputs
     outputs:
@@ -112,7 +119,7 @@ jobs:
     - name: Deploy CloudFormation Stack
       run: |
         aws cloudformation deploy \
-          --template-file /cloudformation/ecs_cloudformation.yaml \
+          --template-file ./cloudformation/ecs_cloudformation.yaml \
           --stack-name test_${{env.TASK_FAMILY}} \
           --parameter-overrides \
           ECRRepositoryURI=${{ env.ECR_URI }} \
