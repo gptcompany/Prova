@@ -12,7 +12,7 @@ def main():
     f = FeedHandler(config=path_to_config)  
     #symbols = fh.config.config['bf_symbols']
     symbols = ['BTC-USDT']
-    f.add_nbbo([Coinbase, Binance, Bitfinex], symbols, nbbo_update)
+    f.add_nbbo([Binance, Bitfinex], symbols, nbbo_update)
     f.run()
     
 if __name__ == '__main__':

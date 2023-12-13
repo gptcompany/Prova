@@ -13,10 +13,14 @@ RUN pip install poetry==1.6.1
 RUN poetry config virtualenvs.create false
 WORKDIR /code
 COPY ./feed/pyproject.toml ./feed/poetry.lock* ./
+COPY ./cloudformation ./cloudformation
 COPY ./README.md /code/
 COPY ./feed ./feed
 RUN poetry install  --no-interaction --no-ansi --no-root
 RUN apt-get update
+CMD ["python", "-m", "feed.nbbo"]
+
+
 # Copy the Supervisor configuration file
 #COPY ./supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
@@ -27,5 +31,5 @@ RUN apt-get update
 
 # Start Supervisor to manage your processes
 #CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
-CMD ["python", "-m", "nbbo"]
+
 
