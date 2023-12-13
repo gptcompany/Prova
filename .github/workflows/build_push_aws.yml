@@ -110,8 +110,10 @@ jobs:
     steps:
       # ... [steps specific to deployment]
     - name: Print ECR URI
-      run: echo "ECR URI: ${{ needs.build-and-push.outputs.ecr_uri }}"
-      run: echo "ECR URI: ${{ env.ECR_URI }}"
+      run: | 
+        echo "ECR URI: ${{ needs.build-and-push.outputs.ecr_uri }}"
+      run: |
+        echo "ECR URI: ${{ env.ECR_URI }}"
 
 
     - name: Checkout Repository
@@ -125,6 +127,8 @@ jobs:
 
     - name: Deploy CloudFormation Stack
       run: |
+        echo "ECR URI: ${{ needs.build-and-push.outputs.ecr_uri }}"
+        echo "ECR URI: ${{ env.ECR_URI }}"
         aws cloudformation deploy \
           --template-file "./cloudformation/ecs_cloudformation.yaml" \
           --stack-name test-${{env.TASK_FAMILY}} \
