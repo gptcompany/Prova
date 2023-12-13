@@ -119,7 +119,7 @@ jobs:
     - name: Deploy CloudFormation Stack
       run: |
         aws cloudformation deploy \
-          --template-file ./cloudformation/ecs_cloudformation.yaml \
+          --template-file "./cloudformation/ecs_cloudformation.yaml" \
           --stack-name test_${{env.TASK_FAMILY}} \
           --parameter-overrides \
           ECRRepositoryURI=${{ env.ECR_URI }} \
