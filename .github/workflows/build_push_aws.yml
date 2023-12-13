@@ -18,28 +18,17 @@ jobs:
     env:
       REPO_NAME: ${{ github.event.repository.name }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      ECS_CLUSTER: ultima_ecs
       IMAGE_TAG: latest
-      TASK_FAMILY: nbbo
 
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v3
-  #testing purpose of the env variables
-    - name: Test AWS CLI Authentication
-      run: aws ecs list-clusters
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AMAZON_ACCESS_KEY }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AMAZON_SECRET_ACCESS_KEY }}
-        AWS_REGION: ${{ secrets.AWS_REGION }} # Directly specify the region
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
-
     # Create a new builder that supports cache export/import
     - name: Create a new builder
       run: docker buildx create --name mybuilder --use
-
     # Cache setup
     - name: Cache Docker layers
       uses: actions/cache@v3
@@ -55,7 +44,6 @@ jobs:
         aws-region: ${{secrets.AWS_REGION}}
         role-to-assume: arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/github_action
         
-
     - name: Log in to Amazon ECR and create repository if not exist
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
@@ -96,8 +84,9 @@ jobs:
     needs: build-and-push  # This job runs after build-and-push job
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        task_family: ['nbbo'] # List of task families
+      matrix:         ################################################################TO SET#######################################################################
+                      #######################################################################################################################################
+        task_family: ['nbbo', 'binance', bitfinex'] 
 
     env:
       REPO_NAME: ${{github.event.repository.name}}
@@ -105,15 +94,10 @@ jobs:
       ECS_CLUSTER: ultima_ecs
       IMAGE_TAG: latest
       TASK_FAMILY: ${{matrix.task_family}}
-      ECR_URI: ${{needs.build-and-push.outputs.ecr_uri}} #is without:latest because is setted in the cloud formation file (check)
+      ECR_URI: ${{secrets.AWS_ACCOUNT_ID}}.dkr.ecr.ap-northeast-1.amazonaws.com/${{github.event.repository.name}} #${{needs.build-and-push.outputs.ecr_uri}} #is without:latest because is setted in the cloud formation file (check)
 
     steps:
       # ... [steps specific to deployment]
-    - name: Print ECR URI
-      run: | 
-        echo "ECR URI: ${{needs.build-and-push.outputs.ecr_uri}}"
-        echo "ECR URI: ${{env.ECR_URI}}"
-
     - name: Checkout Repository
       uses: actions/checkout@v3
     
@@ -132,7 +116,7 @@ jobs:
           --template-file "./cloudformation/ecs_cloudformation.yaml" \
           --stack-name test-${{env.TASK_FAMILY}} \
           --parameter-overrides \
-          ECRRepositoryURI=${{needs.build-and-push.outputs.ecr_uri}} \
+          ECRRepositoryURI=${{env.ECR_URI}} \
           ECSExecutionRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskExecutionRole \
           ECSTaskRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskRole \
           ECSTaskFamily=${{env.TASK_FAMILY}} \
@@ -154,9 +138,9 @@ jobs:
         --log-stream-name test_${{env.TASK_FAMILY}} \
         --log-events timestamp=$(date +%s%3N),message="$STACK_INFO"
 
-    - name: Delete CloudFormation Stack
-      run: |
-        aws cloudformation delete-stack --stack-name test-${{env.TASK_FAMILY}}
+    # - name: Delete CloudFormation Stack
+    #   run: |
+    #     aws cloudformation delete-stack --stack-name test-${{env.TASK_FAMILY}}
 
 
 

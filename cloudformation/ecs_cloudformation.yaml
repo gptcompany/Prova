@@ -5,12 +5,12 @@ Parameters:
   ECRRepositoryURI:
     Type: String
     Description: URI of the ECR repository
-  ECSExecutionRole:
-    Type: String
-    Description: ARN of the execution role
-  ECSTaskRole:
-    Type: String
-    Description: ARN of the task role
+  # ECSExecutionRole:
+  #   Type: String
+  #   Description: ARN of the execution role
+  # ECSTaskRole:
+  #   Type: String
+  #   Description: ARN of the task role
   ECSTaskFamily:
     Type: String
     Description: name of the task definition
@@ -26,18 +26,18 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Ref ECSTaskFamily
-      Cpu: '300' # Specify CPU units
-      Memory: '300' # Specify memory in MB
+      Cpu: '150' # Specify CPU units
+      Memory: '150' # Specify memory in MB
       NetworkMode: bridge # Specify the network mode (bridge awsvpc (awsvpc needs network configuration in task definition))
       RequiresCompatibilities:
-        - EC2 # or FARGATE, depending on your needs
-      ExecutionRoleArn: !Ref ECSExecutionRole # Specify the execution role ARN
-      TaskRoleArn: !Ref ECSTaskRole # Specify the task role ARN
+        - EC2 # or FARGATE
+      # ExecutionRoleArn: !Ref ECSExecutionRole # Specify the execution role ARN
+      # TaskRoleArn: !Ref ECSTaskRole # Specify the task role ARN
       ContainerDefinitions:
         - Name: mycontainer
           Image: !Sub '${ECRRepositoryURI}:latest' # Image from ECR
-          Cpu: 300
-          Memory: 300
+          Cpu: 150
+          Memory: 150
           Essential: true
           WorkingDirectory: "/code/feed/"
           Command: 
