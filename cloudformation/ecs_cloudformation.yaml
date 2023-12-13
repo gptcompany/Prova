@@ -65,7 +65,7 @@ Resources:
     Type: AWS::ECS::Service
     Properties:
       Cluster: !Ref ECSCluster
-      ServiceName: !Sub 'test_${ECSTaskFamily}'
+      ServiceName: !Sub 'test-${ECSTaskFamily}'
       TaskDefinition: !Ref MyTaskDefinition
       DesiredCount: 1
       LaunchType: EC2

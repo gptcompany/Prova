@@ -130,9 +130,9 @@ jobs:
       run: |
         aws cloudformation deploy \
           --template-file "./cloudformation/ecs_cloudformation.yaml" \
-          --stack-name test_${{env.TASK_FAMILY}} \
+          --stack-name test-${{env.TASK_FAMILY}} \
           --parameter-overrides \
-          ECRRepositoryURI=${{ env.ECR_URI }} \
+          ECRRepositoryURI=${{ needs.build-and-push.outputs.ecr_uri }} \
           ECSExecutionRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskExecutionRole \
           ECSTaskRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskRole \
           ECSTaskFamily=${{env.TASK_FAMILY}} \
@@ -146,7 +146,7 @@ jobs:
     - name: Describe CloudFormation Stack and Send to CloudWatch
       run: |
         # Describe the stack
-        STACK_INFO=$(aws cloudformation describe-stacks --stack-name test_${{env.TASK_FAMILY}} --query 'Stacks[0].Outputs' --output text)
+        STACK_INFO=$(aws cloudformation describe-stacks --stack-name test-${{env.TASK_FAMILY}} --query 'Stacks[0].Outputs' --output text)
 
         # Send the output to CloudWatch
         aws logs put-log-events \
