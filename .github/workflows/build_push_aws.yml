@@ -136,7 +136,7 @@ jobs:
         # Send the output to CloudWatch
         aws logs put-log-events \
         --log-group-name CloudFormation \
-        --log-stream-name test_${{env.TASK_FAMILY}} \
+        --log-stream-name test-${{env.TASK_FAMILY}} \
         --log-events timestamp=$(date +%s%3N),message="$STACK_INFO"
 
     # - name: Delete CloudFormation Stack
