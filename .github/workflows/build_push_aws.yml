@@ -19,6 +19,7 @@ jobs:
       REPO_NAME: ${{ github.event.repository.name }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
       IMAGE_TAG: latest
+      SSH_PRIVATE_KEY: ${{secrets.AMAZON_PEM}}
 
     steps:
     - name: Checkout Repository
@@ -75,6 +76,10 @@ jobs:
         path: /tmp/.buildx-cache-new
         key: ${{ runner.os }}-buildx-${{ github.sha }}
     
+    - name: Copy CloudFormation file to EC2
+      run: |
+        scp -i ${{env.SSH_PRIVATE_KEY}} -o StrictHostKeyChecking=no ./cloudformation/ecs_cloudformation.yaml ec2-user@your-ec2-instance-ip:~/cloudformation/ecs_cloudformation.yaml
+    
     # Outputs
     outputs:
       ecr_uri: ${{steps.login-ecr.outputs.registry}}/${{env.REPO_NAME}} 
@@ -109,9 +114,7 @@ jobs:
 
     - name: Deploy CloudFormation Stack Without AWS Roles 
       run: |
-        echo "ECR URI: ${{needs.build-and-push.outputs.ecr_uri}}"
-        echo "ECR URI: ${{env.ECR_URI}}"
-        # aws cloudformation delete-stack --stack-name test-${{env.TASK_FAMILY}}
+        aws cloudformation delete-stack --stack-name test-${{env.TASK_FAMILY}}
         aws cloudformation deploy \
           --template-file "./cloudformation/ecs_cloudformation.yaml" \
           --stack-name test-${{env.TASK_FAMILY}} \
