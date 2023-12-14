@@ -81,7 +81,7 @@ jobs:
       run: |
         echo "${{env.SSH_PRIVATE_KEY}}" > ssh_key
         chmod 600 ssh_key
-        scp -i ssh_key -o StrictHostKeyChecking=no ./cloudformation/ecs_cloudformation.yaml ec2-user@${{env.AWS_EC2_IP}}.${{env.AWS_REGION}}.compute.amazonaws.com:~/cloudformation/ecs_cloudformation.yaml
+        scp -i ssh_key -o StrictHostKeyChecking=no ./cloudformation/ ec2-user@${{env.AWS_EC2_IP}}.${{env.AWS_REGION}}.compute.amazonaws.com:~/cloudformation/
     
     # Outputs
     outputs:
@@ -117,16 +117,16 @@ jobs:
 
     - name: Deploy CloudFormation Stack Without AWS Roles 
       run: |
-        aws cloudformation delete-stack --stack-name test-${{env.TASK_FAMILY}}
+        # aws cloudformation delete-stack --stack-name test-${{env.TASK_FAMILY}}
         aws cloudformation deploy \
-          --template-file "./cloudformation/ecs_cloudformation.yaml" \
+          --template-file "./cloudformation/ecs_cloudformation_withroles.yaml" \
           --stack-name test-${{env.TASK_FAMILY}} \
           --parameter-overrides \
           ECRRepositoryURI=${{env.ECR_URI}} \
           ECSTaskFamily=${{env.TASK_FAMILY}} \
-          ECSCluster=${{env.ECS_CLUSTER}}
-      # ECSExecutionRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskExecutionRole \
-      # ECSTaskRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskRole \
+          ECSCluster=${{env.ECS_CLUSTER}} \
+          ECSExecutionRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskExecutionRole \
+          ECSTaskRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskRole 
           
 
     - name: Ensure CloudWatch Log Group and Stream Exist

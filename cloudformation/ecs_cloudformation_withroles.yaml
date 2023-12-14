@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation Template for ECS Services and Task Definitions
+
+Parameters:
+  ECRRepositoryURI:
+    Type: String
+    Description: URI of the ECR repository
+  ECSExecutionRole:
+    Type: String
+    Description: ARN of the execution role
+  ECSTaskRole:
+    Type: String
+    Description: ARN of the task role
+  ECSTaskFamily:
+    Type: String
+    Description: name of the task definition
+  ECSCluster:
+    Type: String
+    Description: name of the cluster
+
+
+Resources:
+
+  # Example Task Definition
+  MyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref ECSTaskFamily
+      Cpu: '300' # Specify CPU units
+      Memory: '300' # Specify memory in MB
+      NetworkMode: bridge # Specify the network mode (bridge awsvpc (awsvpc needs network configuration in task definition))
+      RequiresCompatibilities:
+        - EC2 # or FARGATE
+      ExecutionRoleArn: !Ref ECSExecutionRole # Specify the execution role ARN
+      TaskRoleArn: !Ref ECSTaskRole # Specify the task role ARN
+      ContainerDefinitions:
+        - Name: mycontainer
+          Image: !Sub '${ECRRepositoryURI}:latest' # Image from ECR
+          Cpu: 300
+          Memory: 300
+          Essential: true
+          WorkingDirectory: "/code/feed/"
+          Command: 
+            - "python"
+            - "-m"
+            - !Sub "${ECSTaskFamily}"
+          MountPoints: 
+            - SourceVolume: "configVolume"
+              ContainerPath: "/config_cf.yaml"
+              ReadOnly: false
+          LogConfiguration: 
+            LogDriver: "awslogs"
+            Options: 
+              awslogs-group: "mycontainer"
+              awslogs-region: "ap-northeast-1"
+              awslogs-stream-prefix: !Sub "${ECSTaskFamily}"
+      Volumes:
+        - Name: configVolume
+          Host:
+            SourcePath: "/config_cf.yaml"
+
+
+  # Example ECS Service
+  MyECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: !Sub 'test-${ECSTaskFamily}'
+      TaskDefinition: !Ref MyTaskDefinition
+      DesiredCount: 1
+      LaunchType: EC2
+      DeploymentConfiguration:
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      SchedulingStrategy: REPLICA
+      PlacementStrategies:
+        - Type: spread
+          Field: attribute:ecs.availability-zone
+        - Type: spread
+          Field: instanceId
+      DeploymentController:
+        Type: ECS
+
+Outputs:
+  ServiceArn:
+    Description: "ARN of the ECS Service"
+    Value: !Ref MyECSService
+  TaskDefinitionArn:
+    Description: "ARN of the Task Definition"
+    Value: !Ref MyTaskDefinition
