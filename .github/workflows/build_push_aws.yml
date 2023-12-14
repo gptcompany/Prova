@@ -78,7 +78,9 @@ jobs:
     
     - name: Copy CloudFormation file to EC2
       run: |
-        scp -i ${{env.SSH_PRIVATE_KEY}} -o StrictHostKeyChecking=no ./cloudformation/ecs_cloudformation.yaml ec2-user@your-ec2-instance-ip:~/cloudformation/ecs_cloudformation.yaml
+        echo "${{env.SSH_PRIVATE_KEY}}" > ssh_key
+        chmod 600 ssh_key
+        scp -i ssh_key -o StrictHostKeyChecking=no ./cloudformation/ecs_cloudformation.yaml ec2-user@your-ec2-instance-ip:~/cloudformation/ecs_cloudformation.yaml
     
     # Outputs
     outputs:
