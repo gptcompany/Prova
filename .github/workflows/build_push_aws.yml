@@ -81,7 +81,8 @@ jobs:
       run: |
         echo "${{env.SSH_PRIVATE_KEY}}" > ssh_key
         chmod 600 ssh_key
-        scp -i ssh_key -o StrictHostKeyChecking=no ./cloudformation/ ec2-user@${{env.AWS_EC2_IP}}.${{env.AWS_REGION}}.compute.amazonaws.com:~/cloudformation/
+        scp -i ssh_key -o StrictHostKeyChecking=no -r ./cloudformation/ ec2-user@${{env.AWS_EC2_IP}}.${{env.AWS_REGION}}.compute.amazonaws.com:~/cloudformation/
+
     
     # Outputs
     outputs:
