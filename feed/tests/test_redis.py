@@ -108,6 +108,9 @@ if __name__ == "__main__":
     
     add_and_check_key(redis_host, redis_port, 'test_key', 'test_value')
     
+    print('test with the method from cryptofeed:')    
+    test_redis_connection(redis_host, redis_port, ssl=True)
+    
     print('Create Redis client')
     r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True, ssl=ssl_enabled)
 
@@ -116,5 +119,3 @@ if __name__ == "__main__":
         asyncio.run(check_last_update(redis_host, redis_port, exchanges, symbols))
     else:
         print("Failed to connect to Redis. Please check your connection settings.")
-    print('test with the method from cryptofeed:')    
-    test_redis_connection(redis_host, redis_port, ssl=True)
