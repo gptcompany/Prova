@@ -4,8 +4,7 @@ from redis import asyncio as aioredis
 from yapic import json
 
 from cryptofeed.backends.backend import BackendBookCallback, BackendCallback, BackendQueue
-from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey
-from cryptofeed.backends.redis.BookRedis import RedisZSetCallback, RedisCallback
+from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey, RedisZSetCallback, RedisCallback
 class CustomRedisCallback(RedisCallback):
     def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, none_to='None', numeric_type=float, ssl=False, decode_responses=False, **kwargs):
         """
