@@ -13,7 +13,7 @@ def add_and_check_key(redis_host, redis_port, key, value):
     """
     try:
         # Connect to Redis
-        r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True, ssl=ssl_enabled)
+        r = redis.Redis(host=redis_host, port=redis_port, ssl=ssl_enabled)
 
         # Add key-value pair
         r.set(key, value)
@@ -53,7 +53,7 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols):
     """
     try:
         # Connect to Redis
-        r = redis.Redis(host=redis_host, port=redis_port)
+        r = redis.Redis(host=redis_host, port=redis_port, ssl=ssl_enabled)
 
         while True:
             current_time = datetime.now(timezone.utc)
