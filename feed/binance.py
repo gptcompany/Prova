@@ -55,7 +55,7 @@ async def check_last_update(redis_host, redis_port, key_pattern, use_ssl=True, t
             print('Checking last update...')
             
             # Retrieve the latest entry's score (timestamp)
-            last_update_score = r.zrange(key_pattern, -1, -1, withscores=True)
+            last_update_score = await r.zrange(key_pattern, -1, -1, withscores=True)
 
             if not last_update_score:
                 print("No data found for the specified key pattern.")
