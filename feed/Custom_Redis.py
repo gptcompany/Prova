@@ -31,7 +31,7 @@ class CustomRedisZSetCallback(CustomRedisCallback):
         super().__init__(host=host, port=port, socket=socket, key=key, numeric_type=numeric_type, score_key=score_key, decode_responses=decode_responses, **kwargs)
 
     async def writer(self):
-        # Modify the Redis connection to include SSL and decode_responses
+        # Modify the Redis connection to include decode_responses
         print(self.redis)
         conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
 
