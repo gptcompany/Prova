@@ -62,7 +62,7 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols):
             for exchange in exchanges:
                 for symbol in symbols:
                     key_pattern = f"{exchange}:{symbol}:book"
-                    
+                    print('before retrieve the entry in redis...')
                     # Retrieve the latest entry's score (timestamp)
                     last_update_score = r.zrange(key_pattern, -1, -1, withscores=True)
 
