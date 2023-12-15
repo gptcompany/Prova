@@ -86,7 +86,7 @@ async def check_last_update(redis_host, redis_port, key_pattern, threshold_secon
         if time_diff > threshold_seconds:
             print(f"Last update is more than {threshold_seconds} seconds old. Last update was at {last_update_time.isoformat()}")
             return False, last_update_time.isoformat()
-        else print('all ok!')
+        else: print('all ok!')
 
         return print('HEALTHCHECK OK: Last update >>>>>>>>>>>>>', last_update_time.isoformat())
 
