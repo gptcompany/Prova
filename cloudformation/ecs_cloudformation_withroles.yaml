@@ -73,8 +73,8 @@ Resources:
         DeploymentCircuitBreaker:
           Enable: true
           Rollback: true
-        MaximumPercent: 200
-        MinimumHealthyPercent: 100
+        MaximumPercent: 150
+        MinimumHealthyPercent: 50
       SchedulingStrategy: REPLICA
       PlacementStrategies:
         - Type: spread
