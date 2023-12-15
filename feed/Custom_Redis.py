@@ -24,7 +24,7 @@ class CustomRedisCallback(RedisCallback):
         self.decode_responses = decode_responses
 
 class CustomRedisZSetCallback(CustomRedisCallback):
-    def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, numeric_type=float, score_key='timestamp', decode_responses=True, **kwargs):
+    def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, numeric_type=float, score_key='timestamp', ssl=True, decode_responses=True, **kwargs):
         """
         Custom Redis ZSet Callback with SSL and decode_responses support.
         """

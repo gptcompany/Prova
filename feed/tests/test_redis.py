@@ -126,7 +126,7 @@ async def main():
         print('Check if Redis is connected')
         if await is_redis_connected(r):
             await asyncio.gather(
-                #check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled),
+                check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled),
                 test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled)
             )
         else:
