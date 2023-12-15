@@ -3,14 +3,18 @@ import asyncio
 from datetime import datetime, timezone
 from redis import asyncio as aioredis
 async def test_redis_connection(host, port, use_ssl):
-    try:
-        url = f"rediss://{host}:{port}" if use_ssl else f"redis://{host}:{port}"
-        r = await aioredis.from_url(url, decode_responses=True)
+    try: 
+        while True: 
         
-        # Test set and get
-        await r.set("test_key", "test_value")
-        value = await r.get("test_key")
-        print(f"Retrieved value: {value}")
+            url = f"rediss://{host}:{port}" if use_ssl else f"redis://{host}:{port}"
+            r = await aioredis.from_url(url, decode_responses=True)
+            
+            # Test set and get
+            await r.set("test_key", "test_value")
+            value = await r.get("test_key")
+            print(f"Retrieved value: {value}")
+            
+            await asyncio.sleep(3)
 
     except Exception as e:
         print(f"Error connecting to Redis: {e}")
@@ -54,7 +58,7 @@ async def is_redis_connected(redis_client):
     """
     try:
         print('trying to pint...')
-        response = redis_client.ping()
+        response = await redis_client.ping()
         print(f"Redis Ping Response: {response}")
         return True
     except Exception as e:
@@ -122,7 +126,7 @@ async def main():
         print('Check if Redis is connected')
         if await is_redis_connected(r):
             await asyncio.gather(
-                check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled),
+                #check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled),
                 test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled)
             )
         else:
