@@ -1,17 +1,45 @@
 import redis
 import asyncio
 from datetime import datetime, timezone
+def add_and_check_key(redis_host, redis_port, key, value):
+    """
+    Adds a key and value to Redis and checks if the value persists.
 
+    Parameters:
+    - redis_host (str): The hostname of the Redis server.
+    - redis_port (int): The port number of the Redis server.
+    - key (str): The key to add to Redis.
+    - value (str): The value to associate with the key.
+    """
+    try:
+        # Connect to Redis
+        r = redis.Redis(host=redis_host, port=redis_port)
+
+        # Add key-value pair
+        r.set(key, value)
+
+        # Retrieve the value to check if it persisted
+        retrieved_value = r.get(key)
+
+        # Check if the retrieved value matches the original value
+        if retrieved_value and retrieved_value.decode('utf-8') == value:
+            print(f"Success: The value for '{key}' is persisted as '{retrieved_value.decode('utf-8')}'")
+        else:
+            print(f"Failed: The value for '{key}' did not persist or is incorrect.")
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
 def is_redis_connected(redis_client):
     """
     Check if the Redis server is connected.
     """
     try:
         print('trying to pint...')
-        print(redis_client.ping())
-        print('ping ok')
+        response = redis_client.ping()
+        print(f"Redis Ping Response: {response}")
         return True
-    except (redis.exceptions.ConnectionError, redis.exceptions.BusyLoadingError):
+    except Exception as e:
+        print(f"Redis connection error: {e}")
         return False
 async def check_last_update(redis_host, redis_port, exchanges, symbols):
     """
@@ -61,6 +89,9 @@ if __name__ == "__main__":
     redis_port = 6379
     exchanges = ['BITFINEX', 'BINANCE']
     symbols = ['BTC-USDT', 'ETH-USDT']
+    
+    add_and_check_key(redis_host, redis_port, 'test_key', 'test_value')
+    
     print('Create Redis client')
     r = redis.Redis(host=redis_host, port=redis_port)
 
