@@ -1,6 +1,21 @@
 import redis
 import asyncio
 from datetime import datetime, timezone
+def test_redis_connection(host, port, use_ssl):
+    try:
+        url = f"rediss://{host}:{port}" if use_ssl else f"redis://{host}:{port}"
+        r = redis.Redis.from_url(url, ssl=use_ssl, decode_responses=True)
+        
+        # Test set and get
+        r.set("test_key", "test_value")
+        value = r.get("test_key")
+        print(f"Retrieved value: {value}")
+
+    except Exception as e:
+        print(f"Error connecting to Redis: {e}")
+
+# Replace with your ElastiCache Redis endpoint and port
+test_redis_connection('your-elasticache-endpoint', 6379, True)
 def add_and_check_key(redis_host, redis_port, key, value):
     """
     Adds a key and value to Redis and checks if the value persists.
@@ -101,3 +116,5 @@ if __name__ == "__main__":
         asyncio.run(check_last_update(redis_host, redis_port, exchanges, symbols))
     else:
         print("Failed to connect to Redis. Please check your connection settings.")
+    print('test with the method from cryptofeed:')    
+    test_redis_connection(redis_host, redis_port, ssl=True)

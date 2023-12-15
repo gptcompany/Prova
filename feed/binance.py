@@ -43,59 +43,38 @@ async def book(book, receipt_timestamp):
     if book.sequence_number:
         assert isinstance(book.sequence_number, int)
     await asyncio.sleep(0.5)
-async def check_last_update(redis_host, redis_port, key_pattern, threshold_seconds=0.3):
-    
+async def check_last_update(redis_host, redis_port, key_pattern, threshold_seconds=0.3, check_interval=1):
     """
-    Check if the last update in Redis for a given key pattern is older than the specified threshold in seconds.
-    Logs a warning if the last update is more than threshold_seconds old.
-
-    Parameters:
-    - redis_host (str): Host address for the Redis server.
-    - redis_port (int): Port number for the Redis server.
-    - key_pattern (str): Pattern of the keys to check (e.g., 'exchange:symbol:book').
-    - threshold_seconds (int): Threshold in seconds to determine if the update is recent.
-
-    Returns:
-    - bool: True if the last update is within the threshold, False otherwise.
-    - str: The timestamp of the last update or an error message.
+    Continuously checks if the last update in Redis for a given key pattern is older than the specified threshold in seconds.
     """
-    try:
-        # Connect to Redis
-        r = redis.Redis(host=redis_host, port=redis_port, ssl=True, decode_responses=True)
-        print('checking last update...')
-        # Assuming the most recent data is stored in a sorted set with timestamps as scores
-        # Retrieve the latest entry's score (timestamp)
-        last_update_score = r.zrange(key_pattern, -1, -1, withscores=True)
+    while True:
+        try:
+            # Connect to Redis
+            r = redis.Redis(host=redis_host, port=redis_port, ssl=True, decode_responses=True)
+            print('Checking last update...')
+            
+            # Retrieve the latest entry's score (timestamp)
+            last_update_score = r.zrange(key_pattern, -1, -1, withscores=True)
 
-        if not last_update_score:
-            return print("No data found for the specified key pattern.")
+            if not last_update_score:
+                print("No data found for the specified key pattern.")
+            else:
+                # Extract the timestamp (score) of the last update
+                _, last_timestamp = last_update_score[0]
+                last_update_time = datetime.fromtimestamp(last_timestamp, tz=timezone.utc)
+                current_time = datetime.now(timezone.utc)
+                time_diff = (current_time - last_update_time).total_seconds()
 
-        # Extract the timestamp (score) of the last update
-        _, last_timestamp = last_update_score[0]
+                if time_diff > threshold_seconds:
+                    print(f"Last update is more than {threshold_seconds} seconds old. Last update was at {last_update_time.isoformat()}")
+                else:
+                    print('All ok! Last update:', last_update_time.isoformat())
 
-        # Convert timestamp to a datetime object
-        last_update_time = datetime.fromtimestamp(last_timestamp, tz=timezone.utc)
-
-        # Current time
-        current_time = datetime.now(timezone.utc)
-
-        # Calculate time difference in seconds
-        time_diff = (current_time - last_update_time).total_seconds()
-
-        # Check if the time difference is greater than the threshold
-        if time_diff > threshold_seconds:
-            print(f"Last update is more than {threshold_seconds} seconds old. Last update was at {last_update_time.isoformat()}")
-            return False, last_update_time.isoformat()
-        else: print('all ok!')
-
-        return print('HEALTHCHECK OK: Last update >>>>>>>>>>>>>', last_update_time.isoformat())
-
-    except Exception as e:
-        logger.error(f"Error occurred: {e}")
-        return print(f"Error occurred: {e}")
-    
-    finally:
-        await asyncio.sleep(0.5)
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
+        
+        # Wait for a specified interval before checking again
+        await asyncio.sleep(check_interval)
 
 # Example usage of the function
 # You need to replace '127.0.0.1', 6379, and 'your:key:pattern' with your actual Redis host, port, and key pattern.
@@ -172,7 +151,9 @@ def main():
     loop.create_task(check_last_update(
                                         redis_host=fh.config.config['redis_host'], 
                                         redis_port=fh.config.config['redis_port'], 
-                                        key_pattern='BINANCE:BTC-USDT:book'
+                                        key_pattern='BINANCE:BTC-USDT:book',
+                                        threshold_seconds=0.3,
+                                        check_interval=1,
                                         )
                     )
     loop.run_forever()
