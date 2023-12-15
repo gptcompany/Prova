@@ -13,7 +13,7 @@ def add_and_check_key(redis_host, redis_port, key, value):
     """
     try:
         # Connect to Redis
-        r = redis.Redis(host=redis_host, port=redis_port, decode_respose=True, ssl=ssl_enabled)
+        r = redis.Redis(host=redis_host, port=redis_port, decode_resposes=True, ssl=ssl_enabled)
 
         # Add key-value pair
         r.set(key, value)
