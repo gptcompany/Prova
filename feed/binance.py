@@ -10,6 +10,7 @@ import asyncio
 import logging
 import sys
 from datetime import datetime, timezone
+from Custom_Redis import CustomBookRedis
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
 async def trade(t, receipt_timestamp):
@@ -42,7 +43,7 @@ async def book(book, receipt_timestamp):
     if book.sequence_number:
         assert isinstance(book.sequence_number, int)
     await asyncio.sleep(0.5)
-async def check_last_update(redis_host, redis_port, key_pattern, threshold_seconds=0.1):
+async def check_last_update(redis_host, redis_port, key_pattern, threshold_seconds=0.01):
     
     """
     Check if the last update in Redis for a given key pattern is older than the specified threshold in seconds.
@@ -91,6 +92,8 @@ async def check_last_update(redis_host, redis_port, key_pattern, threshold_secon
     except Exception as e:
         logger.error(f"Error occurred: {e}")
         return False, f"Error occurred: {e}"
+    
+    await asyncio.sleep(0.5)
 
 # Example usage of the function
 # You need to replace '127.0.0.1', 6379, and 'your:key:pattern' with your actual Redis host, port, and key pattern.
@@ -117,7 +120,7 @@ def main():
                     L2_BOOK:  [ #book,
                         BookCallback(book),
                         #BookCallback(
-                            BookRedis(
+                            CustomBookRedis(
                             host=fh.config.config['redis_host'], 
                             port=fh.config.config['redis_port'], 
                             snapshots_only=False,
