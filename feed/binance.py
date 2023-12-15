@@ -43,7 +43,7 @@ async def book(book, receipt_timestamp):
     if book.sequence_number:
         assert isinstance(book.sequence_number, int)
     await asyncio.sleep(0.5)
-async def check_last_update(redis_host, redis_port, key_pattern, threshold_seconds=0.01):
+async def check_last_update(redis_host, redis_port, key_pattern, threshold_seconds=0.3):
     
     """
     Check if the last update in Redis for a given key pattern is older than the specified threshold in seconds.
@@ -68,7 +68,7 @@ async def check_last_update(redis_host, redis_port, key_pattern, threshold_secon
         last_update_score = r.zrange(key_pattern, -1, -1, withscores=True)
 
         if not last_update_score:
-            return False, "No data found for the specified key pattern."
+            return print("No data found for the specified key pattern.")
 
         # Extract the timestamp (score) of the last update
         _, last_timestamp = last_update_score[0]
@@ -84,16 +84,18 @@ async def check_last_update(redis_host, redis_port, key_pattern, threshold_secon
 
         # Check if the time difference is greater than the threshold
         if time_diff > threshold_seconds:
-            logger.warning(f"Last update is more than {threshold_seconds} seconds old. Last update was at {last_update_time.isoformat()}")
+            print(f"Last update is more than {threshold_seconds} seconds old. Last update was at {last_update_time.isoformat()}")
             return False, last_update_time.isoformat()
+        else print('all ok!')
 
-        return True, last_update_time.isoformat()
+        return print('HEALTHCHECK OK: Last update >>>>>>>>>>>>>', last_update_time.isoformat())
 
     except Exception as e:
         logger.error(f"Error occurred: {e}")
-        return False, f"Error occurred: {e}"
+        return print(f"Error occurred: {e}")
     
-    await asyncio.sleep(0.5)
+    finally:
+        await asyncio.sleep(0.5)
 
 # Example usage of the function
 # You need to replace '127.0.0.1', 6379, and 'your:key:pattern' with your actual Redis host, port, and key pattern.
