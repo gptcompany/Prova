@@ -2,6 +2,15 @@ import redis
 import asyncio
 from datetime import datetime, timezone
 
+def is_redis_connected(redis_client):
+    """
+    Check if the Redis server is connected.
+    """
+    try:
+        redis_client.ping()
+        return True
+    except (redis.exceptions.ConnectionError, redis.exceptions.BusyLoadingError):
+        return False
 async def check_last_update(redis_host, redis_port, exchanges, symbols):
     """
     Continuously checks the timestamp of the last update in Redis for each exchange and symbol pair.
@@ -50,4 +59,11 @@ if __name__ == "__main__":
     redis_port = 6379
     exchanges = ['BITFINEX', 'BINANCE']
     symbols = ['BTC-USDT', 'ETH-USDT']
-    asyncio.run(check_last_update(redis_host, redis_port, exchanges, symbols))
+    # Create Redis client
+    r = redis.Redis(host=redis_host, port=redis_port)
+
+    # Check if Redis is connected
+    if is_redis_connected(r):
+        asyncio.run(check_last_update(redis_host, redis_port, exchanges, symbols))
+    else:
+        print("Failed to connect to Redis. Please check your connection settings.")
