@@ -44,13 +44,13 @@ async def book(book, receipt_timestamp):
     if book.sequence_number:
         assert isinstance(book.sequence_number, int)
     await asyncio.sleep(0.5)
-async def check_last_update(host, port, key_pattern, use_ssl=True, threshold_seconds=0.3, check_interval=1):
+async def check_last_update(redis_host, redis_port, key_pattern, use_ssl=True, threshold_seconds=0.3, check_interval=1):
     """
     Continuously checks if the last update in Redis for a given key pattern is older than the specified threshold in seconds.
     """
     while True:
         try:
-            url = f"rediss://{host}:{port}" if use_ssl else f"redis://{host}:{port}"
+            url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
             r = await aioredis.from_url(url, decode_responses=True)
             print('Checking last update...')
             
