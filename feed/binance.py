@@ -165,11 +165,10 @@ def main():
     loop.create_task(check_last_update(
                                         redis_host=fh.config.config['redis_host'], 
                                         redis_port=fh.config.config['redis_port'], 
-                                        key_pattern='exchange:symbol:book'
+                                        key_pattern='BINANCE:BTC-USDT:book'
                                         )
                     )
     loop.run_forever()
-
 
 if __name__ == '__main__':
     main()
