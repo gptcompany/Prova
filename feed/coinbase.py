@@ -11,8 +11,8 @@ from decimal import Decimal
 import asyncio
 import logging
 from Custom_Coinbase import CustomCoinbase
-
-logging.basicConfig(filename='/var/log/coinbase.log', level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
+import sys
+logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
 async def trade(t, receipt_timestamp):
     assert isinstance(t.timestamp, float)

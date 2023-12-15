@@ -6,7 +6,7 @@ authors = ["gawaboga <samuele.morzenti@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.9"
 cryptofeed = "^2.3.2"
 redis = "^5.0.1"
 

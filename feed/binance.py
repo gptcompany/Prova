@@ -8,8 +8,9 @@ from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, Fundi
 from decimal import Decimal
 import asyncio
 import logging
+import sys
 from datetime import datetime, timezone
-logging.basicConfig(filename='/var/log/binance.log', level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
+logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
 async def trade(t, receipt_timestamp):
     assert isinstance(t.timestamp, float)

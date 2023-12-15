@@ -1,8 +1,9 @@
 from cryptofeed import FeedHandler
 from cryptofeed.exchanges import Coinbase, Binance, Bitfinex
-# import logging
-# logging.basicConfig(filename='/var/log/nbbo.log', level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
-# logger = logging.getLogger(__name__)
+import sys
+import logging
+logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
+logger = logging.getLogger(__name__)
 def nbbo_update(symbol, bid, bid_size, ask, ask_size, bid_feed, ask_feed):
     print(f'Pair: {symbol} Bid Price: {bid:.2f} Bid Size: {bid_size:.6f} Bid Feed: {bid_feed} Ask Price: {ask:.2f} Ask Size: {ask_size:.6f} Ask Feed: {ask_feed}')
 
