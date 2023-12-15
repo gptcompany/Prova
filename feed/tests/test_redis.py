@@ -1,18 +1,23 @@
 import redis
 import asyncio
 from datetime import datetime, timezone
-def test_redis_connection(host, port, use_ssl):
+from redis import asyncio as aioredis
+async def test_redis_connection(host, port, use_ssl):
     try:
         url = f"rediss://{host}:{port}" if use_ssl else f"redis://{host}:{port}"
-        r = redis.Redis.from_url(url, ssl=use_ssl, decode_responses=True)
+        r = await aioredis.from_url(url, ssl=use_ssl, decode_responses=True)
         
         # Test set and get
-        r.set("test_key", "test_value")
+        await r.set("test_key", "test_value")
         value = r.get("test_key")
         print(f"Retrieved value: {value}")
 
     except Exception as e:
         print(f"Error connecting to Redis: {e}")
+    
+    finally:
+        # Close the connection
+        await r.close()
 
 # Replace with your ElastiCache Redis endpoint and port
 test_redis_connection('your-elasticache-endpoint', 6379, True)
