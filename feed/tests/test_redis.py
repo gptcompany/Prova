@@ -17,7 +17,7 @@ async def test_redis_connection(host, port, use_ssl):
     
     finally:
         # Close the connection
-        await r.close()
+        await r.aclose()
 
 # Replace with your ElastiCache Redis endpoint and port
 def add_and_check_key(redis_host, redis_port, key, value):
@@ -48,7 +48,7 @@ def add_and_check_key(redis_host, redis_port, key, value):
 
     except Exception as e:
         print(f"Error occurred: {e}")
-def is_redis_connected(redis_client):
+async def is_redis_connected(redis_client):
     """
     Check if the Redis server is connected.
     """
@@ -108,7 +108,7 @@ async def main():
     ssl_enabled = True
     exchanges = ['BITFINEX', 'BINANCE']
     symbols = ['BTC-USDT', 'ETH-USDT']
-
+    r = None
     # Assuming add_and_check_key is synchronous
     add_and_check_key(redis_host, redis_port, 'test_key', 'test_value')
 
@@ -126,6 +126,10 @@ async def main():
         )
     else:
         print("Failed to connect to Redis. Please check your connection settings.")
+    
+    finally:
+        if r:
+            await r.aclose()
         
 if __name__ == "__main__":
     asyncio.run(main())
