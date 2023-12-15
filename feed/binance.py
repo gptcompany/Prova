@@ -10,6 +10,7 @@ import asyncio
 import logging
 import sys
 from datetime import datetime, timezone
+from redis import asyncio as aioredis
 from Custom_Redis import CustomBookRedis
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
@@ -43,14 +44,14 @@ async def book(book, receipt_timestamp):
     if book.sequence_number:
         assert isinstance(book.sequence_number, int)
     await asyncio.sleep(0.5)
-async def check_last_update(redis_host, redis_port, key_pattern, threshold_seconds=0.3, check_interval=1):
+async def check_last_update(host, port, key_pattern, use_ssl=True, threshold_seconds=0.3, check_interval=1):
     """
     Continuously checks if the last update in Redis for a given key pattern is older than the specified threshold in seconds.
     """
     while True:
         try:
-            # Connect to Redis
-            r = redis.Redis(host=redis_host, port=redis_port, ssl=True, decode_responses=True)
+            url = f"rediss://{host}:{port}" if use_ssl else f"redis://{host}:{port}"
+            r = await aioredis.from_url(url, decode_responses=True)
             print('Checking last update...')
             
             # Retrieve the latest entry's score (timestamp)
@@ -72,9 +73,14 @@ async def check_last_update(redis_host, redis_port, key_pattern, threshold_secon
 
         except Exception as e:
             logger.error(f"Error occurred: {e}")
-        
+        finally:
+        # Close the connection
+            await r.aclose()
         # Wait for a specified interval before checking again
         await asyncio.sleep(check_interval)
+        
+        
+        
 
 # Example usage of the function
 # You need to replace '127.0.0.1', 6379, and 'your:key:pattern' with your actual Redis host, port, and key pattern.
