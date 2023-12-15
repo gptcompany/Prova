@@ -7,7 +7,9 @@ def is_redis_connected(redis_client):
     Check if the Redis server is connected.
     """
     try:
-        redis_client.ping()
+        print('trying to pint...')
+        print(redis_client.ping())
+        print('ping ok')
         return True
     except (redis.exceptions.ConnectionError, redis.exceptions.BusyLoadingError):
         return False
@@ -59,10 +61,10 @@ if __name__ == "__main__":
     redis_port = 6379
     exchanges = ['BITFINEX', 'BINANCE']
     symbols = ['BTC-USDT', 'ETH-USDT']
-    # Create Redis client
+    print('Create Redis client')
     r = redis.Redis(host=redis_host, port=redis_port)
 
-    # Check if Redis is connected
+    print('Check if Redis is connected')
     if is_redis_connected(r):
         asyncio.run(check_last_update(redis_host, redis_port, exchanges, symbols))
     else:
