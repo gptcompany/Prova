@@ -13,7 +13,7 @@ def add_and_check_key(redis_host, redis_port, key, value):
     """
     try:
         # Connect to Redis
-        r = redis.Redis(host=redis_host, port=redis_port)
+        r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True, ssl=ssl_enabled)
 
         # Add key-value pair
         r.set(key, value)
@@ -87,13 +87,14 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols):
 if __name__ == "__main__":
     redis_host = "redis-0001-001.redis.tetmd7.apne1.cache.amazonaws.com"
     redis_port = 6379
+    ssl_enabled = True
     exchanges = ['BITFINEX', 'BINANCE']
     symbols = ['BTC-USDT', 'ETH-USDT']
     
     add_and_check_key(redis_host, redis_port, 'test_key', 'test_value')
     
     print('Create Redis client')
-    r = redis.Redis(host=redis_host, port=redis_port)
+    r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True, ssl=ssl_enabled)
 
     print('Check if Redis is connected')
     if is_redis_connected(r):
