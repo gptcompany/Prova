@@ -9,7 +9,7 @@ async def test_redis_connection(host, port, use_ssl):
         
         # Test set and get
         await r.set("test_key", "test_value")
-        value = r.get("test_key")
+        value = await r.get("test_key")
         print(f"Retrieved value: {value}")
 
     except Exception as e:
