@@ -5,7 +5,7 @@ from redis import asyncio as aioredis
 async def test_redis_connection(host, port, use_ssl):
     try:
         url = f"rediss://{host}:{port}" if use_ssl else f"redis://{host}:{port}"
-        r = await aioredis.from_url(url, ssl=use_ssl, decode_responses=True)
+        r = await aioredis.from_url(url, decode_responses=True)
         
         # Test set and get
         await r.set("test_key", "test_value")
@@ -20,7 +20,6 @@ async def test_redis_connection(host, port, use_ssl):
         await r.close()
 
 # Replace with your ElastiCache Redis endpoint and port
-test_redis_connection('your-elasticache-endpoint', 6379, True)
 def add_and_check_key(redis_host, redis_port, key, value):
     """
     Adds a key and value to Redis and checks if the value persists.
@@ -61,7 +60,7 @@ def is_redis_connected(redis_client):
     except Exception as e:
         print(f"Redis connection error: {e}")
         return False
-async def check_last_update(redis_host, redis_port, exchanges, symbols):
+async def check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl):
     """
     Continuously checks the timestamp of the last update in Redis for each exchange and symbol pair.
 
@@ -73,7 +72,7 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols):
     """
     try:
         # Connect to Redis
-        r = redis.Redis(host=redis_host, port=redis_port, ssl=ssl_enabled, decode_responses=True)
+        r = redis.Redis(host=redis_host, port=redis_port, ssl=use_ssl, decode_responses=True)
 
         while True:
             current_time = datetime.now(timezone.utc)
@@ -103,24 +102,30 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols):
 
 # Usage
 # asyncio.run(check_last_update(redis_host, redis_port, ['bitfinex', 'binance'], ['BTC-USDT', 'ETH-USDT']))
-
-if __name__ == "__main__":
+async def main():
     redis_host = "redis-0001-001.redis.tetmd7.apne1.cache.amazonaws.com"
     redis_port = 6379
     ssl_enabled = True
     exchanges = ['BITFINEX', 'BINANCE']
     symbols = ['BTC-USDT', 'ETH-USDT']
-    
+
+    # Assuming add_and_check_key is synchronous
     add_and_check_key(redis_host, redis_port, 'test_key', 'test_value')
-    
-    print('test with the method from cryptofeed:')    
-    test_redis_connection(redis_host, redis_port, ssl=True)
-    
+
+    print('Test with the method from cryptofeed:')
+    await test_redis_connection(redis_host, redis_port, use_ssl=ssl_enabled)
+
     print('Create Redis client')
-    r = redis.Redis(host=redis_host, port=redis_port, decode_responses=True, ssl=ssl_enabled)
+    r = await aioredis.Redis(host=redis_host, port=redis_port, decode_responses=True, ssl=ssl_enabled)
 
     print('Check if Redis is connected')
-    if is_redis_connected(r):
-        asyncio.run(check_last_update(redis_host, redis_port, exchanges, symbols))
+    if await is_redis_connected(r):
+        await asyncio.gather(
+            check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled),
+            test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled)
+        )
     else:
         print("Failed to connect to Redis. Please check your connection settings.")
+        
+if __name__ == "__main__":
+    asyncio.run(main())
