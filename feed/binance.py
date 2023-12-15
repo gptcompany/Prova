@@ -114,8 +114,8 @@ def main():
                     
                 },
                 callbacks={
-                    L2_BOOK: #book, # [
-                        #BookCallback(book),
+                    L2_BOOK:  [ #book,
+                        BookCallback(book),
                         #BookCallback(
                             BookRedis(
                             host=fh.config.config['redis_host'], 
@@ -125,7 +125,7 @@ def main():
                             #score_key='timestamp',
                                             )
                             #         ),
-                    #],
+                    ],
 
                 },
                 #cross_check=True,
