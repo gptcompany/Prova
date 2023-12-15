@@ -61,7 +61,7 @@ async def check_last_update(redis_host, redis_port, key_pattern, threshold_secon
     try:
         # Connect to Redis
         r = redis.Redis(host=redis_host, port=redis_port, ssl=True, decode_responses=True)
-
+        print('checking last update...')
         # Assuming the most recent data is stored in a sorted set with timestamps as scores
         # Retrieve the latest entry's score (timestamp)
         last_update_score = r.zrange(key_pattern, -1, -1, withscores=True)
@@ -103,6 +103,8 @@ def main():
     #symbols = fh.config.config['bf_symbols']
     symbols = ['BTC-USDT','ETH-BTC']
     fh.run(start_loop=False)
+    print(fh.config.config['redis_host'])
+    print(fh.config.config['redis_port'])
     fh.add_feed(Binance(
                 # subscription={}, 
                 # callbacks={},
