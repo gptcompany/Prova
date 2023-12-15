@@ -60,7 +60,7 @@ async def check_last_update(redis_host, redis_port, key_pattern, threshold_secon
     """
     try:
         # Connect to Redis
-        r = redis.Redis(host=redis_host, port=redis_port, ssl=ssl_enabled)
+        r = redis.Redis(host=redis_host, port=redis_port, ssl=True, decode_responses=True)
 
         # Assuming the most recent data is stored in a sorted set with timestamps as scores
         # Retrieve the latest entry's score (timestamp)
@@ -119,6 +119,7 @@ def main():
                             host=fh.config.config['redis_host'], 
                             port=fh.config.config['redis_port'], 
                             snapshots_only=False,
+                            ssl=True,
                             #score_key='timestamp',
                                             )
                             #         ),
@@ -145,6 +146,7 @@ def main():
                                 TradeRedis(
                                 host=fh.config.config['redis_host'], 
                                 port=fh.config.config['redis_port'],
+                                ssl=True,
                                                     )
                                 #       ),
                         #],
