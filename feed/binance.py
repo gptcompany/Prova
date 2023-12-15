@@ -122,6 +122,7 @@ def main():
                             port=fh.config.config['redis_port'], 
                             snapshots_only=False,
                             ssl=True,
+                            decode_responses=True,
                             #score_key='timestamp',
                                             )
                             #         ),
@@ -149,6 +150,7 @@ def main():
                                 host=fh.config.config['redis_host'], 
                                 port=fh.config.config['redis_port'],
                                 ssl=True,
+                                decode_responses=True,
                                                     )
                                 #       ),
                         #],
