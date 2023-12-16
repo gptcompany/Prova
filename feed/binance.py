@@ -44,7 +44,7 @@ async def book(book, receipt_timestamp):
     if book.sequence_number:
         assert isinstance(book.sequence_number, int)
     await asyncio.sleep(0.5)
-async def check_last_update(redis_host, redis_port, use_ssl=True, threshold_seconds=0.3, check_interval=1, symbols=symbols):
+async def check_last_update(redis_host, redis_port, use_ssl=True, threshold_seconds=0.3, check_interval=1, symbols='BTC-USDT'):
     """
     Continuously checks if the last update in Redis for a given key pattern is older than the specified threshold in seconds.
     """
@@ -80,12 +80,6 @@ async def check_last_update(redis_host, redis_port, use_ssl=True, threshold_seco
             # Wait for a specified interval before checking again
             await asyncio.sleep(check_interval)
         
-        
-        
-
-# Example usage of the function
-# You need to replace '127.0.0.1', 6379, and 'your:key:pattern' with your actual Redis host, port, and key pattern.
-# Example: check_last_update('127.0.0.1', 6379, 'exchange:symbol:book')
 def main():
     print('main')
     logger.info('Starting binance feed')
