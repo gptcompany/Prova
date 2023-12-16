@@ -33,32 +33,32 @@ class CustomRedisZSetCallback(CustomRedisCallback):
 
     async def writer(self):
         # Modify the Redis connection to include decode_responses
-        print("CustomRedisZSetCallback writer started")
+        #print("CustomRedisZSetCallback writer started")
         conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
         while self.running:
-            print("Entering the async with self.read_queue() block")
+            #print("Entering the async with self.read_queue() block")
             async with self.read_queue() as updates:
-                print("Updates received, processing...")
+                #print("Updates received, processing...")
                 if not updates:
-                    print("No updates to process")
+                    #print("No updates to process")
                     continue
                 async with conn.pipeline(transaction=False) as pipe:
                     for update in updates:
                         try:
-                            print(f"Processing update: {update}")
+                            #print(f"Processing update: {update}")
                             key = f"{self.key}-{update['exchange']}-{update['symbol']}"
                             score = update[self.score_key]
                             value = json.dumps(update)
-                            print(f"Adding to pipeline - Key: {key}, Score: {score}, Value: {value}")
+                            #print(f"Adding to pipeline - Key: {key}, Score: {score}, Value: {value}")
                             pipe.zadd(key, {value: score}, nx=True)
                         except Exception as e:
-                            print(f"Error processing update: {e}")
-                    print("Executing pipeline")
+                            #print(f"Error processing update: {e}")
+                    #print("Executing pipeline")
                     try:
                         await pipe.execute()
-                        print("Pipeline executed successfully")
+                        #print("Pipeline executed successfully")
                     except Exception as e:
-                        print(f"Error executing pipeline: {e}")
+                        #print(f"Error executing pipeline: {e}")
 
         await conn.aclose()
         await conn.connection_pool.disconnect()
