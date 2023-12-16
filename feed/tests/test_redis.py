@@ -24,7 +24,7 @@ async def test_redis_connection(host, port, use_ssl):
         await r.aclose()
 
 # Replace with your ElastiCache Redis endpoint and port
-def add_and_check_key(redis_host, redis_port, key, value):
+async def add_and_check_key(redis_host, redis_port, key, value, use_ssl=True):
     """
     Adds a key and value to Redis and checks if the value persists.
 
@@ -36,13 +36,14 @@ def add_and_check_key(redis_host, redis_port, key, value):
     """
     try:
         # Connect to Redis
-        r = redis.Redis(host=redis_host, port=redis_port, ssl=True, decode_responses=True)
+        url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
+        r = await aioredis.from_url(url, decode_responses=True)
 
         # Add key-value pair
         r.set(key, value)
 
         # Retrieve the value to check if it persisted
-        retrieved_value = r.get(key)
+        retrieved_value = await r.get(key)
 
         # Check if the retrieved value matches the original value
         if retrieved_value == value:
@@ -74,9 +75,11 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl)
     - exchanges (list): List of exchanges to check (e.g., ['bitfinex', 'binance']).
     - symbols (list): List of symbols to check (e.g., ['BTC-USDT', 'ETH-USDT']).
     """
+    print('checklast upadate function')
     try:
         # Connect to Redis
-        r = redis.Redis(host=redis_host, port=redis_port, ssl=use_ssl, decode_responses=True)
+        url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
+        r = await aioredis.from_url(url, decode_responses=True)
 
         while True:
             current_time = datetime.now(timezone.utc)
@@ -87,7 +90,7 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl)
                     key_pattern = f"{exchange}:{symbol}:book"
                     print('before retrieve the entry in redis...')
                     # Retrieve the latest entry's score (timestamp)
-                    last_update_score = r.zrange(key_pattern, -1, -1, withscores=True)
+                    last_update_score = await r.zrange(key_pattern, -1, -1, withscores=True)
 
                     if not last_update_score:
                         print(f"No data found for {exchange} {symbol}")
@@ -115,7 +118,7 @@ async def main():
     r = None
     try:
     # Assuming add_and_check_key is synchronous
-        add_and_check_key(redis_host, redis_port, 'test_key', 'test_value')
+        add_and_check_key(redis_host, redis_port, 'test_key', 'test_value', use_ssl=ssl_enabled)
 
         print('Test with the method from cryptofeed:')
         await test_redis_connection(redis_host, redis_port, use_ssl=ssl_enabled)
