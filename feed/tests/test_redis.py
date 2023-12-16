@@ -118,7 +118,7 @@ async def main():
     r = None
     try:
     # Assuming add_and_check_key is synchronous
-        add_and_check_key(redis_host, redis_port, 'test_key', 'test_value', use_ssl=ssl_enabled)
+        await add_and_check_key(redis_host, redis_port, 'test_key', 'test_value', use_ssl=ssl_enabled)
 
         print('Test with the method from cryptofeed:')
         await test_redis_connection(redis_host, redis_port, use_ssl=ssl_enabled)
