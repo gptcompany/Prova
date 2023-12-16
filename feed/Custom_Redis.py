@@ -42,12 +42,22 @@ class CustomRedisZSetCallback(CustomRedisCallback):
                     print("No updates to process")
                     continue
                 async with conn.pipeline(transaction=False) as pipe:
-                    print(f"Adding update to pipeline: {update}")
                     for update in updates:
-                        pipe = pipe.zadd(f"{self.key}-{update['exchange']}-{update['symbol']}", {json.dumps(update): update[self.score_key]}, nx=True)
-                        print("Executing pipeline")
-                    await pipe.execute()
-                print("Pipeline executed")
+                        try:
+                            print(f"Processing update: {update}")
+                            key = f"{self.key}-{update['exchange']}-{update['symbol']}"
+                            score = update[self.score_key]
+                            value = json.dumps(update)
+                            print(f"Adding to pipeline - Key: {key}, Score: {score}, Value: {value}")
+                            pipe.zadd(key, {value: score}, nx=True)
+                        except Exception as e:
+                            print(f"Error processing update: {e}")
+                    print("Executing pipeline")
+                    try:
+                        await pipe.execute()
+                        print("Pipeline executed successfully")
+                    except Exception as e:
+                        print(f"Error executing pipeline: {e}")
 
         await conn.aclose()
         await conn.connection_pool.disconnect()
