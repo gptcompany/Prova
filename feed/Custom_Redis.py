@@ -6,7 +6,7 @@ from yapic import json
 from cryptofeed.backends.backend import BackendBookCallback, BackendCallback, BackendQueue
 from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey, RedisZSetCallback, RedisCallback
 class CustomRedisCallback(RedisCallback):
-    def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, none_to='None', numeric_type=float, ssl=True, decode_responses=True, **kwargs):
+    def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, none_to='None', numeric_type=float, score_key='timestamp', ssl=True, decode_responses=True, **kwargs):
         """
         Custom Redis Callback with SSL and decode_responses support.
         """
@@ -22,6 +22,7 @@ class CustomRedisCallback(RedisCallback):
         self.running = True
         self.ssl = ssl
         self.decode_responses = decode_responses
+        self.score_key = score_key
 
 class CustomRedisZSetCallback(CustomRedisCallback):
     def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, numeric_type=float, score_key='timestamp', ssl=True, decode_responses=True, **kwargs):
