@@ -32,14 +32,16 @@ class CustomRedisZSetCallback(CustomRedisCallback):
 
     async def writer(self):
         # Modify the Redis connection to include decode_responses
-        print(self.redis)
+        print("CustomRedisZSetCallback writer started")
         conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
-
         while self.running:
             async with self.read_queue() as updates:
+                print("Processing updates in CustomRedisZSetCallback")
                 async with conn.pipeline(transaction=False) as pipe:
+                    print(f"Adding update to pipeline: {update}")
                     for update in updates:
                         pipe = pipe.zadd(f"{self.key}-{update['exchange']}-{update['symbol']}", {json.dumps(update): update[self.score_key]}, nx=True)
+                        print("Executing pipeline")
                     await pipe.execute()
 
         await conn.aclose()
@@ -50,6 +52,7 @@ class CustomBookRedis(CustomRedisZSetCallback, BackendBookCallback):
     default_key = 'book'
 
     def __init__(self, *args, snapshots_only=False, snapshot_interval=1000, score_key='receipt_timestamp', **kwargs):
+        print("Initializing CustomBookRedis")
         self.snapshots_only = snapshots_only
         self.snapshot_interval = snapshot_interval
         self.snapshot_count = defaultdict(int)

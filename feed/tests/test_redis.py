@@ -121,19 +121,10 @@ async def main():
         await add_and_check_key(redis_host, redis_port, 'test_key', 'test_value', use_ssl=ssl_enabled)
 
         print('Test with the method from cryptofeed:')
-        #await test_redis_connection(redis_host, redis_port, use_ssl=ssl_enabled)
 
         print('Create Redis client')
-        r = await aioredis.Redis(host=redis_host, port=redis_port, decode_responses=True, ssl=ssl_enabled)
-
-        print('Check if Redis is connected')
-        if await is_redis_connected(r):
-            await asyncio.gather(
-                check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled),
-                test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled)
-            )
-        else:
-            print("Failed to connect to Redis. Please check your connection settings.")
+        asyncio.create_task(check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled))
+        asyncio.create_task((test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled))
             
     except Exception as e:
         print(f"An error occurred: {e}")
