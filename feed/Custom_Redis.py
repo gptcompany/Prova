@@ -52,13 +52,13 @@ class CustomRedisZSetCallback(CustomRedisCallback):
                             #print(f"Adding to pipeline - Key: {key}, Score: {score}, Value: {value}")
                             pipe.zadd(key, {value: score}, nx=True)
                         except Exception as e:
-                            #print(f"Error processing update: {e}")
+                            print(f"Error processing update: {e}")
                     #print("Executing pipeline")
                     try:
                         await pipe.execute()
                         #print("Pipeline executed successfully")
                     except Exception as e:
-                        #print(f"Error executing pipeline: {e}")
+                        print(f"Error executing pipeline: {e}")
 
         await conn.aclose()
         await conn.connection_pool.disconnect()
