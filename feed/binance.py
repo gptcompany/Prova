@@ -12,6 +12,7 @@ import sys
 from datetime import datetime, timezone
 from redis import asyncio as aioredis
 from Custom_Redis import CustomBookRedis
+from statistics import mean
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
 async def trade(t, receipt_timestamp):
@@ -79,7 +80,38 @@ async def check_last_update(redis_host, redis_port, use_ssl=True, threshold_seco
                 await r.aclose()
             # Wait for a specified interval before checking again
             await asyncio.sleep(check_interval)
-        
+async def calculate_mean_update_interval(redis_host, redis_port, use_ssl=True, num_updates=3, check_interval=1, symbols='BTC-USDT'):
+    """
+    Continuously checks and calculates the mean time interval between the last 'num_updates' updates in Redis.
+    """
+    while True:
+        for symbol in symbols:
+            try:
+                url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
+                r = await aioredis.from_url(url, decode_responses=True)
+                print(f'Calculating mean update interval for {symbol}...')
+
+                # Retrieve the last 'num_updates' entries' scores (timestamps)
+                last_updates = await r.zrange(f"book-BINANCE-{symbol}", -num_updates, -1, withscores=True)
+
+                if len(last_updates) < num_updates:
+                    print(f"Insufficient data for {symbol} (needed: {num_updates}, found: {len(last_updates)})")
+                else:
+                    # Extract the timestamps and calculate differences
+                    timestamps = [float(score) for _, score in last_updates]
+                    time_diffs = [timestamps[i] - timestamps[i - 1] for i in range(1, len(timestamps))]
+                    mean_diff = mean(time_diffs)
+
+                    print(f'Mean update interval for {symbol}: {mean_diff} seconds')
+
+            except Exception as e:
+                logger.error(f"Error occurred for {symbol}: {e}")
+            finally:
+                # Close the connection
+                await r.aclose()
+
+            # Wait for a specified interval before checking again
+            await asyncio.sleep(check_interval)  
 def main():
     print('main')
     logger.info('Starting binance feed')
@@ -152,11 +184,20 @@ def main():
     loop.create_task(check_last_update(
                                         redis_host=fh.config.config['redis_host'], 
                                         redis_port=fh.config.config['redis_port'], 
-                                        threshold_seconds=0.3,
+                                        threshold_seconds=0.1,
                                         check_interval=1,
                                         symbols=symbols,
                                         )
                     )
+    loop.create_task(calculate_mean_update_interval(
+        redis_host=fh.config.config['redis_host'], 
+        redis_port=fh.config.config['redis_port'], 
+        use_ssl=True, 
+        num_updates=3, 
+        check_interval=1, 
+        symbols=symbols,
+        )
+                     )
     loop.run_forever()
 
 if __name__ == '__main__':
