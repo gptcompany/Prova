@@ -105,7 +105,7 @@ def main():
                 },
                 callbacks={
                     L2_BOOK:  [ #book,
-                        BookCallback(book),
+                        #BookCallback(book),
                         #BookCallback(
                             CustomBookRedis(
                             host=fh.config.config['redis_host'], 
@@ -123,32 +123,32 @@ def main():
                 #timeout=-1
                 )
                 )
-    fh.add_feed(Binance(
-                    # subscription={}, 
-                    # callbacks={},
+    # fh.add_feed(Binance(
+    #                 # subscription={}, 
+    #                 # callbacks={},
                     
-                    subscription={
+    #                 subscription={
                         
-                        TRADES: symbols,
-                    },
-                    callbacks={
+    #                     TRADES: symbols,
+    #                 },
+    #                 callbacks={
                         
-                        TRADES: #trade, #[
-                            #TradeCallback(trade),
-                            #TradeCallback(
-                                TradeRedis(
-                                host=fh.config.config['redis_host'], 
-                                port=fh.config.config['redis_port'],
-                                ssl=True,
-                                decode_responses=True,
-                                                    )
-                                #       ),
-                        #],
-                    },
-                    #cross_check=True,
-                    #timeout=-1
-                    )
-                    )
+    #                     TRADES: #trade, #[
+    #                         #TradeCallback(trade),
+    #                         #TradeCallback(
+    #                             TradeRedis(
+    #                             host=fh.config.config['redis_host'], 
+    #                             port=fh.config.config['redis_port'],
+    #                             ssl=True,
+    #                             decode_responses=True,
+    #                                                 )
+    #                             #       ),
+    #                     #],
+    #                 },
+    #                 #cross_check=True,
+    #                 #timeout=-1
+    #                 )
+    #                 )
 
 
 

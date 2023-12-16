@@ -51,7 +51,7 @@ class CustomRedisZSetCallback(CustomRedisCallback):
 class CustomBookRedis(CustomRedisZSetCallback, BackendBookCallback):
     default_key = 'book'
 
-    def __init__(self, *args, snapshots_only=False, snapshot_interval=1000, score_key='receipt_timestamp', **kwargs):
+    def __init__(self, *args, snapshots_only=False, snapshot_interval=10, score_key='receipt_timestamp', **kwargs):
         print("Initializing CustomBookRedis")
         self.snapshots_only = snapshots_only
         self.snapshot_interval = snapshot_interval
