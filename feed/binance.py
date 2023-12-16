@@ -104,7 +104,7 @@ def main():
                     
                 },
                 callbacks={
-                    L2_BOOK:  [ #book,
+                    L2_BOOK:   #book,
                         #BookCallback(book),
                         #BookCallback(
                             CustomBookRedis(
@@ -116,7 +116,7 @@ def main():
                             #score_key='timestamp',
                                             )
                             #         ),
-                    ],
+                    
 
                 },
                 #cross_check=True,

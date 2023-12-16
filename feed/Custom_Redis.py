@@ -35,14 +35,19 @@ class CustomRedisZSetCallback(CustomRedisCallback):
         print("CustomRedisZSetCallback writer started")
         conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
         while self.running:
+            print("Entering the async with self.read_queue() block")
             async with self.read_queue() as updates:
-                print("Processing updates in CustomRedisZSetCallback")
+                print("Updates received, processing...")
+                if not updates:
+                    print("No updates to process")
+                    continue
                 async with conn.pipeline(transaction=False) as pipe:
                     print(f"Adding update to pipeline: {update}")
                     for update in updates:
                         pipe = pipe.zadd(f"{self.key}-{update['exchange']}-{update['symbol']}", {json.dumps(update): update[self.score_key]}, nx=True)
                         print("Executing pipeline")
                     await pipe.execute()
+                print("Pipeline executed")
 
         await conn.aclose()
         await conn.connection_pool.disconnect()
