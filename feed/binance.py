@@ -154,14 +154,14 @@ def main():
 
 
     loop = asyncio.get_event_loop()
-    loop.create_task(check_last_update(
-                                        redis_host=fh.config.config['redis_host'], 
-                                        redis_port=fh.config.config['redis_port'], 
-                                        key_pattern='BINANCE:BTC-USDT:book',
-                                        threshold_seconds=0.3,
-                                        check_interval=1,
-                                        )
-                    )
+    # loop.create_task(check_last_update(
+    #                                     redis_host=fh.config.config['redis_host'], 
+    #                                     redis_port=fh.config.config['redis_port'], 
+    #                                     key_pattern='BINANCE:BTC-USDT:book',
+    #                                     threshold_seconds=0.3,
+    #                                     check_interval=1,
+    #                                     )
+    #                 )
     loop.run_forever()
 
 if __name__ == '__main__':
