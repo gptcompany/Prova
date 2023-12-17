@@ -26,7 +26,7 @@ async def check_redis_updates(redis_host, redis_port, use_ssl=True, trade_thresh
                 await process_book_updates(book_updates, symbol, threshold_seconds, num_updates)
 
                 # Check trade updates
-                trade_key = f"trade-BINANCE-{symbol}"
+                trade_key = f"trades-BINANCE-{symbol}"
                 trade_update = await r.zrange(trade_key, -1, -1, withscores=True)
                 await process_trade_update(trade_update, symbol, trade_threshold)
 
