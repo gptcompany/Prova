@@ -73,3 +73,6 @@ class CustomBookRedis(CustomRedisZSetCallback, BackendBookCallback):
         self.snapshot_interval = snapshot_interval
         self.snapshot_count = defaultdict(int)
         super().__init__(*args, score_key=score_key, **kwargs)
+
+class CustomTradeRedis(CustomRedisZSetCallback, BackendCallback):
+    default_key = 'trades'

@@ -11,7 +11,7 @@ import logging
 import sys
 from datetime import datetime, timezone
 from redis import asyncio as aioredis
-from Custom_Redis import CustomBookRedis
+from Custom_Redis import CustomBookRedis, CustomTradeRedis
 from statistics import mean
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
@@ -44,76 +44,8 @@ async def book(book, receipt_timestamp):
         print(f"Delta from last book contains {len(book.delta[BID]) + len(book.delta[ASK])} entries.")
     if book.sequence_number:
         assert isinstance(book.sequence_number, int)
-    await asyncio.sleep(0.5)
-async def check_last_update(redis_host, redis_port, use_ssl=True, threshold_seconds=0.3, check_interval=1, symbols='BTC-USDT'):
-    """
-    Continuously checks if the last update in Redis for a given key pattern is older than the specified threshold in seconds.
-    """
-    while True:
-        for symbol in symbols:
-            try:
-                url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
-                r = await aioredis.from_url(url, decode_responses=True)
-                print('Checking last update...')
-                
-                # Retrieve the latest entry's score (timestamp)
-                last_update_score = await r.zrange(f"book-BINANCE-{symbol}", -1, -1, withscores=True)
-
-                if not last_update_score:
-                    print("No data found for the specified key pattern.")
-                else:
-                    # Extract the timestamp (score) of the last update
-                    _, last_timestamp = last_update_score[0]
-                    last_update_time = datetime.fromtimestamp(last_timestamp, tz=timezone.utc)
-                    current_time = datetime.now(timezone.utc)
-                    time_diff = (current_time - last_update_time).total_seconds()
-
-                    if time_diff > threshold_seconds:
-                        print(f"Last update is more than {threshold_seconds} seconds old. Last update was at {last_update_time.isoformat()}")
-                    else:
-                        print('All ok! Last update:', last_update_time.isoformat())
-
-            except Exception as e:
-                logger.error(f"Error occurred: {e}")
-            finally:
-            # Close the connection
-                await r.aclose()
-            # Wait for a specified interval before checking again
-            await asyncio.sleep(check_interval)
-async def calculate_mean_update_interval(redis_host, redis_port, use_ssl=True, num_updates=3, check_interval=1, symbols='BTC-USDT'):
-    """
-    Continuously checks and calculates the mean time interval between the last 'num_updates' updates in Redis.
-    """
-    while True:
-        for symbol in symbols:
-            try:
-                url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
-                r = await aioredis.from_url(url, decode_responses=True)
-                print(f'Calculating mean update interval for {symbol}...')
-
-                # Retrieve the last 'num_updates' entries' scores (timestamps)
-                last_updates = await r.zrange(f"book-BINANCE-{symbol}", -num_updates, -1, withscores=True)
-
-                if len(last_updates) < num_updates:
-                    print(f"Insufficient data for {symbol} (needed: {num_updates}, found: {len(last_updates)})")
-                else:
-                    # Extract the timestamps and calculate differences
-                    timestamps = [float(score) for _, score in last_updates]
-                    time_diffs = [timestamps[i] - timestamps[i - 1] for i in range(1, len(timestamps))]
-                    mean_diff = mean(time_diffs)
-
-                    print(f'Mean update interval for {symbol}: {mean_diff} seconds')
-
-            except Exception as e:
-                logger.error(f"Error occurred for {symbol}: {e}")
-            finally:
-                # Close the connection
-                await r.aclose()
-
-            # Wait for a specified interval before checking again
-            await asyncio.sleep(check_interval)  
+    await asyncio.sleep(0.5) 
 def main():
-    print('main')
     logger.info('Starting binance feed')
     path_to_config = '/config_cf.yaml'
     fh = FeedHandler(config=path_to_config)  
@@ -150,55 +82,56 @@ def main():
                 #timeout=-1
                 )
                 )
-    # fh.add_feed(Binance(
-    #                 # subscription={}, 
-    #                 # callbacks={},
+    fh.add_feed(Binance(
+                    # subscription={}, 
+                    # callbacks={},
                     
-    #                 subscription={
+                    subscription={
                         
-    #                     TRADES: symbols,
-    #                 },
-    #                 callbacks={
+                        TRADES: symbols,
+                    },
+                    callbacks={
                         
-    #                     TRADES: #trade, #[
-    #                         #TradeCallback(trade),
-    #                         #TradeCallback(
-    #                             TradeRedis(
-    #                             host=fh.config.config['redis_host'], 
-    #                             port=fh.config.config['redis_port'],
-    #                             ssl=True,
-    #                             decode_responses=True,
-    #                                                 )
-    #                             #       ),
-    #                     #],
-    #                 },
-    #                 #cross_check=True,
-    #                 #timeout=-1
-    #                 )
-    #                 )
+                        TRADES: #trade, #[
+                            #TradeCallback(trade),
+                            #TradeCallback(
+                                CustomTradeRedis(
+                                host=fh.config.config['redis_host'], 
+                                port=fh.config.config['redis_port'],
+                                ssl=True,
+                                decode_responses=True,
+                                                    )
+                                #       ),
+                        #],
+                    },
+                    #cross_check=True,
+                    #timeout=-1
+                    )
+                    )
 
 
 
 
     loop = asyncio.get_event_loop()
-    loop.create_task(check_last_update(
-                                        redis_host=fh.config.config['redis_host'], 
-                                        redis_port=fh.config.config['redis_port'], 
-                                        threshold_seconds=0.1,
-                                        check_interval=1,
-                                        symbols=symbols,
-                                        )
-                    )
-    loop.create_task(calculate_mean_update_interval(
-        redis_host=fh.config.config['redis_host'], 
-        redis_port=fh.config.config['redis_port'], 
-        use_ssl=True, 
-        num_updates=3, 
-        check_interval=1, 
-        symbols=symbols,
-        )
-                     )
+    # loop.create_task(check_last_update(
+    #                                     redis_host=fh.config.config['redis_host'], 
+    #                                     redis_port=fh.config.config['redis_port'], 
+    #                                     threshold_seconds=0.1,
+    #                                     check_interval=1,
+    #                                     symbols=symbols,
+    #                                     )
+    #                 )
+    # loop.create_task(calculate_mean_update_interval(
+    #     redis_host=fh.config.config['redis_host'], 
+    #     redis_port=fh.config.config['redis_port'], 
+    #     use_ssl=True, 
+    #     num_updates=3, 
+    #     check_interval=1, 
+    #     symbols=symbols,
+    #     )
+    #                 )
     loop.run_forever()
 
 if __name__ == '__main__':
     main()
+
