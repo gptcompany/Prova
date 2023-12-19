@@ -77,7 +77,7 @@ if __name__ == '__main__':
                                                 threshold_seconds=0.2, 
                                                 num_updates=5, 
                                                 check_interval=2, 
-                                                symbols=['BTC-USDT'],
+                                                symbols=['BTC-USDT', 'ETH-USDT'],
                                                 )
                             )
                 )

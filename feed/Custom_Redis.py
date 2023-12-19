@@ -1,10 +1,12 @@
 from collections import defaultdict
-
+import sys
 from redis import asyncio as aioredis
 from yapic import json
-
+import logging
 from cryptofeed.backends.backend import BackendBookCallback, BackendCallback, BackendQueue
 from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey, RedisZSetCallback, RedisCallback
+logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
+#logger = logging.getLogger(__name__)
 class CustomRedisCallback(RedisCallback):
     def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, none_to='None', numeric_type=float, score_key='timestamp', ssl=True, decode_responses=True, **kwargs):
         """
@@ -52,13 +54,13 @@ class CustomRedisZSetCallback(CustomRedisCallback):
                             #print(f"Adding to pipeline - Key: {key}, Score: {score}, Value: {value}")
                             pipe.zadd(key, {value: score}, nx=True)
                         except Exception as e:
-                            print(f"Error processing update: {e}")
+                            logging.error(f"Error processing update: {e}")
                     #print("Executing pipeline")
                     try:
                         await pipe.execute()
                         #print("Pipeline executed successfully")
                     except Exception as e:
-                        print(f"Error executing pipeline: {e}")
+                        logging.error(f"Error executing pipeline: {e}")
 
         await conn.aclose()
         await conn.connection_pool.disconnect()
