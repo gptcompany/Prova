@@ -7,7 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-async def check_redis_updates(redis_host, redis_port, use_ssl=True, trade_threshold=10, threshold_seconds=0.2, num_updates=5, check_interval=2, symbols=['BTC-USDT']):
+async def check_redis_updates(redis_host, redis_port, use_ssl=True, trade_threshold=10, threshold_seconds=0.2, num_updates=5, check_interval=2, symbols=['BTC-USDT'], exchanges=['BITFINEX', 'BINANCE']):
     """
     Continuously checks Redis for the last update and calculates the mean time interval between updates for books.
     For trades, it checks if the last timestamp is over 10 seconds.
@@ -19,16 +19,17 @@ async def check_redis_updates(redis_host, redis_port, use_ssl=True, trade_thresh
             url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
             r = await aioredis.from_url(url, decode_responses=True)
 
-            for symbol in symbols:
-                # Check book updates
-                book_key = f"book-BINANCE-{symbol}"
-                book_updates = await r.zrange(book_key, -num_updates, -1, withscores=True)
-                await process_book_updates(book_updates, symbol, threshold_seconds, num_updates)
+            for exchange in exchanges:
+                for symbol in symbols:
+                    # Check book updates
+                    book_key = f"book-{exchange}-{symbol}"
+                    book_updates = await r.zrange(book_key, -num_updates, -1, withscores=True)
+                    await process_book_updates(book_updates, symbol, threshold_seconds, num_updates)
 
-                # Check trade updates
-                trade_key = f"trades-BINANCE-{symbol}"
-                trade_update = await r.zrange(trade_key, -1, -1, withscores=True)
-                await process_trade_update(trade_update, symbol, trade_threshold)
+                    # Check trade updates
+                    trade_key = f"trades-{exchange}-{symbol}"
+                    trade_update = await r.zrange(trade_key, -1, -1, withscores=True)
+                    await process_trade_update(trade_update, symbol, trade_threshold)
 
         except Exception as e:
             logger.error(f"Error occurred: {e}")
@@ -78,6 +79,7 @@ if __name__ == '__main__':
                                                 num_updates=5, 
                                                 check_interval=2, 
                                                 symbols=['BTC-USDT', 'ETH-USDT'],
+                                                exchanges=['BITFINEX', 'BINANCE'],
                                                 )
                             )
                 )
