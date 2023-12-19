@@ -24,12 +24,13 @@ async def check_redis_updates(redis_host, redis_port, use_ssl=True, trade_thresh
                     # Check book updates
                     book_key = f"book-{exchange}-{symbol}"
                     book_updates = await r.zrange(book_key, -num_updates, -1, withscores=True)
-                    await process_book_updates(book_updates, symbol, threshold_seconds, num_updates)
+                    await process_book_updates(book_updates, symbol, exchange, threshold_seconds, num_updates)
 
                     # Check trade updates
                     trade_key = f"trades-{exchange}-{symbol}"
                     trade_update = await r.zrange(trade_key, -1, -1, withscores=True)
-                    await process_trade_update(trade_update, symbol, trade_threshold)
+                    await process_trade_update(trade_update, symbol, exchange, trade_threshold)
+
 
         except Exception as e:
             logger.error(f"Error occurred: {e}")
@@ -40,9 +41,9 @@ async def check_redis_updates(redis_host, redis_port, use_ssl=True, trade_thresh
         # Wait before checking again
         await asyncio.sleep(check_interval)
 
-async def process_book_updates(book_updates, symbol, threshold_seconds, num_updates):
+async def process_book_updates(book_updates, symbol, exchange, threshold_seconds, num_updates):
     if len(book_updates) < num_updates:
-        logger.warning(f"Insufficient data for mean interval calculation for book {symbol}.")
+        logger.warning(f"Insufficient data for mean interval calculation for book {symbol} on {exchange}.")
     else:
         timestamps = [float(score) for _, score in book_updates]
         current_time = datetime.now(timezone.utc).timestamp()
@@ -50,22 +51,23 @@ async def process_book_updates(book_updates, symbol, threshold_seconds, num_upda
         time_diffs = [timestamps[i] - timestamps[i - 1] for i in range(1, len(timestamps))]
         mean_diff = mean(time_diffs)
         if mean_diff > threshold_seconds:
-            logger.warning(f"Mean interval ({mean_diff} seconds) for book {symbol} is above threshold. Last updates at {[datetime.fromtimestamp(ts, tz=timezone.utc).isoformat() for ts in timestamps[:-1]]}")
+            logger.warning(f"Mean interval ({mean_diff} seconds) for book {symbol} on {exchange} is above threshold. Last updates at {[datetime.fromtimestamp(ts, tz=timezone.utc).isoformat() for ts in timestamps[:-1]]}")
         else:
-            logger.info(f"Mean update interval for book {symbol} is {mean_diff} seconds")
+            logger.info(f"Mean update interval for book {symbol} on {exchange} is {mean_diff} seconds")
 
-async def process_trade_update(trade_update, symbol, trade_threshold=10):
+async def process_trade_update(trade_update, symbol, exchange, trade_threshold=10):
     if not trade_update:
-        logger.warning(f"No trade data found for {symbol}.")
+        logger.warning(f"No trade data found for {symbol} on {exchange}.")
     else:
         _, last_timestamp = trade_update[0]
         last_update_time = datetime.fromtimestamp(last_timestamp, tz=timezone.utc)
         current_time = datetime.now(timezone.utc)
         time_diff = (current_time - last_update_time).total_seconds()
         if time_diff > trade_threshold:
-            logger.warning(f"Last trade update for {symbol} is more than {trade_threshold} seconds old. Last update was at {last_update_time.isoformat()}")
+            logger.warning(f"Last trade update for {symbol} on {exchange} is more than {trade_threshold} seconds old. Last update was at {last_update_time.isoformat()}")
         else:
-            logger.info(f"Last update interval for {symbol} is at {last_update_time} , data is {time_diff} seconds ago.")
+            logger.info(f"Last update interval for {symbol} on {exchange} is at {last_update_time}, data is {time_diff} seconds ago.")
+
             
             
 if __name__ == '__main__':
@@ -74,10 +76,10 @@ if __name__ == '__main__':
     asyncio.run(asyncio.run(check_redis_updates(redis_host=redis_host, 
                                                 redis_port=redis_port, 
                                                 use_ssl=True,
-                                                trade_threshold=10,
+                                                trade_threshold=30,
                                                 threshold_seconds=0.2, 
                                                 num_updates=5, 
-                                                check_interval=2, 
+                                                check_interval=3, 
                                                 symbols=['BTC-USDT', 'ETH-USDT'],
                                                 exchanges=['BITFINEX', 'BINANCE'],
                                                 )
