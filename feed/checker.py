@@ -51,9 +51,9 @@ async def process_book_updates(book_updates, symbol, exchange, threshold_seconds
         time_diffs = [timestamps[i] - timestamps[i - 1] for i in range(1, len(timestamps))]
         mean_diff = mean(time_diffs)
         if mean_diff > threshold_seconds:
-            logger.warning(f"Mean interval ({mean_diff} seconds) for book {symbol} on {exchange} is above threshold. Last updates at {[datetime.fromtimestamp(ts, tz=timezone.utc).isoformat() for ts in timestamps[:-1]]}")
+            logger.warning(f"BOOK Mean interval ({mean_diff} seconds) for {symbol} on {exchange} is above threshold. Last updates at {[datetime.fromtimestamp(ts, tz=timezone.utc).isoformat() for ts in timestamps[:-1]]}")
         else:
-            logger.info(f"Mean update interval for book {symbol} on {exchange} is {mean_diff} seconds")
+            logger.info(f"BOOK Mean update interval for {symbol} on {exchange} is {mean_diff} seconds")
 
 async def process_trade_update(trade_update, symbol, exchange, trade_threshold=10):
     if not trade_update:
@@ -64,9 +64,9 @@ async def process_trade_update(trade_update, symbol, exchange, trade_threshold=1
         current_time = datetime.now(timezone.utc)
         time_diff = (current_time - last_update_time).total_seconds()
         if time_diff > trade_threshold:
-            logger.warning(f"Last trade update for {symbol} on {exchange} is more than {trade_threshold} seconds old. Last update was at {last_update_time.isoformat()}")
+            logger.warning(f"TRADE Last update for {symbol} on {exchange} is more than {trade_threshold} seconds old. Last update was at {last_update_time.isoformat()}")
         else:
-            logger.info(f"Last update interval for {symbol} on {exchange} is at {last_update_time}, data is {time_diff} seconds ago.")
+            logger.info(f"TRADE Last update interval for {symbol} on {exchange} is at {last_update_time}, data is {time_diff} seconds ago.")
 
             
             
@@ -80,7 +80,7 @@ if __name__ == '__main__':
                                                 threshold_seconds=0.2, 
                                                 num_updates=5, 
                                                 check_interval=3, 
-                                                symbols=['BTC-USDT', 'ETH-USDT'],
+                                                symbols=['BTC-USDT', 'ETH-USDT', 'ETH-BTC'],
                                                 exchanges=['BITFINEX', 'BINANCE'],
                                                 )
                             )

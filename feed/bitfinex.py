@@ -44,7 +44,7 @@ async def aio_task():
         print("Other task running")
         await asyncio.sleep(10)       
 def main():
-    logger.info('Starting binance feed')
+    logger.info('Starting bitfinex feed')
     path_to_config = '/config_cf.yaml'
     try:
         fh = FeedHandler(config=path_to_config)  

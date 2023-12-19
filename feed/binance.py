@@ -73,7 +73,6 @@ def main():
                     )
         fh.add_feed(Binance(
                         subscription={
-                            
                             TRADES: symbols,
                         },
                         callbacks={
