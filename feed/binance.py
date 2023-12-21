@@ -11,7 +11,7 @@ import logging
 import sys
 from datetime import datetime, timezone
 from redis import asyncio as aioredis
-from Custom_Redis import CustomBookRedis, CustomTradeRedis
+from Custom_Redis import CustomBookRedis, CustomTradeRedis, CustomBookStream
 from statistics import mean
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ def main():
                     },
                     callbacks={
                         L2_BOOK:
-                                CustomBookRedis(
+                                CustomBookStream(
                                 host=fh.config.config['redis_host'], 
                                 port=fh.config.config['redis_port'], 
                                 snapshots_only=False,

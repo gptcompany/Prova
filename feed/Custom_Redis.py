@@ -41,9 +41,9 @@ class CustomRedisZSetCallback(CustomRedisCallback):
             #print("Entering the async with self.read_queue() block")
             async with self.read_queue() as updates:
                 #print("Updates received, processing...")
-                if not updates:
+                #if not updates:
                     #print("No updates to process")
-                    continue
+                    #continue
                 async with conn.pipeline(transaction=False) as pipe:
                     for update in updates:
                         try:
@@ -69,7 +69,7 @@ class CustomRedisZSetCallback(CustomRedisCallback):
 class CustomBookRedis(CustomRedisZSetCallback, BackendBookCallback):
     default_key = 'book'
 
-    def __init__(self, *args, snapshots_only=False, snapshot_interval=10, score_key='receipt_timestamp', **kwargs):
+    def __init__(self, *args, snapshots_only=False, snapshot_interval=100, score_key='receipt_timestamp', **kwargs):
         print("Initializing CustomBookRedis")
         self.snapshots_only = snapshots_only
         self.snapshot_interval = snapshot_interval
@@ -78,3 +78,40 @@ class CustomBookRedis(CustomRedisZSetCallback, BackendBookCallback):
 
 class CustomTradeRedis(CustomRedisZSetCallback, BackendCallback):
     default_key = 'trades'
+    
+class CustomRedisStreamCallback(CustomRedisCallback):
+    async def writer(self):
+        conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
+
+        while self.running:
+            async with self.read_queue() as updates:
+                async with conn.pipeline(transaction=False) as pipe:
+                    for update in updates:
+                        try:
+                            if 'delta' in update:
+                                update['delta'] = json.dumps(update['delta'])
+                            elif 'book' in update:
+                                update['book'] = json.dumps(update['book'])
+                            elif 'closed' in update:
+                                update['closed'] = str(update['closed'])
+
+                            pipe = pipe.xadd(f"{self.key}-{update['exchange']}-{update['symbol']}", update)
+                        except Exception as e:
+                            logging.error(f"Error processing update: {e}")
+                    try:
+                        await pipe.execute()
+                    except Exception as e:
+                            logging.error(f"Error executing pipeline: {e}")
+
+        await conn.close()
+        await conn.connection_pool.disconnect()
+        
+
+class CustomBookStream(CustomRedisStreamCallback, BackendBookCallback):
+    default_key = 'book'
+
+    def __init__(self, *args, snapshots_only=False, snapshot_interval=1000, **kwargs):
+        self.snapshots_only = snapshots_only
+        self.snapshot_interval = snapshot_interval
+        self.snapshot_count = defaultdict(int)
+        super().__init__(*args, **kwargs)
