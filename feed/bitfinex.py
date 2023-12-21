@@ -51,7 +51,7 @@ def main():
         symbols = fh.config.config['bf_symbols']
         fh.run(start_loop=False)
         fh.add_feed(BITFINEX,
-                        max_depth=60,
+                        max_depth=50,
                         subscription={
                             L2_BOOK: symbols, 
                         },

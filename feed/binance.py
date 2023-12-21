@@ -49,10 +49,10 @@ def main():
         symbols = fh.config.config['bn_symbols']
         #symbols = ['BTC-USDT','ETH-BTC']
         fh.run(start_loop=False)
-        print(fh.config.config['redis_host'])
-        print(fh.config.config['redis_port'])
+        #print(fh.config.config['redis_host'])
+        #print(fh.config.config['redis_port'])
         fh.add_feed(Binance(
-                    max_depth=100,
+                    max_depth=50,
                     subscription={
                         L2_BOOK: symbols, 
                         
