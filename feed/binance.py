@@ -84,7 +84,7 @@ def main():
                                     decode_responses=True,
                                                         )
                         },
-                        cross_check=True,
+                        #cross_check=True,
                         #timeout=-1
                         )
                         )

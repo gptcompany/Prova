@@ -10,7 +10,7 @@ import asyncio
 import logging
 from datetime import datetime
 import sys
-from Custom_Redis import CustomBookRedis, CustomTradeRedis
+from Custom_Redis import CustomBookRedis, CustomTradeRedis, CustomBookStream
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
 async def trade(t, receipt_timestamp):
@@ -53,11 +53,11 @@ def main():
         fh.add_feed(BITFINEX,
                         max_depth=50,
                         subscription={
-                            L2_BOOK: symbols, 
+                            L3_BOOK: symbols, 
                         },
                         callbacks={
-                            L2_BOOK:
-                                    CustomBookRedis(
+                            L3_BOOK:
+                                    CustomBookStream(
                                     host=fh.config.config['redis_host'], 
                                     port=fh.config.config['redis_port'], 
                                     snapshots_only=False,
@@ -82,7 +82,7 @@ def main():
                                     decode_responses=True,
                                                         )
                         },
-                        cross_check=True,
+                        #cross_check=True,
                         #timeout=-1
                         )
                         )

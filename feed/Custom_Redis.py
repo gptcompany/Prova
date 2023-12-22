@@ -90,8 +90,10 @@ class CustomRedisStreamCallback(CustomRedisCallback):
                         try:
                             if 'delta' in update:
                                 update['delta'] = json.dumps(update['delta'])
+                                logging.info(f"Processing delta for {update['exchange']}-{update['symbol']}")
                             elif 'book' in update:
                                 update['book'] = json.dumps(update['book'])
+                                logging.info(f"Processing full snapshot for {update['exchange']}-{update['symbol']}")
                             elif 'closed' in update:
                                 update['closed'] = str(update['closed'])
 
