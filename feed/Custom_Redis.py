@@ -69,7 +69,7 @@ class CustomRedisZSetCallback(CustomRedisCallback):
 class CustomBookRedis(CustomRedisZSetCallback, BackendBookCallback):
     default_key = 'book'
 
-    def __init__(self, *args, snapshots_only=False, snapshot_interval=1000, score_key='receipt_timestamp', **kwargs):
+    def __init__(self, *args, snapshots_only=False, snapshot_interval=10000, score_key='receipt_timestamp', **kwargs):
         print("Initializing CustomBookRedis")
         self.snapshots_only = snapshots_only
         self.snapshot_interval = snapshot_interval
@@ -90,10 +90,10 @@ class CustomRedisStreamCallback(CustomRedisCallback):
                         try:
                             if 'delta' in update:
                                 update['delta'] = json.dumps(update['delta'])
-                                logging.info(f"Processing delta for {update['exchange']}-{update['symbol']}")
+                                #logging.info(f"Processing delta for {update['exchange']}-{update['symbol']}")
                             elif 'book' in update:
                                 update['book'] = json.dumps(update['book'])
-                                logging.info(f"Processing full snapshot for {update['exchange']}-{update['symbol']}")
+                                #logging.info(f"Processing full snapshot for {update['exchange']}-{update['symbol']}")
                             elif 'closed' in update:
                                 update['closed'] = str(update['closed'])
 
@@ -112,7 +112,7 @@ class CustomRedisStreamCallback(CustomRedisCallback):
 class CustomBookStream(CustomRedisStreamCallback, BackendBookCallback):
     default_key = 'book'
 
-    def __init__(self, *args, snapshots_only=False, snapshot_interval=10, **kwargs):
+    def __init__(self, *args, snapshots_only=False, snapshot_interval=10000, **kwargs):
         self.snapshots_only = snapshots_only
         self.snapshot_interval = snapshot_interval
         self.snapshot_count = defaultdict(int)

@@ -65,6 +65,7 @@ def main():
                                 snapshots_only=False,
                                 ssl=True,
                                 decode_responses=True,
+                                snapshot_interval=10000,
                                 #score_key='timestamp',
                                                 )
                     },

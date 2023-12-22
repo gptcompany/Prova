@@ -3,6 +3,7 @@ from cryptofeed import FeedHandler
 from cryptofeed.callback import TradeCallback, BookCallback
 from cryptofeed.defines import BID, ASK,TRADES, L3_BOOK, L2_BOOK, TICKER, OPEN_INTEREST, FUNDING, LIQUIDATIONS, BALANCES, ORDER_INFO
 from cryptofeed.exchanges import BITFINEX, Bitfinex
+from cryptofeed.backends.postgres import CandlesPostgres, IndexPostgres, TickerPostgres, TradePostgres, OpenInterestPostgres, LiquidationsPostgres, FundingPostgres, BookPostgres
 #from app.Custom_Coinbase import CustomCoinbase
 #from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey
 from decimal import Decimal
@@ -46,8 +47,10 @@ async def aio_task():
 def main():
     logger.info('Starting bitfinex feed')
     path_to_config = '/config_cf.yaml'
+    snapshot_interval = 10000
     try:
         fh = FeedHandler(config=path_to_config)  
+        postgres_cfg = {'host': '0.0.0.0', 'user': 'postgres', 'db': 'db0', 'pw': fh.config.config['timescaledb_password']}
         symbols = fh.config.config['bf_symbols']
         fh.run(start_loop=False)
         fh.add_feed(BITFINEX,
@@ -56,15 +59,21 @@ def main():
                             L3_BOOK: symbols, 
                         },
                         callbacks={
-                            L3_BOOK:
+                            L3_BOOK:[
                                     CustomBookStream(
                                     host=fh.config.config['redis_host'], 
                                     port=fh.config.config['redis_port'], 
                                     snapshots_only=False,
                                     ssl=True,
                                     decode_responses=True,
+                                    snapshot_interval=snapshot_interval,
                                     #score_key='timestamp',
-                                                    )
+                                        ),
+                                    BookPostgres(
+                                        snapshot_interval=snapshot_interval, 
+                                        **postgres_cfg
+                                        )
+                            ]
                         },
                         cross_check=True,
                         )
@@ -74,13 +83,18 @@ def main():
                             TRADES: symbols,
                         },
                         callbacks={
-                            TRADES: 
+                            TRADES:[ 
                                     CustomTradeRedis(
                                     host=fh.config.config['redis_host'], 
                                     port=fh.config.config['redis_port'],
                                     ssl=True,
                                     decode_responses=True,
-                                                        )
+                                        ),
+                                    TradePostgres(
+                                        **postgres_cfg
+                                        )
+                                    
+                            ]
                         },
                         #cross_check=True,
                         #timeout=-1
