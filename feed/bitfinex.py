@@ -50,7 +50,7 @@ def main():
     snapshot_interval = 10000
     try:
         fh = FeedHandler(config=path_to_config)  
-        postgres_cfg = {'host': '0.0.0.0', 'user': 'postgres', 'db': 'db0', 'pw': fh.config.config['timescaledb_password']}
+        postgres_cfg = {'host': '0.0.0.0', 'user': 'postgres', 'db': 'db0', 'pw': fh.config.config['timescaledb_password'], 'port': '5432'}
         symbols = fh.config.config['bf_symbols']
         fh.run(start_loop=False)
         fh.add_feed(BITFINEX,
