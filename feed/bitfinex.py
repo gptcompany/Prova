@@ -1,10 +1,10 @@
-from redis import Redis
+#from redis import Redis
 from cryptofeed import FeedHandler
 from cryptofeed.callback import TradeCallback, BookCallback
 from cryptofeed.defines import BID, ASK,TRADES, L3_BOOK, L2_BOOK, TICKER, OPEN_INTEREST, FUNDING, LIQUIDATIONS, BALANCES, ORDER_INFO
 from cryptofeed.exchanges import BITFINEX, Bitfinex
 #from app.Custom_Coinbase import CustomCoinbase
-from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey
+#from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey
 from decimal import Decimal
 import asyncio
 import logging
