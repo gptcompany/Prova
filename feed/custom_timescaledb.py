@@ -41,6 +41,32 @@ class TimeScaleCallback(BackendQueue):
         # Performed at init to avoid repeated list joins
         self.insert_statement = f"INSERT INTO {self.table} ({','.join([v for v in self.custom_columns.values()])}) VALUES " if custom_columns else None
         self.running = True
+    
+    
+    async def ensure_compression(self, table, segmentby_column, orderby_column):
+        try:
+            # Check if compression is enabled
+            is_compressed = await self.conn.fetchval(
+                "SELECT EXISTS (SELECT * FROM timescaledb_information.compressed_hypertable_stats WHERE hypertable_name = %s);", 
+                (table,)
+            )
+
+            if not is_compressed:
+                # Enable compression
+                await self.conn.execute(f"""
+                    ALTER TABLE {table} SET (
+                        timescaledb.compress, 
+                        timescaledb.compress_segmentby = '{segmentby_column}', 
+                        timescaledb.compress_orderby = '{orderby_column}'
+                    );
+                """)
+                logging.info(f"Compression enabled for table {table}")
+            else:
+                logging.info(f"Compression is already enabled for table {table}")
+
+        except Exception as e:
+            logging.error(f"Error while ensuring compression on table {table}: {str(e)}")
+
 
     async def ensure_tables_exist(self):
         try:
@@ -95,11 +121,12 @@ class TimeScaleCallback(BackendQueue):
 
     async def _connect(self):
         if self.conn is None:
-            print('is connecting to timescaledb')
+            logging.info('Connecting to timescaledb')
             try:
                 self.conn = await asyncpg.connect(user=self.user, password=self.pw, database=self.db, host=self.host, port=self.port)
-                print('check if tables exist')
                 await self.ensure_tables_exist()
+                await self.ensure_compression('book', 'exchange', 'timestamp')
+                await self.ensure_compression('trades', 'exchange', 'timestamp')
             except Exception as e:
                 logging.error(f"Error while connecting to TimescaleDB: {str(e)}")
 
