@@ -42,14 +42,11 @@ class TimeScaleCallback(BackendQueue):
         self.insert_statement = f"INSERT INTO {self.table} ({','.join([v for v in self.custom_columns.values()])}) VALUES " if custom_columns else None
         self.running = True
 
-
-
-
     async def ensure_tables_exist(self):
         try:
             # Check if 'trades' table exists
             trades_exists = await self.conn.fetchval("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'trades');")
-            print(trades_exists)
+            #print(trades_exists)
             if not trades_exists:
                 await self.conn.execute("""
                     CREATE TABLE trades (
@@ -63,8 +60,8 @@ class TimeScaleCallback(BackendQueue):
                     );
                     SELECT create_hypertable('trades', 'timestamp');
                 """)
-                logging.info("Created 'trades' table")
-                print('Created trades table')
+                logging.info("Created 'trades' hypertable with 'trades', 'timestamp'")
+                
                 # side TEXT,
                 # amount DOUBLE PRECISION,
                 # price DOUBLE PRECISION,
@@ -72,7 +69,7 @@ class TimeScaleCallback(BackendQueue):
 
             # Check if 'book' table exists
             book_exists = await self.conn.fetchval("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'book');")
-            print(book_exists)
+            #print(book_exists)
             if not book_exists:
                 await self.conn.execute("""
                     CREATE TABLE book (
@@ -85,8 +82,8 @@ class TimeScaleCallback(BackendQueue):
                     );
                     SELECT create_hypertable('book', 'timestamp');
                 """)
-                logging.info("Created 'book' table")
-                print("Created 'book' table")
+                logging.info("Created 'book' hypertable with 'book', 'timestamp'")
+                
 
             logging.info("Tables checked and created if necessary")
 
@@ -99,9 +96,13 @@ class TimeScaleCallback(BackendQueue):
     async def _connect(self):
         if self.conn is None:
             print('is connecting to timescaledb')
-            self.conn = await asyncpg.connect(user=self.user, password=self.pw, database=self.db, host=self.host, port=self.port)
-            print('check if tables exist')
-            await self.ensure_tables_exist()
+            try:
+                self.conn = await asyncpg.connect(user=self.user, password=self.pw, database=self.db, host=self.host, port=self.port)
+                print('check if tables exist')
+                await self.ensure_tables_exist()
+            except Exception as e:
+                logging.error(f"Error while connecting to TimescaleDB: {str(e)}")
+
 
     def format(self, data: Tuple):
         feed = data[0]
@@ -152,14 +153,18 @@ class TimeScaleCallback(BackendQueue):
 
     async def writer(self):
         while self.running:
-            async with self.read_queue() as updates:
-                if len(updates) > 0:
-                    batch = []
-                    for data in updates:
-                        ts = dt.utcfromtimestamp(data['timestamp']) if data['timestamp'] else None
-                        rts = dt.utcfromtimestamp(data['receipt_timestamp'])
-                        batch.append((data['exchange'], data['symbol'], ts, rts, data))
-                    await self.write_batch(batch)
+            try:
+                async with self.read_queue() as updates:
+                    if len(updates) > 0:
+                        batch = []
+                        for data in updates:
+                            ts = dt.utcfromtimestamp(data['timestamp']) if data['timestamp'] else None
+                            rts = dt.utcfromtimestamp(data['receipt_timestamp'])
+                            batch.append((data['exchange'], data['symbol'], ts, rts, data))
+                        await self.write_batch(batch)
+            except Exception as e:
+                logging.error(f"Error in writer method in TimeScaleCallback: {str(e)}")
+
 
     async def write_batch(self, updates: list):
         await self._connect()
@@ -189,7 +194,7 @@ class TradesTimeScale(TimeScaleCallback, BackendCallback):
                 otype = f"'{data['type']}'" if data['type'] else 'NULL'
                 return f"(DEFAULT,'{timestamp}','{receipt}','{exchange}','{symbol}','{data['side']}',{data['amount']},{data['price']},{id},{otype})"
     except Exception as e:
-            logging.error(f"Error in format method of BookTimeScale: {str(e)}")
+            logging.error(f"Error in format method of TradesTimeScale: {str(e)}")
             # Optionally, you can raise the exception again to propagate it
             #raise
 class BookTimeScale(TimeScaleCallback, BackendBookCallback):
