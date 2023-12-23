@@ -47,28 +47,31 @@ class TimeScaleCallback(BackendQueue):
         if not trades_exists:
             await self.conn.execute("""
                 CREATE TABLE trades (
-                    id SERIAL PRIMARY KEY,
-                    exchange TEXT,
-                    symbol TEXT,
-                    side TEXT,
-                    amount DOUBLE PRECISION,
-                    price DOUBLE PRECISION,
-                    type TEXT,
-                    timestamp TIMESTAMPTZ
-                );
-                SELECT create_hypertable('trades', 'timestamp');
-            """)
-
-        # Check if 'book' table exists
-        book_exists = await self.conn.fetchval("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'book');")
-        if not book_exists:
-            await conn.execute("""
-                CREATE TABLE book (
-                    book_id SERIAL PRIMARY KEY,
                     exchange TEXT,
                     symbol TEXT,
                     data JSONB,
-                    timestamp TIMESTAMPTZ
+                    timestamp TIMESTAMPTZ,
+                    receipt TIMESTAMPTZ,
+                    id INT,
+                    PRIMARY KEY (exchange, symbol, id)
+                );
+                SELECT create_hypertable('trades', 'timestamp');
+            """)
+                    # side TEXT,
+                    # amount DOUBLE PRECISION,
+                    # price DOUBLE PRECISION,
+                    # type TEXT,
+        # Check if 'book' table exists
+        book_exists = await self.conn.fetchval("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'book');")
+        if not book_exists:
+            await self.conn.execute("""
+                CREATE TABLE book (
+                    exchange TEXT,
+                    symbol TEXT,
+                    data JSONB,
+                    timestamp TIMESTAMPTZ,
+                    receipt TIMESTAMPTZ,
+                    PRIMARY KEY (exchange, symbol, receipt)
                 );
                 SELECT create_hypertable('book', 'timestamp');
             """)
@@ -78,7 +81,7 @@ class TimeScaleCallback(BackendQueue):
     async def _connect(self):
         if self.conn is None:
             self.conn = await asyncpg.connect(user=self.user, password=self.pw, database=self.db, host=self.host, port=self.port)
-            await ensure_tables_exist(self.conn)
+            await self.ensure_tables_exist()
 
     def format(self, data: Tuple):
         feed = data[0]
@@ -88,7 +91,27 @@ class TimeScaleCallback(BackendQueue):
         data = data[4]
 
         return f"(DEFAULT,'{timestamp}','{receipt_timestamp}','{feed}','{symbol}','{json.dumps(data)}')"
+    def _custom_format_trades(self, data: Tuple):
 
+            d = {
+                **data[4],
+                **{
+                    'exchange': data[0],
+                    'symbol': data[1],
+                    'timestamp': data[2],
+                    'receipt': data[3],
+                    'id': data[4]['id']  # Assuming 'id' is part of the data structure in data[4]
+                }
+            }
+
+            # Serialize the remaining trade details into JSON for the JSONB column
+            trade_details = {k: v for k, v in data[4].items() if k != 'id'}
+            d['data'] = json.dumps(trade_details)
+
+            sequence_gen = (d[field] if field in d else 'NULL' for field in self.custom_columns.keys())
+            sql_string = ','.join(str(s) if isinstance(s, float) or s == 'NULL' else "'" + str(s) + "'" for s in sequence_gen)
+            return f"({sql_string})"
+        
     def _custom_format(self, data: Tuple):
 
         d = {
@@ -139,7 +162,7 @@ class TradeTimeScale(TimeScaleCallback, BackendCallback):
 
     def format(self, data: Tuple):
         if self.custom_columns:
-            return self._custom_format(data)
+            return self._custom_format_trades(data)
         else:
             exchange, symbol, timestamp, receipt, data = data
             id = f"'{data['id']}'" if data['id'] else 'NULL'

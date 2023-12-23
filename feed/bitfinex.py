@@ -44,6 +44,21 @@ async def aio_task():
     while True:
         print("Other task running")
         await asyncio.sleep(10)       
+custom_columns = {
+    'exchange': 'exchange',     # Maps Cryptofeed's 'exchange' field to the 'exchange' column in TimescaleDB
+    'symbol': 'symbol',         # Maps Cryptofeed's 'symbol' field to the 'symbol' column in TimescaleDB
+    'timestamp': 'timestamp',   # Maps Cryptofeed's 'timestamp' field to the 'timestamp' column in TimescaleDB
+    'receipt': 'receipt',       # Maps Cryptofeed's 'receipt' field to the 'receipt' column in TimescaleDB
+    'data': 'data',              # Maps the serialized JSON data to the 'data' JSONB column in TimescaleDB
+}
+custom_columns_trades= {
+    'exchange': 'exchange',     # Maps Cryptofeed's 'exchange' field to the 'exchange' column in TimescaleDB
+    'symbol': 'symbol',         # Maps Cryptofeed's 'symbol' field to the 'symbol' column in TimescaleDB
+    'timestamp': 'timestamp',   # Maps Cryptofeed's 'timestamp' field to the 'timestamp' column in TimescaleDB
+    'receipt': 'receipt',       # Maps Cryptofeed's 'receipt' field to the 'receipt' column in TimescaleDB
+    'data': 'data',              # Maps the serialized JSON data to the 'data' JSONB column in TimescaleDB
+    'id': 'id',                  # Maps Cryptofeed's 'id' field to the 'id' column in TimescaleDB
+}
 def main():
     logger.info('Starting bitfinex feed')
     path_to_config = '/config_cf.yaml'
@@ -70,7 +85,9 @@ def main():
                                     #score_key='timestamp',
                                         ),
                                     BookPostgres(
-                                        snapshot_interval=snapshot_interval, 
+                                        snapshot_interval=snapshot_interval,
+                                        #table='book',
+                                        custom_columns=custom_columns, 
                                         **postgres_cfg
                                         )
                             ]
@@ -91,6 +108,8 @@ def main():
                                     decode_responses=True,
                                         ),
                                     TradePostgres(
+                                        custom_columns=custom_columns,
+                                        #table='trades',
                                         **postgres_cfg
                                         )
                                     
