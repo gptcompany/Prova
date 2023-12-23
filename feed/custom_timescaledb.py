@@ -177,7 +177,7 @@ class TimeScaleCallback(BackendQueue):
                 pass
 
 
-class TradeTimeScale(TimeScaleCallback, BackendCallback):
+class TradesTimeScale(TimeScaleCallback, BackendCallback):
     default_table = TRADES
     try:
         def format(self, data: Tuple):

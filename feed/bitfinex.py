@@ -12,6 +12,7 @@ import logging
 from datetime import datetime
 import sys
 from Custom_Redis import CustomBookRedis, CustomTradeRedis, CustomBookStream
+from custom_timescaledb import BookTimeScale, TradesTimeScale
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
 async def trade(t, receipt_timestamp):
@@ -84,7 +85,7 @@ def main():
                                     # snapshot_interval=snapshot_interval,
                                     # #score_key='timestamp',
                                     #     ),
-                                    BookPostgres(
+                                    BookTimeScale(
                                         snapshot_interval=snapshot_interval,
                                         #table='book',
                                         custom_columns=custom_columns, 
@@ -107,7 +108,7 @@ def main():
                                     ssl=True,
                                     decode_responses=True,
                                         ),
-                                    TradePostgres(
+                                    TradesTimeScale(
                                         custom_columns=custom_columns_trades,
                                         #table='trades',
                                         **postgres_cfg
