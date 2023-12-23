@@ -49,6 +49,7 @@ class TimeScaleCallback(BackendQueue):
         try:
             # Check if 'trades' table exists
             trades_exists = await self.conn.fetchval("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'trades');")
+            print(book_exists)
             if not trades_exists:
                 await self.conn.execute("""
                     CREATE TABLE trades (
@@ -63,6 +64,7 @@ class TimeScaleCallback(BackendQueue):
                     SELECT create_hypertable('trades', 'timestamp');
                 """)
                 logging.info("Created 'trades' table")
+                print('Created trades table')
                 # side TEXT,
                 # amount DOUBLE PRECISION,
                 # price DOUBLE PRECISION,
@@ -70,6 +72,7 @@ class TimeScaleCallback(BackendQueue):
 
             # Check if 'book' table exists
             book_exists = await self.conn.fetchval("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'book');")
+            print(book_exists)
             if not book_exists:
                 await self.conn.execute("""
                     CREATE TABLE book (
@@ -83,6 +86,7 @@ class TimeScaleCallback(BackendQueue):
                     SELECT create_hypertable('book', 'timestamp');
                 """)
                 logging.info("Created 'book' table")
+                print("Created 'book' table")
 
             logging.info("Tables checked and created if necessary")
 
