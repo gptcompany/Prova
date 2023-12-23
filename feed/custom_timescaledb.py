@@ -98,7 +98,9 @@ class TimeScaleCallback(BackendQueue):
 
     async def _connect(self):
         if self.conn is None:
+            print('is connecting to timescaledb')
             self.conn = await asyncpg.connect(user=self.user, password=self.pw, database=self.db, host=self.host, port=self.port)
+            print('check if tables exist')
             await self.ensure_tables_exist()
 
     def format(self, data: Tuple):
