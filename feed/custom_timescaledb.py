@@ -1,15 +1,13 @@
 from collections import defaultdict
 from datetime import datetime as dt
 from typing import Tuple
-
 import asyncpg
 from yapic import json
-
 from cryptofeed.backends.backend import BackendBookCallback, BackendCallback, BackendQueue
 from cryptofeed.defines import CANDLES, FUNDING, OPEN_INTEREST, TICKER, TRADES, LIQUIDATIONS, INDEX
 
 
-class PostgresCallback(BackendQueue):
+class TimeScaleCallback(BackendQueue):
     def __init__(self, host='127.0.0.1', user=None, pw=None, db=None, port=None, table=None, custom_columns: dict = None, none_to=None, numeric_type=float, **kwargs):
         """
         host: str
@@ -43,13 +41,11 @@ class PostgresCallback(BackendQueue):
         self.running = True
 
 
-    async def ensure_tables_exist():
-        conn = await asyncpg.connect(user='your_user', password='your_password', database='your_db', host='your_host')
-        
+    async def ensure_tables_exist(self):
         # Check if 'trades' table exists
-        trades_exists = await conn.fetchval("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'trades');")
+        trades_exists = await self.conn.fetchval("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'trades');")
         if not trades_exists:
-            await conn.execute("""
+            await self.conn.execute("""
                 CREATE TABLE trades (
                     id SERIAL PRIMARY KEY,
                     exchange TEXT,
@@ -57,7 +53,6 @@ class PostgresCallback(BackendQueue):
                     side TEXT,
                     amount DOUBLE PRECISION,
                     price DOUBLE PRECISION,
-                    id TEXT,
                     type TEXT,
                     timestamp TIMESTAMPTZ
                 );
@@ -65,7 +60,7 @@ class PostgresCallback(BackendQueue):
             """)
 
         # Check if 'book' table exists
-        book_exists = await conn.fetchval("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'book');")
+        book_exists = await self.conn.fetchval("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'book');")
         if not book_exists:
             await conn.execute("""
                 CREATE TABLE book (
@@ -78,7 +73,7 @@ class PostgresCallback(BackendQueue):
                 SELECT create_hypertable('book', 'timestamp');
             """)
 
-        await conn.close()
+        await self.conn.close()
 
     async def _connect(self):
         if self.conn is None:
@@ -139,7 +134,7 @@ class PostgresCallback(BackendQueue):
                 pass
 
 
-class TradePostgres(PostgresCallback, BackendCallback):
+class TradeTimeScale(TimeScaleCallback, BackendCallback):
     default_table = TRADES
 
     def format(self, data: Tuple):
@@ -151,7 +146,7 @@ class TradePostgres(PostgresCallback, BackendCallback):
             otype = f"'{data['type']}'" if data['type'] else 'NULL'
             return f"(DEFAULT,'{timestamp}','{receipt}','{exchange}','{symbol}','{data['side']}',{data['amount']},{data['price']},{id},{otype})"
 
-class BookPostgres(PostgresCallback, BackendBookCallback):
+class BookTimeScale(TimeScaleCallback, BackendBookCallback):
     default_table = 'book'
 
     def __init__(self, *args, snapshots_only=False, snapshot_interval=1000, **kwargs):
