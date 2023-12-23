@@ -49,7 +49,7 @@ class TimeScaleCallback(BackendQueue):
         try:
             # Check if 'trades' table exists
             trades_exists = await self.conn.fetchval("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'trades');")
-            print(book_exists)
+            print(trades_exists)
             if not trades_exists:
                 await self.conn.execute("""
                     CREATE TABLE trades (
