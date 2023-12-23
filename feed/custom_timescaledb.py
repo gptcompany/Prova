@@ -59,7 +59,7 @@ class TimeScaleCallback(BackendQueue):
                         timestamp TIMESTAMPTZ,
                         receipt TIMESTAMPTZ,
                         id INT,
-                        PRIMARY KEY (exchange, symbol, id)
+                        PRIMARY KEY (exchange, symbol, id, timestamp)
                     );
                     SELECT create_hypertable('trades', 'timestamp');
                 """)
@@ -81,7 +81,7 @@ class TimeScaleCallback(BackendQueue):
                         data JSONB,
                         timestamp TIMESTAMPTZ,
                         receipt TIMESTAMPTZ,
-                        PRIMARY KEY (exchange, symbol, receipt)
+                        PRIMARY KEY (exchange, symbol, timestamp)
                     );
                     SELECT create_hypertable('book', 'timestamp');
                 """)
