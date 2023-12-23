@@ -90,8 +90,8 @@ class TimeScaleCallback(BackendQueue):
         except Exception as e:
             logging.error(f"Error while checking/creating tables: {str(e)}")
 
-        finally:
-            await self.conn.close()
+        # finally:
+        #     await self.conn.close()
 
     async def _connect(self):
         if self.conn is None:
