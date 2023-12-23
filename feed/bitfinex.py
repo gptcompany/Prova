@@ -108,7 +108,7 @@ def main():
                                     decode_responses=True,
                                         ),
                                     TradePostgres(
-                                        custom_columns=custom_columns,
+                                        custom_columns=custom_columns_trades,
                                         #table='trades',
                                         **postgres_cfg
                                         )
