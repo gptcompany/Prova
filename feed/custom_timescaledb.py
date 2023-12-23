@@ -5,7 +5,7 @@ import asyncpg
 from yapic import json
 from cryptofeed.backends.backend import BackendBookCallback, BackendCallback, BackendQueue
 from cryptofeed.defines import CANDLES, FUNDING, OPEN_INTEREST, TICKER, TRADES, LIQUIDATIONS, INDEX
-
+import logging
 
 class TimeScaleCallback(BackendQueue):
     def __init__(self, host='127.0.0.1', user=None, pw=None, db=None, port=None, table=None, custom_columns: dict = None, none_to=None, numeric_type=float, **kwargs):
@@ -41,42 +41,54 @@ class TimeScaleCallback(BackendQueue):
         self.running = True
 
 
-    async def ensure_tables_exist(self):
-        # Check if 'trades' table exists
-        trades_exists = await self.conn.fetchval("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'trades');")
-        if not trades_exists:
-            await self.conn.execute("""
-                CREATE TABLE trades (
-                    exchange TEXT,
-                    symbol TEXT,
-                    data JSONB,
-                    timestamp TIMESTAMPTZ,
-                    receipt TIMESTAMPTZ,
-                    id INT,
-                    PRIMARY KEY (exchange, symbol, id)
-                );
-                SELECT create_hypertable('trades', 'timestamp');
-            """)
-                    # side TEXT,
-                    # amount DOUBLE PRECISION,
-                    # price DOUBLE PRECISION,
-                    # type TEXT,
-        # Check if 'book' table exists
-        book_exists = await self.conn.fetchval("SELECT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'book');")
-        if not book_exists:
-            await self.conn.execute("""
-                CREATE TABLE book (
-                    exchange TEXT,
-                    symbol TEXT,
-                    data JSONB,
-                    timestamp TIMESTAMPTZ,
-                    receipt TIMESTAMPTZ,
-                    PRIMARY KEY (exchange, symbol, receipt)
-                );
-                SELECT create_hypertable('book', 'timestamp');
-            """)
 
-        await self.conn.close()
+
+    async def ensure_tables_exist(self):
+        try:
+            # Check if 'trades' table exists
+            trades_exists = await self.conn.fetchval("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'trades');")
+            if not trades_exists:
+                await self.conn.execute("""
+                    CREATE TABLE trades (
+                        exchange TEXT,
+                        symbol TEXT,
+                        data JSONB,
+                        timestamp TIMESTAMPTZ,
+                        receipt TIMESTAMPTZ,
+                        id INT,
+                        PRIMARY KEY (exchange, symbol, id)
+                    );
+                    SELECT create_hypertable('trades', 'timestamp');
+                """)
+                logging.info("Created 'trades' table")
+                # side TEXT,
+                # amount DOUBLE PRECISION,
+                # price DOUBLE PRECISION,
+                # type TEXT,
+
+            # Check if 'book' table exists
+            book_exists = await self.conn.fetchval("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'book');")
+            if not book_exists:
+                await self.conn.execute("""
+                    CREATE TABLE book (
+                        exchange TEXT,
+                        symbol TEXT,
+                        data JSONB,
+                        timestamp TIMESTAMPTZ,
+                        receipt TIMESTAMPTZ,
+                        PRIMARY KEY (exchange, symbol, receipt)
+                    );
+                    SELECT create_hypertable('book', 'timestamp');
+                """)
+                logging.info("Created 'book' table")
+
+            logging.info("Tables checked and created if necessary")
+
+        except Exception as e:
+            logging.error(f"Error while checking/creating tables: {str(e)}")
+
+        finally:
+            await self.conn.close()
 
     async def _connect(self):
         if self.conn is None:
@@ -159,16 +171,19 @@ class TimeScaleCallback(BackendQueue):
 
 class TradeTimeScale(TimeScaleCallback, BackendCallback):
     default_table = TRADES
-
-    def format(self, data: Tuple):
-        if self.custom_columns:
-            return self._custom_format_trades(data)
-        else:
-            exchange, symbol, timestamp, receipt, data = data
-            id = f"'{data['id']}'" if data['id'] else 'NULL'
-            otype = f"'{data['type']}'" if data['type'] else 'NULL'
-            return f"(DEFAULT,'{timestamp}','{receipt}','{exchange}','{symbol}','{data['side']}',{data['amount']},{data['price']},{id},{otype})"
-
+    try:
+        def format(self, data: Tuple):
+            if self.custom_columns:
+                return self._custom_format_trades(data)
+            else:
+                exchange, symbol, timestamp, receipt, data = data
+                id = f"'{data['id']}'" if data['id'] else 'NULL'
+                otype = f"'{data['type']}'" if data['type'] else 'NULL'
+                return f"(DEFAULT,'{timestamp}','{receipt}','{exchange}','{symbol}','{data['side']}',{data['amount']},{data['price']},{id},{otype})"
+    except Exception as e:
+            logging.error(f"Error in format method of BookTimeScale: {str(e)}")
+            # Optionally, you can raise the exception again to propagate it
+            #raise
 class BookTimeScale(TimeScaleCallback, BackendBookCallback):
     default_table = 'book'
 
@@ -179,21 +194,27 @@ class BookTimeScale(TimeScaleCallback, BackendBookCallback):
         super().__init__(*args, **kwargs)
 
     def format(self, data: Tuple):
-        if self.custom_columns:
-            if 'book' in data[4]:
-                data[4]['data'] = json.dumps({'snapshot': data[4]['book']})
+        try:
+            if self.custom_columns:
+                if 'book' in data[4]:
+                    data[4]['data'] = json.dumps({'snapshot': data[4]['book']})
+                else:
+                    data[4]['data'] = json.dumps({'delta': data[4]['delta']})
+                return self._custom_format(data)
             else:
-                data[4]['data'] = json.dumps({'delta': data[4]['delta']})
-            return self._custom_format(data)
-        else:
-            feed = data[0]
-            symbol = data[1]
-            timestamp = data[2]
-            receipt_timestamp = data[3]
-            data = data[4]
-            if 'book' in data:
-                data = {'snapshot': data['book']}
-            else:
-                data = {'delta': data['delta']}
+                feed = data[0]
+                symbol = data[1]
+                timestamp = data[2]
+                receipt_timestamp = data[3]
+                data = data[4]
+                if 'book' in data:
+                    data = {'snapshot': data['book']}
+                else:
+                    data = {'delta': data['delta']}
 
-            return f"(DEFAULT,'{timestamp}','{receipt_timestamp}','{feed}','{symbol}','{json.dumps(data)}')"
+                return f"(DEFAULT,'{timestamp}','{receipt_timestamp}','{feed}','{symbol}','{json.dumps(data)}')"
+
+        except Exception as e:
+            logging.error(f"Error in format method of BookTimeScale: {str(e)}")
+            # Optionally, you can raise the exception again to propagate it
+            #raise
