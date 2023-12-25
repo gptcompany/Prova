@@ -43,29 +43,33 @@ class TimeScaleCallback(BackendQueue):
         self.running = True
     
     
-    async def ensure_compression(self, table, segmentby_column, orderby_column):
+    async def ensure_compression(self, segmentby_column, orderby_column):
         try:
             # Check if compression is enabled
             is_compressed = await self.conn.fetchval(
                 "SELECT EXISTS (SELECT * FROM timescaledb_information.compressed_hypertable_stats WHERE hypertable_name = %s);", 
-                (table,)
+                (self.table,)
             )
 
             if not is_compressed:
                 # Enable compression
                 await self.conn.execute(f"""
-                    ALTER TABLE {table} SET (
+                    ALTER TABLE {self.table} SET (
                         timescaledb.compress, 
-                        timescaledb.compress_segmentby = '{segmentby_column}', 
+                        timescaledb.compress_segmentby = '{', '.join(segmentby_column)}', 
                         timescaledb.compress_orderby = '{orderby_column}'
                     );
                 """)
-                logging.info(f"Compression enabled for table {table}")
-            else:
-                logging.info(f"Compression is already enabled for table {table}")
 
+                logging.info(f"Compression enabled for table {self.table}")
+            else:
+                logging.info(f"Compression is already enabled for table {self.table}")
+            # Add compression policy
+            await self.conn.execute(f"""
+                SELECT add_compression_policy('public.{self.table}', INTERVAL '1 day', if_not_exists => true);
+            """)
         except Exception as e:
-            logging.error(f"Error while ensuring compression on table {table}: {str(e)}")
+            logging.error(f"Error while ensuring compression on table {self.table}: {str(e)}")
 
 
     async def ensure_tables_exist(self):
@@ -125,8 +129,8 @@ class TimeScaleCallback(BackendQueue):
             try:
                 self.conn = await asyncpg.connect(user=self.user, password=self.pw, database=self.db, host=self.host, port=self.port)
                 await self.ensure_tables_exist()
-                await self.ensure_compression('book', 'exchange', 'timestamp')
-                await self.ensure_compression('trades', 'exchange', 'timestamp')
+                await self.ensure_compression(['exchange','symbol'], 'timestamp')
+                
             except Exception as e:
                 logging.error(f"Error while connecting to TimescaleDB: {str(e)}")
 
