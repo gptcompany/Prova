@@ -76,15 +76,15 @@ def main():
                         },
                         callbacks={
                             L3_BOOK:[
-                                    # CustomBookStream(
-                                    # host=fh.config.config['redis_host'], 
-                                    # port=fh.config.config['redis_port'], 
-                                    # snapshots_only=False,
-                                    # ssl=True,
-                                    # decode_responses=True,
-                                    # snapshot_interval=snapshot_interval,
-                                    # #score_key='timestamp',
-                                    #     ),
+                                    CustomBookStream(
+                                    host=fh.config.config['redis_host'], 
+                                    port=fh.config.config['redis_port'], 
+                                    snapshots_only=False,
+                                    ssl=True,
+                                    decode_responses=True,
+                                    snapshot_interval=snapshot_interval,
+                                    #score_key='timestamp',
+                                        ),
                                     BookTimeScale(
                                         snapshot_interval=snapshot_interval,
                                         #table='book',

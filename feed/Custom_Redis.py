@@ -53,6 +53,8 @@ class CustomRedisZSetCallback(CustomRedisCallback):
                             value = json.dumps(update)
                             #print(f"Adding to pipeline - Key: {key}, Score: {score}, Value: {value}")
                             pipe.zadd(key, {value: score}, nx=True)
+                            # Set TTL for the key
+                            pipe.expire(key, 3600)
                         except Exception as e:
                             logging.error(f"Error processing update: {e}")
                     #print("Executing pipeline")
@@ -96,8 +98,11 @@ class CustomRedisStreamCallback(CustomRedisCallback):
                                 #logging.info(f"Processing full snapshot for {update['exchange']}-{update['symbol']}")
                             elif 'closed' in update:
                                 update['closed'] = str(update['closed'])
-
-                            pipe = pipe.xadd(f"{self.key}-{update['exchange']}-{update['symbol']}", update)
+                            # SET  <key> <value>    
+                            full_key = f"{self.key}-{update['exchange']}-{update['symbol']}"
+                            pipe = pipe.xadd(full_key, update)
+                            # Set TTL for the key
+                            pipe.expire(full_key, 3600)
                         except Exception as e:
                             logging.error(f"Error processing update: {e}")
                     try:

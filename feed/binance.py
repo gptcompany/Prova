@@ -12,6 +12,7 @@ import sys
 from datetime import datetime, timezone
 from redis import asyncio as aioredis
 from Custom_Redis import CustomBookRedis, CustomTradeRedis, CustomBookStream
+from custom_timescaledb import BookTimeScale, TradesTimeScale
 from statistics import mean
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
@@ -41,49 +42,76 @@ async def book(book, receipt_timestamp):
     if book.sequence_number:
         assert isinstance(book.sequence_number, int)
     await asyncio.sleep(0.5) 
+custom_columns = {
+    'exchange': 'exchange',     # Maps Cryptofeed's 'exchange' field to the 'exchange' column in TimescaleDB
+    'symbol': 'symbol',         # Maps Cryptofeed's 'symbol' field to the 'symbol' column in TimescaleDB
+    'timestamp': 'timestamp',   # Maps Cryptofeed's 'timestamp' field to the 'timestamp' column in TimescaleDB
+    'receipt': 'receipt',       # Maps Cryptofeed's 'receipt' field to the 'receipt' column in TimescaleDB
+    'data': 'data',              # Maps the serialized JSON data to the 'data' JSONB column in TimescaleDB
+}
+custom_columns_trades= {
+    'exchange': 'exchange',     # Maps Cryptofeed's 'exchange' field to the 'exchange' column in TimescaleDB
+    'symbol': 'symbol',         # Maps Cryptofeed's 'symbol' field to the 'symbol' column in TimescaleDB
+    'timestamp': 'timestamp',   # Maps Cryptofeed's 'timestamp' field to the 'timestamp' column in TimescaleDB
+    'receipt': 'receipt',       # Maps Cryptofeed's 'receipt' field to the 'receipt' column in TimescaleDB
+    'data': 'data',              # Maps the serialized JSON data to the 'data' JSONB column in TimescaleDB
+    'id': 'id',                  # Maps Cryptofeed's 'id' field to the 'id' column in TimescaleDB
+}
 def main():
     logger.info('Starting binance feed')
     path_to_config = '/config_cf.yaml'
+    snapshot_interval = 10000
     try:
-        fh = FeedHandler(config=path_to_config)  
+        fh = FeedHandler(config=path_to_config)
+        postgres_cfg = {'host': '0.0.0.0', 'user': 'postgres', 'db': 'db0', 'pw': fh.config.config['timescaledb_password'], 'port': '5432'}
         symbols = fh.config.config['bn_symbols']
         #symbols = ['BTC-USDT','ETH-BTC']
         fh.run(start_loop=False)
-        #print(fh.config.config['redis_host'])
-        #print(fh.config.config['redis_port'])
         fh.add_feed(Binance(
                     max_depth=50,
                     subscription={
-                        L2_BOOK: symbols, 
-                        
+                        L2_BOOK: symbols,   
                     },
                     callbacks={
-                        L2_BOOK:
-                                CustomBookStream(
-                                host=fh.config.config['redis_host'], 
-                                port=fh.config.config['redis_port'], 
-                                snapshots_only=False,
-                                ssl=True,
-                                decode_responses=True,
-                                snapshot_interval=10000,
-                                #score_key='timestamp',
-                                                )
-                    },
-                    cross_check=True,
-                    )
-                    )
+                            L3_BOOK:[
+                                    CustomBookStream(
+                                    host=fh.config.config['redis_host'], 
+                                    port=fh.config.config['redis_port'], 
+                                    snapshots_only=False,
+                                    ssl=True,
+                                    decode_responses=True,
+                                    snapshot_interval=snapshot_interval,
+                                    #score_key='timestamp',
+                                        ),
+                                    BookTimeScale(
+                                        snapshot_interval=snapshot_interval,
+                                        #table='book',
+                                        custom_columns=custom_columns, 
+                                        **postgres_cfg
+                                        )
+                            ]
+                        },
+                        cross_check=True,
+                        )
         fh.add_feed(Binance(
                         subscription={
                             TRADES: symbols,
                         },
                         callbacks={
-                            TRADES: 
+                            TRADES:[ 
                                     CustomTradeRedis(
                                     host=fh.config.config['redis_host'], 
                                     port=fh.config.config['redis_port'],
                                     ssl=True,
                                     decode_responses=True,
-                                                        )
+                                        ),
+                                    TradesTimeScale(
+                                        custom_columns=custom_columns_trades,
+                                        #table='trades',
+                                        **postgres_cfg
+                                        )
+                                    
+                            ]
                         },
                         #cross_check=True,
                         #timeout=-1
