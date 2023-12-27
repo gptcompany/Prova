@@ -92,6 +92,7 @@ def main():
                                     #score_key='timestamp',
                                         ),
                                     BookTimeScale(
+                                        snapshots_only=False,
                                         snapshot_interval=snapshot_interval,
                                         #table='book',
                                         custom_columns=custom_columns, 

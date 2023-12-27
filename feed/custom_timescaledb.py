@@ -212,7 +212,7 @@ class TradesTimeScale(TimeScaleCallback, BackendCallback):
 class BookTimeScale(TimeScaleCallback, BackendBookCallback):
     default_table = 'book'
 
-    def __init__(self, *args, snapshots_only=False, snapshot_interval=1000, **kwargs):
+    def __init__(self, *args, snapshots_only=False, snapshot_interval=10000, **kwargs):
         self.snapshots_only = snapshots_only
         self.snapshot_interval = snapshot_interval
         self.snapshot_count = defaultdict(int)

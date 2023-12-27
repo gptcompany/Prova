@@ -80,12 +80,12 @@ class CustomBookRedis(CustomRedisZSetCallback, BackendBookCallback):
 
 class CustomTradeRedis(CustomRedisZSetCallback, BackendCallback):
     default_key = 'trades'
-    #logging.info("Initializing TradeRedis")
+    logging.info("Initializing TradeRedis")
     
 class CustomRedisStreamCallback(CustomRedisCallback):
     async def writer(self):
         conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
-        logging.info("Initializing Redis")
+        
         while self.running:
             async with self.read_queue() as updates:
                 async with conn.pipeline(transaction=False) as pipe:
