@@ -77,7 +77,7 @@ class TimeScaleCallback(BackendQueue):
                         timestamp TIMESTAMPTZ,
                         receipt TIMESTAMPTZ,
                         id BIGINT,
-                        PRIMARY KEY (exchange, symbol, id, timestamp)
+                        PRIMARY KEY (exchange, symbol, timestamp, id)
                     );
                     SELECT create_hypertable('{self.table}', 'timestamp', chunk_time_interval => INTERVAL '10 minutes');
                 """)
@@ -95,9 +95,9 @@ class TimeScaleCallback(BackendQueue):
                         data JSONB,
                         timestamp TIMESTAMPTZ,
                         receipt TIMESTAMPTZ,
-                        PRIMARY KEY (exchange, symbol, timestamp)
+                        PRIMARY KEY (exchange, symbol, timestamp, receipt)
                     );
-                    SELECT create_hypertable('{self.table}', 'timestamp');
+                    SELECT create_hypertable('{self.table}', 'timestamp', chunk_time_interval => INTERVAL '10 minutes');
                 """)
                 logging.info(f"Created {self.table} hypertable")
             logging.info(f"Table {self.table} checked")
