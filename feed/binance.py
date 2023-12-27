@@ -80,7 +80,7 @@ def main():
                         L2_BOOK: symbols,   
                     },
                     callbacks={
-                            L3_BOOK:[
+                            L2_BOOK:[
                                     CustomBookStream(
                                     host=fh.config.config['redis_host'], 
                                     port=fh.config.config['redis_port'], 
