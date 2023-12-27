@@ -41,7 +41,7 @@ Resources:
           Essential: true
           WorkingDirectory: "/code/feed/"
           Command: 
-            - "python"
+            - "python3"
             - "-m"
             - !Sub "${ECSTaskFamily}"
           MountPoints: 
