@@ -118,10 +118,10 @@ class CustomRedisStreamCallback(CustomRedisCallback):
 
 class CustomBookStream(CustomRedisStreamCallback, BackendBookCallback):
     default_key = 'book'
-
+    logging.info("Initializing CustomBookStream")
     def __init__(self, *args, snapshots_only=False, snapshot_interval=10000, **kwargs):
         self.snapshots_only = snapshots_only
         self.snapshot_interval = snapshot_interval
         self.snapshot_count = defaultdict(int)
         super().__init__(*args, **kwargs)
-        logging.info("Initializing CustomBookStream")
+        
