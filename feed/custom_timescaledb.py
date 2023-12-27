@@ -86,10 +86,8 @@ class TimeScaleCallback(BackendQueue):
                 # amount DOUBLE PRECISION,
                 # price DOUBLE PRECISION,
                 # type TEXT,
-            logging.info(f"Table {self.table} checked")
-            # Check if 'book' table exists
-            table_exists = await self.conn.fetchval(f"SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename  = '{self.table}');")
-            if not table_exists and self.table == 'book':
+            
+            elif not table_exists and self.table == 'book':
                 await self.conn.execute(f"""
                     CREATE TABLE {self.table} (
                         exchange TEXT,
@@ -105,9 +103,6 @@ class TimeScaleCallback(BackendQueue):
             logging.info(f"Table {self.table} checked")
         except Exception as e:
             logging.error(f"Error while checking/creating tables: {str(e)}")
-
-        # finally:
-        #     await self.conn.close()
 
     async def _connect(self):
         if self.conn is None:
