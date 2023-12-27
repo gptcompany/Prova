@@ -46,29 +46,19 @@ class TimeScaleCallback(BackendQueue):
     async def ensure_compression(self, segmentby_column, orderby_column):
         try:
             # Check if compression is enabled
-            is_compressed = await self.conn.fetchval(
-                "SELECT EXISTS (SELECT * FROM timescaledb_information.compressed_hypertable_stats WHERE hypertable_name = $1);", 
-                self.table
-            )
-            if not is_compressed:
-                # Enable compression
-                segmentby_columns_formatted = ", ".join(segmentby_column)  # Format the column names properly
-                await self.conn.execute("""
-                    ALTER TABLE {} SET (
-                        timescaledb.compress, 
-                        timescaledb.compress_segmentby = '{}', 
-                        timescaledb.compress_orderby = '{}'
-                    );
-                """.format(self.table, segmentby_columns_formatted, orderby_column))
+            segmentby_columns_formatted = ", ".join(segmentby_column)  # Format the column names properly
+            await self.conn.execute("""
+                ALTER TABLE {} SET (
+                    timescaledb.compress, 
+                    timescaledb.compress_segmentby = '{}', 
+                    timescaledb.compress_orderby = '{}'
+                );
+            """.format(self.table, segmentby_columns_formatted, orderby_column))
 
-
-                logging.info(f"Compression enabled for table {self.table}")
-            else:
-                logging.info(f"Compression is already enabled for table {self.table}")
-            # Add compression policy
             await self.conn.execute(f"""
                 SELECT add_compression_policy('public.{self.table}', INTERVAL '1 day', if_not_exists => true);
             """)
+            logging.info(f"Compression enabled for table {self.table}")
         except Exception as e:
             logging.error(f"Error while ensuring compression on table {self.table}: {str(e)}")
 
@@ -86,7 +76,7 @@ class TimeScaleCallback(BackendQueue):
                         data JSONB,
                         timestamp TIMESTAMPTZ,
                         receipt TIMESTAMPTZ,
-                        id INT,
+                        id BIGINT,
                         PRIMARY KEY (exchange, symbol, id, timestamp)
                     );
                     SELECT create_hypertable('trades', 'timestamp');

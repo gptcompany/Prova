@@ -64,6 +64,7 @@ def main():
     logger.info('Starting bitfinex feed')
     path_to_config = '/config_cf.yaml'
     snapshot_interval = 10000
+    ttl = 3600
     try:
         fh = FeedHandler(config=path_to_config)  
         postgres_cfg = {'host': '0.0.0.0', 'user': 'postgres', 'db': 'db0', 'pw': fh.config.config['timescaledb_password'], 'port': '5432'}
@@ -83,6 +84,7 @@ def main():
                                     ssl=True,
                                     decode_responses=True,
                                     snapshot_interval=snapshot_interval,
+                                    ttl=ttl,
                                     #score_key='timestamp',
                                         ),
                                     BookTimeScale(
@@ -107,6 +109,7 @@ def main():
                                     port=fh.config.config['redis_port'],
                                     ssl=True,
                                     decode_responses=True,
+                                    ttl=ttl,
                                         ),
                                     TradesTimeScale(
                                         custom_columns=custom_columns_trades,

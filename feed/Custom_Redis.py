@@ -8,7 +8,7 @@ from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, Fundi
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 #logger = logging.getLogger(__name__)
 class CustomRedisCallback(RedisCallback):
-    def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, none_to='None', numeric_type=float, score_key='timestamp', ssl=True, decode_responses=True, **kwargs):
+    def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, none_to='None', numeric_type=float, score_key='timestamp', ttl=3600, ssl=True, decode_responses=True, **kwargs):
         """
         Custom Redis Callback with SSL and decode_responses support.
         """
@@ -25,9 +25,10 @@ class CustomRedisCallback(RedisCallback):
         self.ssl = ssl
         self.decode_responses = decode_responses
         self.score_key = score_key
+        self.ttl = ttl  # Add this line to store the TTL value
 
 class CustomRedisZSetCallback(CustomRedisCallback):
-    def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, numeric_type=float, score_key='timestamp', ssl=True, decode_responses=True, **kwargs):
+    def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, numeric_type=float, score_key='timestamp', ttl=3600, ssl=True, decode_responses=True, **kwargs):
         """
         Custom Redis ZSet Callback with SSL and decode_responses support.
         """
@@ -54,7 +55,7 @@ class CustomRedisZSetCallback(CustomRedisCallback):
                             #print(f"Adding to pipeline - Key: {key}, Score: {score}, Value: {value}")
                             pipe.zadd(key, {value: score}, nx=True)
                             # Set TTL for the key
-                            pipe.expire(key, 3600)
+                            pipe.expire(key, self.ttl)
                         except Exception as e:
                             logging.error(f"Error processing update: {e}")
                     #print("Executing pipeline")
@@ -102,7 +103,7 @@ class CustomRedisStreamCallback(CustomRedisCallback):
                             full_key = f"{self.key}-{update['exchange']}-{update['symbol']}"
                             pipe = pipe.xadd(full_key, update)
                             # Set TTL for the key
-                            pipe.expire(full_key, 3600)
+                            pipe.expire(full_key, self.ttl)
                         except Exception as e:
                             logging.error(f"Error processing update: {e}")
                     try:
