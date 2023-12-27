@@ -26,7 +26,7 @@ class CustomRedisCallback(RedisCallback):
         self.decode_responses = decode_responses
         self.score_key = score_key
         self.ttl = ttl  # Add this line to store the TTL value
-        logging.info("Initializing Redis")
+        
 class CustomRedisZSetCallback(CustomRedisCallback):
     def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, numeric_type=float, score_key='timestamp', ttl=3600, ssl=True, decode_responses=True, **kwargs):
         """
@@ -71,17 +71,16 @@ class CustomRedisZSetCallback(CustomRedisCallback):
 
 class CustomBookRedis(CustomRedisZSetCallback, BackendBookCallback):
     default_key = 'book'
-
     def __init__(self, *args, snapshots_only=False, snapshot_interval=10000, score_key='receipt_timestamp', **kwargs):
         self.snapshots_only = snapshots_only
         self.snapshot_interval = snapshot_interval
         self.snapshot_count = defaultdict(int)
         super().__init__(*args, score_key=score_key, **kwargs)
-        logging.info("Initializing CustomBookRedis")
+        logging.info("Initializing BookRedis")
 
 class CustomTradeRedis(CustomRedisZSetCallback, BackendCallback):
     default_key = 'trades'
-    logging.info("Initializing CustomTradeRedis")
+    logging.info("Initializing TradeRedis")
     
 class CustomRedisStreamCallback(CustomRedisCallback):
     async def writer(self):
@@ -118,10 +117,9 @@ class CustomRedisStreamCallback(CustomRedisCallback):
 
 class CustomBookStream(CustomRedisStreamCallback, BackendBookCallback):
     default_key = 'book'
-    logging.info("Initializing CustomBookStream")
     def __init__(self, *args, snapshots_only=False, snapshot_interval=10000, **kwargs):
         self.snapshots_only = snapshots_only
         self.snapshot_interval = snapshot_interval
         self.snapshot_count = defaultdict(int)
         super().__init__(*args, **kwargs)
-        
+        logging.info("Initializing BookStreamRedis")
