@@ -56,7 +56,7 @@ class TimeScaleCallback(BackendQueue):
             """.format(self.table, segmentby_columns_formatted, orderby_column))
 
             await self.conn.execute(f"""
-                SELECT add_compression_policy('public.{self.table}', INTERVAL '1 day', if_not_exists => true);
+                SELECT add_compression_policy('public.{self.table}', INTERVAL '10 minutes', if_not_exists => true);
             """)
             logging.info(f"Compression enabled for table {self.table}")
         except Exception as e:
@@ -79,7 +79,7 @@ class TimeScaleCallback(BackendQueue):
                         id BIGINT,
                         PRIMARY KEY (exchange, symbol, id, timestamp)
                     );
-                    SELECT create_hypertable('{self.table}', 'timestamp');
+                    SELECT create_hypertable('{self.table}', 'timestamp', chunk_time_interval => INTERVAL '10 minutes');
                 """)
                 logging.info(f"Created {self.table} hypertable")
                 # side TEXT,
