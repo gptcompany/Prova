@@ -64,7 +64,13 @@ def main():
     ttl=3600
     try:
         fh = FeedHandler(config=path_to_config)
-        postgres_cfg = {'host': '0.0.0.0', 'user': 'postgres', 'db': 'db0', 'pw': fh.config.config['timescaledb_password'], 'port': '5432'}
+        postgres_cfg = {
+            'host': '0.0.0.0', 
+            'user': 'postgres', 
+            'db': 'db0', 
+            'pw': fh.config.config['timescaledb_password'], 
+            'port': '5432',
+                        }
         symbols = fh.config.config['bn_symbols']
         #symbols = ['BTC-USDT','ETH-BTC']
         fh.run(start_loop=False)

@@ -66,11 +66,11 @@ class TimeScaleCallback(BackendQueue):
     async def ensure_tables_exist(self):
         try:
             # Check if 'trades' table exists
-            trades_exists = await self.conn.fetchval("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'trades');")
-            #print(trades_exists)
-            if not trades_exists:
-                await self.conn.execute("""
-                    CREATE TABLE trades (
+            table_exists = await self.conn.fetchval(f"SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename  = '{self.table}');")
+            #print(table_exists)
+            if not table_exists and self.table == 'trades':
+                await self.conn.execute(f"""
+                    CREATE TABLE {self.table} (
                         exchange TEXT,
                         symbol TEXT,
                         data JSONB,
@@ -79,21 +79,19 @@ class TimeScaleCallback(BackendQueue):
                         id BIGINT,
                         PRIMARY KEY (exchange, symbol, id, timestamp)
                     );
-                    SELECT create_hypertable('trades', 'timestamp');
+                    SELECT create_hypertable('{self.table}', 'timestamp');
                 """)
-                logging.info("Created 'trades' hypertable with 'trades', 'timestamp'")
-                
+                logging.info(f"Created {self.table} hypertable")
                 # side TEXT,
                 # amount DOUBLE PRECISION,
                 # price DOUBLE PRECISION,
                 # type TEXT,
-
+            logging.info(f"Table {self.table} checked")
             # Check if 'book' table exists
-            book_exists = await self.conn.fetchval("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename  = 'book');")
-            #print(book_exists)
-            if not book_exists:
-                await self.conn.execute("""
-                    CREATE TABLE book (
+            table_exists = await self.conn.fetchval(f"SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename  = '{self.table}');")
+            if not table_exists and self.table == 'book':
+                await self.conn.execute(f"""
+                    CREATE TABLE {self.table} (
                         exchange TEXT,
                         symbol TEXT,
                         data JSONB,
@@ -101,13 +99,10 @@ class TimeScaleCallback(BackendQueue):
                         receipt TIMESTAMPTZ,
                         PRIMARY KEY (exchange, symbol, timestamp)
                     );
-                    SELECT create_hypertable('book', 'timestamp');
+                    SELECT create_hypertable('{self.table}', 'timestamp');
                 """)
-                logging.info("Created 'book' hypertable with 'book', 'timestamp'")
-                
-
-            logging.info("Tables checked and created if necessary")
-
+                logging.info(f"Created {self.table} hypertable")
+            logging.info(f"Table {self.table} checked")
         except Exception as e:
             logging.error(f"Error while checking/creating tables: {str(e)}")
 
