@@ -15,7 +15,7 @@ postgres_cfg = {
             'port': '5432',
                         }
 async def check_data_persistence_for_multiple_pairs(table, columns, minutes, exchanges, symbols, **postgres_cfg):
-    conn = await asyncpg.connect(postgres_cfg)
+    conn = await asyncpg.connect(**postgres_cfg)
     persistence_results = {}
     try:
         non_null_conditions = ' AND '.join([f"{col} IS NOT NULL" for col in columns])
@@ -34,10 +34,9 @@ async def check_data_persistence_for_multiple_pairs(table, columns, minutes, exc
         await conn.close()
     return persistence_results
 
- 
 
 async def fetch_latest_receipts_for_multiple_pairs(table, exchanges, symbols, **postgres_cfg):
-    conn = await asyncpg.connect(postgres_cfg)
+    conn = await asyncpg.connect(**postgres_cfg)
     results = []
     try:
         for exchange in exchanges:
