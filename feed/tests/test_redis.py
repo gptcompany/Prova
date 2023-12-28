@@ -87,13 +87,13 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl)
 
             for exchange in exchanges:
                 for symbol in symbols:
-                    key_pattern = f"book-{exchange}-{symbol}"
+                    key_pattern = f"trades-{exchange}-{symbol}"
                     #print('before retrieve the entry in redis...')
                     # Retrieve the latest entry's score (timestamp)
                     last_update_score = await r.zrange(key_pattern, -1, -1, withscores=True)
 
                     if not last_update_score:
-                        print(f"No data found for {exchange} {symbol}")
+                        print(f"No data found for {key_pattern}")
                         continue
 
                     # Extract the timestamp (score) of the last update
@@ -111,7 +111,7 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl)
 async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_ssl):
     try:
         url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
-        conn = await aioredis.create_redis(url, decode_responses=True)
+        conn = await aioredis.create_redis_pool(url, decode_responses=True)
 
         # Create a list of channel names based on exchanges, symbols, and data types (e.g., 'book' and 'trades')
         channels = []
@@ -122,7 +122,7 @@ async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_
                     channels.append(channel_name)
 
         # Subscribe to all channels
-        res = await conn.subscribe(*channels)
+        res = await conn.pubsub(*channels)
 
         # Create a task to handle incoming messages for each channel
         tasks = []
@@ -137,8 +137,8 @@ async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_
         print(f"Error subscribing to channels: {e}")
     try:
         await conn.aclose()
-    except AttributeError:
-        pass  # Ignore the warning
+    except AttributeError as e:
+        print(f"Attribute Error closing connection: {e}")
 
 
 async def handle_channel_messages(channel):
