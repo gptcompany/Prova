@@ -156,7 +156,7 @@ async def main():
     try:
     # Assuming add_and_check_key is synchronous
         #await add_and_check_key(redis_host, redis_port, 'test_key', 'test_value', use_ssl=ssl_enabled)
-        await test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled)
+        #await test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled)
         print('Create Redis client')
         tasks = [
             check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled),
