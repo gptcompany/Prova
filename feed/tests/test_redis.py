@@ -39,6 +39,7 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl)
 
 
 async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_ssl):
+    print('hello')
     url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
     conn = await aioredis.from_url(url, decode_responses=True)
 
