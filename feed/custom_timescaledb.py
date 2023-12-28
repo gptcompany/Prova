@@ -96,7 +96,7 @@ class TimeScaleCallback(BackendQueue):
                         symbol TEXT,
                         data JSONB,
                         receipt TIMESTAMPTZ,
-                        update_type TEXT
+                        update_type TEXT,
                         PRIMARY KEY (exchange, symbol, receipt, update_type)
                     );
                     SELECT create_hypertable('{self.table}', 'receipt', chunk_time_interval => INTERVAL '10 minutes');
