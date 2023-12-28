@@ -10,44 +10,50 @@ with open('/config_cf.yaml', 'r') as file:
 postgres_cfg = {
             'host': '0.0.0.0', 
             'user': 'postgres', 
-            'db': 'db0', 
-            'pw': config['timescaledb_password'], 
+            'database': 'db0', 
+            'password': config['timescaledb_password'], 
             'port': '5432',
                         }
-async def check_data_persistence(table, columns, minutes, user, pw, db, host, port):
-    conn = await asyncpg.connect(user=user, password=pw, database=db, host=host, port=port)
+async def check_data_persistence_for_multiple_pairs(table, columns, minutes, exchanges, symbols, **postgres_cfg):
+    conn = await asyncpg.connect(postgres_cfg)
+    persistence_results = {}
     try:
-        # Construct a condition string to check for non-null values in the specified columns
         non_null_conditions = ' AND '.join([f"{col} IS NOT NULL" for col in columns])
-
-        # SQL query to check data persistence
-        query = f"""
-            SELECT COUNT(*) 
-            FROM {table}
-            WHERE {non_null_conditions}
-            AND receipt > (NOW() - INTERVAL '{minutes} minutes')
-        """
-
-        result = await conn.fetchval(query)
-        return result > 0  # Returns True if there are records, False otherwise
+        for exchange in exchanges:
+            for symbol in symbols:
+                query = f"""
+                    SELECT COUNT(*) 
+                    FROM {table}
+                    WHERE {non_null_conditions}
+                    AND exchange = $1 AND symbol = $2
+                    AND receipt > (NOW() - INTERVAL '{minutes} minutes')
+                """
+                count = await conn.fetchval(query, exchange, symbol)
+                persistence_results[(exchange, symbol)] = count > 0
     finally:
         await conn.close()
+    return persistence_results
 
+ 
 
-
-
-async def fetch_latest_receipts(table, user, pw, db, host, port):
-    conn = await asyncpg.connect(user=user, password=pw, database=db, host=host, port=port)
+async def fetch_latest_receipts_for_multiple_pairs(table, exchanges, symbols, **postgres_cfg):
+    conn = await asyncpg.connect(postgres_cfg)
+    results = []
     try:
-        result = await conn.fetch(f"""
-            SELECT symbol, MAX(receipt) AS latest_receipt
-            FROM {table}
-            GROUP BY symbol
-            ORDER BY symbol;
-        """)
-        return result
+        for exchange in exchanges:
+            for symbol in symbols:
+                query = f"""
+                    SELECT symbol, MAX(receipt) AS latest_receipt
+                    FROM {table}
+                    WHERE exchange = $1 AND symbol = $2
+                    GROUP BY symbol;
+                """
+                result = await conn.fetch(query, exchange, symbol)
+                results.extend(result)  # Aggregate results from each query
     finally:
         await conn.close()
+    return results
+
 
 def utc_to_local(utc_dt):
     # Get the local timezone offset
@@ -70,8 +76,10 @@ def check_receipt_age(latest_receipt):
 
 async def main():
     logging.basicConfig(level=logging.INFO)
-
-    trades_receipts = await fetch_latest_receipts('trades', **postgres_cfg)
+    symbols = config['bn_symbols']
+    exchanges = ['BITFINEX', 'BINANCE']
+    
+    trades_receipts = await fetch_latest_receipts_for_multiple_pairs('trades', exchanges, symbols, **postgres_cfg)
     print("Latest Receipts in Trades Table:")
     for record in trades_receipts:
         utc_dt = record['latest_receipt']
@@ -80,7 +88,7 @@ async def main():
         print(f"Symbol: {record['symbol']}, Latest Receipt: {formatted_dt}")
         check_receipt_age(utc_dt)
 
-    book_receipts = await fetch_latest_receipts('book', **postgres_cfg)
+    book_receipts = await fetch_latest_receipts_for_multiple_pairs('book', exchanges, symbols, **postgres_cfg)
     print("\nLatest Receipts in Book Table:")
     for record in book_receipts:
         utc_dt = record['latest_receipt']
@@ -93,12 +101,19 @@ async def main():
     columns_book = ['exchange', 'symbol', 'receipt', 'data', 'update_type']
     columns_trades = ['exchange', 'symbol', 'timestamp', 'receipt', 'side', 'amount', 'price', 'id']
 
-    # Check if there is data in the last 30 minutes
-    is_data_persisted_book = await check_data_persistence('book', columns_book, 30, **postgres_cfg)
-    is_data_persisted_trades = await check_data_persistence('trades', columns_trades, 30, **postgres_cfg)
-    
-    print(f"Data persisted in 'book' table in the last 30 minutes: {is_data_persisted_book}")
-    print(f"Data persisted in 'trades' table in the last 30 minutes: {is_data_persisted_trades}")
+    # Check data persistence for multiple pairs
+    trade_data_persistence = await check_data_persistence_for_multiple_pairs('trades', columns_trades, 30, exchanges, symbols, **postgres_cfg)
+    book_data_persistence = await check_data_persistence_for_multiple_pairs('book', columns_book, 30, exchanges, symbols, **postgres_cfg)
+    for pair, is_persisted in trade_data_persistence.items():
+        exchange, symbol = pair
+        status = 'Yes' if is_persisted else 'No'
+        print(f"Data persisted for {exchange}-{symbol} in 'trades' table in the last 30 minutes: {status}")
+
+    for pair, is_persisted in book_data_persistence.items():
+        exchange, symbol = pair
+        status = 'Yes' if is_persisted else 'No'
+        print(f"Data persisted for {exchange}-{symbol} in 'book' table in the last 30 minutes: {status}")
+
         
 if __name__ == "__main__":
     asyncio.run(main())
