@@ -111,7 +111,7 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl)
 async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_ssl):
     try:
         url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
-        conn = await aioredis.from_url(url, decode_responses=True)
+        conn = await aioredis.create_redis(url, decode_responses=True)
 
         # Create a list of channel names based on exchanges, symbols, and data types (e.g., 'book' and 'trades')
         channels = []
@@ -156,11 +156,10 @@ async def main():
     try:
     # Assuming add_and_check_key is synchronous
         #await add_and_check_key(redis_host, redis_port, 'test_key', 'test_value', use_ssl=ssl_enabled)
-
+        await test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled)
         print('Create Redis client')
         tasks = [
             check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled),
-            test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled),
             subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled)
         ]
         await asyncio.gather(*tasks)
