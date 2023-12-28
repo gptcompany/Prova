@@ -47,14 +47,14 @@ class TimeScaleCallback(BackendQueue):
         try:
             # Check if compression is enabled
             segmentby_columns_formatted = ", ".join(segmentby_column)  # Format the column names properly
+            orderby_column_formatted = ", ".join(orderby_column)
             await self.conn.execute("""
                 ALTER TABLE {} SET (
                     timescaledb.compress, 
                     timescaledb.compress_segmentby = '{}', 
                     timescaledb.compress_orderby = '{}'
                 );
-            """.format(self.table, segmentby_columns_formatted, orderby_column))
-
+            """.format(self.table, segmentby_columns_formatted, orderby_column_formatted))
             await self.conn.execute(f"""
                 SELECT add_compression_policy('public.{self.table}', INTERVAL '10 minutes', if_not_exists => true);
             """)
@@ -112,7 +112,7 @@ class TimeScaleCallback(BackendQueue):
             try:
                 self.conn = await asyncpg.connect(user=self.user, password=self.pw, database=self.db, host=self.host, port=self.port)
                 await self.ensure_tables_exist()
-                await self.ensure_compression(['exchange','symbol'], 'receipt' if self.table == 'book' else 'timestamp')
+                await self.ensure_compression(['exchange','symbol'], ['receipt', 'update_type'] if self.table == 'book' else ['timestamp', 'id'])
                 
             except Exception as e:
                 logging.error(f"Error while connecting to TimescaleDB: {str(e)}")

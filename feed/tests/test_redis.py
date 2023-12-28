@@ -124,7 +124,7 @@ async def main():
 
         print('Create Redis client')
         asyncio.create_task(check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled))
-        asyncio.create_task((test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled))
+        asyncio.create_task(test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled))
             
     except Exception as e:
         print(f"An error occurred: {e}")
