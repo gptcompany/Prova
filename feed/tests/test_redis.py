@@ -135,9 +135,11 @@ async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_
 
     except Exception as e:
         print(f"Error subscribing to channels: {e}")
-    finally:
-        conn.aclose()
-        await conn.wait_closed()
+    try:
+        await conn.aclose()
+    except AttributeError:
+        pass  # Ignore the warning
+
 
 async def handle_channel_messages(channel):
     while await channel.wait_message():
