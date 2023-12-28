@@ -107,8 +107,43 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl)
     except Exception as e:
         print(f"Error occurred: {e}")
 
-# Usage
-# asyncio.run(check_last_update(redis_host, redis_port, ['bitfinex', 'binance'], ['BTC-USDT', 'ETH-USDT']))
+
+async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_ssl):
+    try:
+        url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
+        conn = await aioredis.from_url(url, decode_responses=True)
+
+        # Create a list of channel names based on exchanges, symbols, and data types (e.g., 'book' and 'trades')
+        channels = []
+        for exchange in exchanges:
+            for symbol in symbols:
+                for data_type in ['book', 'trades']:
+                    channel_name = f"{data_type}-{exchange}-{symbol}"
+                    channels.append(channel_name)
+
+        # Subscribe to all channels
+        res = await conn.subscribe(*channels)
+
+        # Create a task to handle incoming messages for each channel
+        tasks = []
+        for channel in res:
+            task = asyncio.create_task(handle_channel_messages(channel))
+            tasks.append(task)
+
+        # Wait for all tasks to complete
+        await asyncio.gather(*tasks)
+
+    except Exception as e:
+        print(f"Error subscribing to channels: {e}")
+    finally:
+        conn.close()
+        await conn.wait_closed()
+
+async def handle_channel_messages(channel):
+    while await channel.wait_message():
+        message = await channel.get(encoding='utf-8')
+        print(f"Received message on channel {channel.name}: {message}")
+
 async def main():
     redis_host = "redis-0001-001.redis.tetmd7.apne1.cache.amazonaws.com"
     redis_port = 6379
@@ -118,17 +153,17 @@ async def main():
     r = None
     try:
     # Assuming add_and_check_key is synchronous
-        await add_and_check_key(redis_host, redis_port, 'test_key', 'test_value', use_ssl=ssl_enabled)
-
-        print('Test with the method from cryptofeed:')
+        #await add_and_check_key(redis_host, redis_port, 'test_key', 'test_value', use_ssl=ssl_enabled)
 
         print('Create Redis client')
-        asyncio.create_task(check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled))
-        asyncio.create_task(test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled))
-            
+        tasks = [
+            check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled),
+            test_redis_connection(host=redis_host, port=redis_port, use_ssl=ssl_enabled),
+            subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_ssl=ssl_enabled)
+        ]
+        await asyncio.gather(*tasks)
     except Exception as e:
         print(f"An error occurred: {e}")
-    
     finally:
         if r:
             await r.aclose()

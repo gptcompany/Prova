@@ -27,6 +27,17 @@ class CustomRedisCallback(RedisCallback):
         self.score_key = score_key
         self.ttl = ttl  # Add this line to store the TTL value
         
+    async def publish_message(self, channel, message):
+        """
+        Publish a message to a specified Redis channel.
+        """
+        try:
+            conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
+            await conn.publish(channel, message)
+            await conn.close()
+        except Exception as e:
+            logging.error(f"Error publishing message: {e}")
+        
 class CustomRedisZSetCallback(CustomRedisCallback):
     def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, numeric_type=float, score_key='timestamp', ttl=3600, ssl=True, decode_responses=True, **kwargs):
         """
@@ -61,6 +72,7 @@ class CustomRedisZSetCallback(CustomRedisCallback):
                     #print("Executing pipeline")
                     try:
                         await pipe.execute()
+                        await self.publish_message(key, "NEWT")
                         #print("Pipeline executed successfully")
                     except Exception as e:
                         logging.error(f"Error executing pipeline: {e}")
@@ -108,6 +120,7 @@ class CustomRedisStreamCallback(CustomRedisCallback):
                             logging.error(f"Error processing update: {e}")
                     try:
                         await pipe.execute()
+                        await self.publish_message(full_key, "NEWB")
                     except Exception as e:
                             logging.error(f"Error executing pipeline: {e}")
 
