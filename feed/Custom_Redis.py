@@ -36,7 +36,8 @@ class CustomRedisCallback(RedisCallback):
 
     async def __aexit__(self, exc_type, exc, tb):
         if self.conn:
-            await self.conn.close()
+            await self.conn.aclose()
+            await self.conn.connection_pool.disconnect()
 
     async def publish_message(self, channel, message):
         try:
