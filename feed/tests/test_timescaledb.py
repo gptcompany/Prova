@@ -24,7 +24,7 @@ async def fetch_latest_receipts(table, user, pw, db, host, port):
         """)
         return result
     finally:
-        await conn.aclose()
+        await conn.close()
 
 def utc_to_local(utc_dt):
     # Get the local timezone offset
