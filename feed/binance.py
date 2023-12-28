@@ -75,6 +75,7 @@ def main():
             'pw': fh.config.config['timescaledb_password'], 
             'port': '5432',
                         }
+        
         symbols = fh.config.config['bn_symbols']
         #symbols = ['BTC-USDT','ETH-BTC']
         fh.run(start_loop=False)
