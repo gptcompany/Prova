@@ -73,7 +73,9 @@ class TimeScaleCallback(BackendQueue):
                     CREATE TABLE {self.table} (
                         exchange TEXT,
                         symbol TEXT,
-                        data JSONB,
+                        side TEXT,
+                        amount DOUBLE PRECISION,
+                        price DOUBLE PRECISION,
                         timestamp TIMESTAMPTZ,
                         receipt TIMESTAMPTZ,
                         id BIGINT,
@@ -93,11 +95,11 @@ class TimeScaleCallback(BackendQueue):
                         exchange TEXT,
                         symbol TEXT,
                         data JSONB,
-                        timestamp TIMESTAMPTZ,
                         receipt TIMESTAMPTZ,
-                        PRIMARY KEY (exchange, symbol, timestamp, receipt)
+                        update_type TEXT
+                        PRIMARY KEY (exchange, symbol, receipt, update_type)
                     );
-                    SELECT create_hypertable('{self.table}', 'timestamp', chunk_time_interval => INTERVAL '10 minutes');
+                    SELECT create_hypertable('{self.table}', 'receipt', chunk_time_interval => INTERVAL '10 minutes');
                 """)
                 logging.info(f"Created {self.table} hypertable")
             logging.info(f"Table {self.table} checked")
@@ -110,7 +112,7 @@ class TimeScaleCallback(BackendQueue):
             try:
                 self.conn = await asyncpg.connect(user=self.user, password=self.pw, database=self.db, host=self.host, port=self.port)
                 await self.ensure_tables_exist()
-                await self.ensure_compression(['exchange','symbol'], 'timestamp')
+                await self.ensure_compression(['exchange','symbol'], 'receipt' if self.table == 'book' else 'timestamp')
                 
             except Exception as e:
                 logging.error(f"Error while connecting to TimescaleDB: {str(e)}")
@@ -124,7 +126,7 @@ class TimeScaleCallback(BackendQueue):
         data = data[4]
 
         return f"(DEFAULT,'{timestamp}','{receipt_timestamp}','{feed}','{symbol}','{json.dumps(data)}')"
-    def _custom_format_trades(self, data: Tuple):
+    def _custom_format(self, data: Tuple):
 
             d = {
                 **data[4],
@@ -133,35 +135,14 @@ class TimeScaleCallback(BackendQueue):
                     'symbol': data[1],
                     'timestamp': data[2],
                     'receipt': data[3],
-                    'id': data[4]['id']  # Assuming 'id' is part of the data structure in data[4]
                 }
             }
 
-            # Serialize the remaining trade details into JSON for the JSONB column
-            trade_details = {k: v for k, v in data[4].items() if k != 'id'}
-            d['data'] = json.dumps(trade_details)
-
-            sequence_gen = (d[field] if field in d else 'NULL' for field in self.custom_columns.keys())
+            # Cross-ref data dict with user column names from custom_columns dict, inserting NULL if requested data point not present
+            sequence_gen = (d[field] if d[field] else 'NULL' for field in self.custom_columns.keys())
+            # Iterate through the generator and surround everything except floats and NULL in single quotes
             sql_string = ','.join(str(s) if isinstance(s, float) or s == 'NULL' else "'" + str(s) + "'" for s in sequence_gen)
             return f"({sql_string})"
-        
-    def _custom_format(self, data: Tuple):
-
-        d = {
-            **data[4],
-            **{
-                'exchange': data[0],
-                'symbol': data[1],
-                'timestamp': data[2],
-                'receipt': data[3],
-            }
-        }
-
-        # Cross-ref data dict with user column names from custom_columns dict, inserting NULL if requested data point not present
-        sequence_gen = (d[field] if d[field] else 'NULL' for field in self.custom_columns.keys())
-        # Iterate through the generator and surround everything except floats and NULL in single quotes
-        sql_string = ','.join(str(s) if isinstance(s, float) or s == 'NULL' else "'" + str(s) + "'" for s in sequence_gen)
-        return f"({sql_string})"
 
     async def writer(self):
         while self.running:
@@ -199,7 +180,8 @@ class TradesTimeScale(TimeScaleCallback, BackendCallback):
     try:
         def format(self, data: Tuple):
             if self.custom_columns:
-                return self._custom_format_trades(data)
+                
+                return self._custom_format(data)
             else:
                 exchange, symbol, timestamp, receipt, data = data
                 id = f"'{data['id']}'" if data['id'] else 'NULL'
@@ -222,9 +204,11 @@ class BookTimeScale(TimeScaleCallback, BackendBookCallback):
         try:
             if self.custom_columns:
                 if 'book' in data[4]:
-                    data[4]['data'] = json.dumps({'snapshot': data[4]['book']})
+                    data[4]['data'] = json.dumps(data[4]['book'])
+                    data[4]['update_type'] = 'snapshot' 
                 else:
-                    data[4]['data'] = json.dumps({'delta': data[4]['delta']})
+                    data[4]['data'] = json.dumps(data[4]['delta'])
+                    data[4]['update_type'] = 'delta'
                 return self._custom_format(data)
             else:
                 feed = data[0]

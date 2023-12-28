@@ -48,16 +48,20 @@ async def aio_task():
 custom_columns = {
     'exchange': 'exchange',     # Maps Cryptofeed's 'exchange' field to the 'exchange' column in TimescaleDB
     'symbol': 'symbol',         # Maps Cryptofeed's 'symbol' field to the 'symbol' column in TimescaleDB
-    'timestamp': 'timestamp',   # Maps Cryptofeed's 'timestamp' field to the 'timestamp' column in TimescaleDB
+    #'timestamp': 'timestamp',   # Maps Cryptofeed's 'timestamp' field to the 'timestamp' column in TimescaleDB
     'receipt': 'receipt',       # Maps Cryptofeed's 'receipt' field to the 'receipt' column in TimescaleDB
     'data': 'data',              # Maps the serialized JSON data to the 'data' JSONB column in TimescaleDB
+    'update_type': 'update_type',     
+    
 }
 custom_columns_trades= {
     'exchange': 'exchange',     # Maps Cryptofeed's 'exchange' field to the 'exchange' column in TimescaleDB
     'symbol': 'symbol',         # Maps Cryptofeed's 'symbol' field to the 'symbol' column in TimescaleDB
     'timestamp': 'timestamp',   # Maps Cryptofeed's 'timestamp' field to the 'timestamp' column in TimescaleDB
-    'receipt': 'receipt',       # Maps Cryptofeed's 'receipt' field to the 'receipt' column in TimescaleDB
-    'data': 'data',              # Maps the serialized JSON data to the 'data' JSONB column in TimescaleDB
+    'receipt': 'receipt',
+    'side': 'side',              
+    'amount': 'amount',
+    'price': 'price',            
     'id': 'id',                  # Maps Cryptofeed's 'id' field to the 'id' column in TimescaleDB
 }
 def main():
