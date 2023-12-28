@@ -109,10 +109,11 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl)
 
 
 async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_ssl):
+
+    conn = None
     try:
         url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
-        conn = await aioredis.create_redis_pool(url, decode_responses=True)
-
+        conn = await aioredis.from_url(url, decode_responses=True)
         # Create a list of channel names based on exchanges, symbols, and data types (e.g., 'book' and 'trades')
         channels = []
         for exchange in exchanges:
@@ -135,10 +136,12 @@ async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_
 
     except Exception as e:
         print(f"Error subscribing to channels: {e}")
-    try:
-        await conn.aclose()
-    except AttributeError as e:
-        print(f"Attribute Error closing connection: {e}")
+    finally:
+        if conn:
+            try:
+                await conn.aclose()
+            except AttributeError as e:
+                print(f"Attribute Error closing connection: {e}")
 
 
 async def handle_channel_messages(channel):
