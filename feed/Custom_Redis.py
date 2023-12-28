@@ -1,6 +1,7 @@
 from collections import defaultdict
 import sys
 from redis import asyncio as aioredis
+import asyncio
 from yapic import json
 import logging
 from cryptofeed.backends.backend import BackendBookCallback, BackendCallback, BackendQueue
@@ -26,17 +27,23 @@ class CustomRedisCallback(RedisCallback):
         self.decode_responses = decode_responses
         self.score_key = score_key
         self.ttl = ttl  # Add this line to store the TTL value
+        self.conn = None  # Add this line
         
+    async def __aenter__(self):
+        if not self.conn:
+            self.conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self.conn:
+            await self.conn.close()
+
     async def publish_message(self, channel, message):
-        """
-        Publish a message to a specified Redis channel.
-        """
         try:
-            conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
-            await conn.publish(channel, message)
-            await conn.close()
+            await self.conn.publish(channel, message)
         except Exception as e:
             logging.error(f"Error publishing message: {e}")
+
         
 class CustomRedisZSetCallback(CustomRedisCallback):
     def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, numeric_type=float, score_key='timestamp', ttl=3600, ssl=True, decode_responses=True, **kwargs):
@@ -48,7 +55,7 @@ class CustomRedisZSetCallback(CustomRedisCallback):
     async def writer(self):
         # Modify the Redis connection to include decode_responses
         #print("CustomRedisZSetCallback writer started")
-        conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
+        conn = self.conn
         while self.running:
             #print("Entering the async with self.read_queue() block")
             async with self.read_queue() as updates:
@@ -77,8 +84,8 @@ class CustomRedisZSetCallback(CustomRedisCallback):
                     except Exception as e:
                         logging.error(f"Error executing pipeline: {e}")
 
-        await conn.aclose()
-        await conn.connection_pool.disconnect()
+        # await conn.aclose()
+        # await conn.connection_pool.disconnect()
 
 
 class CustomBookRedis(CustomRedisZSetCallback, BackendBookCallback):
@@ -96,8 +103,7 @@ class CustomTradeRedis(CustomRedisZSetCallback, BackendCallback):
     
 class CustomRedisStreamCallback(CustomRedisCallback):
     async def writer(self):
-        conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
-        
+        conn = self.conn
         while self.running:
             async with self.read_queue() as updates:
                 async with conn.pipeline(transaction=False) as pipe:
@@ -124,8 +130,8 @@ class CustomRedisStreamCallback(CustomRedisCallback):
                     except Exception as e:
                             logging.error(f"Error executing pipeline: {e}")
 
-        await conn.aclose()
-        await conn.connection_pool.disconnect()
+        # await conn.aclose()
+        # await conn.connection_pool.disconnect()
         
 
 class CustomBookStream(CustomRedisStreamCallback, BackendBookCallback):
