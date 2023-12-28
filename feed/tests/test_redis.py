@@ -39,37 +39,28 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl)
 
 
 async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_ssl):
-    conn = None
-    try:
-        url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
-        conn = await aioredis.from_url(url, decode_responses=True)
+    url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
+    conn = await aioredis.from_url(url, decode_responses=True)
 
+    try:
         pubsub = conn.pubsub()
-        channels = []
-        for exchange in exchanges:
-            for symbol in symbols:
-                for data_type in ['book', 'trades']:
-                    channel_name = f"{data_type}-{exchange}-{symbol}"
-                    channels.append(channel_name)
+        channels = [f"{data_type}-{exchange}-{symbol}" for exchange in exchanges for symbol in symbols for data_type in ['book', 'trades']]
 
         # Subscribe to all channels
         await pubsub.subscribe(*channels)
 
-        # Create a task to handle incoming messages for each channel
-        tasks = []
+        # Continuously check for messages
         while True:
-            message = await pubsub.get_message(ignore_subscribe_messages=True)
+            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
             if message:
                 print(f"Received message on channel {message['channel']}: {message['data']}")
 
     except Exception as e:
         print(f"Error subscribing to channels: {e}")
     finally:
-        if conn:
-            try:
-                await conn.aclose()
-            except AttributeError as e:
-                print(f"Attribute Error closing connection: {e}")
+        await pubsub.close()
+        await conn.close()
+
 
 
 
