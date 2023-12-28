@@ -92,7 +92,7 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl)
                     # Retrieve the latest entry's score (timestamp)
                     last_update_score = await r.zrange(key_pattern, -1, -1, withscores=True)
 
-                    if not last_update_score:
+                    if not last_update_score[0]:
                         print(f"No data found for {key_pattern}")
                         continue
 
@@ -109,12 +109,12 @@ async def check_last_update(redis_host, redis_port, exchanges, symbols, use_ssl)
 
 
 async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_ssl):
-
     conn = None
     try:
         url = f"rediss://{redis_host}:{redis_port}" if use_ssl else f"redis://{redis_host}:{redis_port}"
         conn = await aioredis.from_url(url, decode_responses=True)
-        # Create a list of channel names based on exchanges, symbols, and data types (e.g., 'book' and 'trades')
+
+        pubsub = conn.pubsub()
         channels = []
         for exchange in exchanges:
             for symbol in symbols:
@@ -123,16 +123,14 @@ async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_
                     channels.append(channel_name)
 
         # Subscribe to all channels
-        res = await conn.pubsub(*channels)
+        await pubsub.subscribe(*channels)
 
         # Create a task to handle incoming messages for each channel
         tasks = []
-        for channel in res:
-            task = asyncio.create_task(handle_channel_messages(channel))
-            tasks.append(task)
-
-        # Wait for all tasks to complete
-        await asyncio.gather(*tasks)
+        while True:
+            message = await pubsub.get_message(ignore_subscribe_messages=True)
+            if message:
+                print(f"Received message on channel {message['channel']}: {message['data']}")
 
     except Exception as e:
         print(f"Error subscribing to channels: {e}")
@@ -142,6 +140,7 @@ async def subscribe_to_channels(redis_host, redis_port, exchanges, symbols, use_
                 await conn.aclose()
             except AttributeError as e:
                 print(f"Attribute Error closing connection: {e}")
+
 
 
 async def handle_channel_messages(channel):
