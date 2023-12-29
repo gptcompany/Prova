@@ -28,16 +28,15 @@ class CustomRedisCallback(RedisCallback):
         self.score_key = score_key
         self.ttl = ttl  # Add this line to store the TTL value
         self.conn = None  # Add this line
-        
-    async def __aenter__(self):
-        if not self.conn:
+    
+    async def get_connection(self):
+        if self.conn is None:
             self.conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
+        return self.conn
+    def __del__(self):
+        # Cleanup code, if synchronous closing is possible
         if self.conn:
-            await self.conn.aclose()
-            await self.conn.connection_pool.disconnect()
+            asyncio.create_task(self.conn.aclose())
 
     async def publish_message(self, channel, message):
         try:
@@ -56,37 +55,42 @@ class CustomRedisZSetCallback(CustomRedisCallback):
     async def writer(self):
         # Modify the Redis connection to include decode_responses
         #print("CustomRedisZSetCallback writer started")
-        conn = self.conn
-        while self.running:
-            print("Entering the async with self.read_queue() block")
-            async with self.read_queue() as updates:
-                #print("Updates received, processing...")
-                if not updates:
-                    print("No updates to process")
-                    continue
-                async with conn.pipeline(transaction=False) as pipe:
-                    for update in updates:
+        try:
+            conn = await self.get_connection()
+            while self.running:
+                print("Entering the async with self.read_queue() block")
+                async with self.read_queue() as updates:
+                    #print("Updates received, processing...")
+                    if not updates:
+                        print("No updates to process")
+                        continue
+                    async with conn.pipeline(transaction=False) as pipe:
+                        for update in updates:
+                            try:
+                                print(f"Processing update: {update}")
+                                key = f"{self.key}-{update['exchange']}-{update['symbol']}"
+                                score = update[self.score_key]
+                                value = json.dumps(update)
+                                #print(f"Adding to pipeline - Key: {key}, Score: {score}, Value: {value}")
+                                pipe.zadd(key, {value: score}, nx=True)
+                                # Set TTL for the key
+                                pipe.expire(key, self.ttl)
+                            except Exception as e:
+                                logging.error(f"Error processing update: {e}")
+                        print("Executing pipeline")
                         try:
-                            print(f"Processing update: {update}")
-                            key = f"{self.key}-{update['exchange']}-{update['symbol']}"
-                            score = update[self.score_key]
-                            value = json.dumps(update)
-                            #print(f"Adding to pipeline - Key: {key}, Score: {score}, Value: {value}")
-                            pipe.zadd(key, {value: score}, nx=True)
-                            # Set TTL for the key
-                            pipe.expire(key, self.ttl)
+                            await pipe.execute()
+                            await self.publish_message(key, "NEWT")
+                            print("Pipeline executed successfully")
                         except Exception as e:
-                            logging.error(f"Error processing update: {e}")
-                    print("Executing pipeline")
-                    try:
-                        await pipe.execute()
-                        await self.publish_message(key, "NEWT")
-                        print("Pipeline executed successfully")
-                    except Exception as e:
-                        logging.error(f"Error executing pipeline: {e}")
-
-        # await conn.aclose()
-        # await conn.connection_pool.disconnect()
+                            logging.error(f"Error executing pipeline: {e}")
+            # await conn.aclose()
+            # await conn.connection_pool.disconnect()
+        except (aioredis.ConnectionError, aioredis.RedisError) as e:
+            # Handle connection error, possibly logging it
+            self.conn = None  # Reset connection
+            conn = await self.get_connection()  # Re-establish connection
+            # Retry Redis operations or handle the situation appropriately
 
 
 class CustomBookRedis(CustomRedisZSetCallback, BackendBookCallback):
@@ -104,37 +108,44 @@ class CustomTradeRedis(CustomRedisZSetCallback, BackendCallback):
     
 class CustomRedisStreamCallback(CustomRedisCallback):
     async def writer(self):
-        conn = self.conn
-        while self.running:
-            async with self.read_queue() as updates:
-                async with conn.pipeline(transaction=False) as pipe:
-                    
-                    for update in updates:
-                        logging.info("Book updates received, processing...")
+        try:
+            conn = await self.get_connection()
+            while self.running:
+                async with self.read_queue() as updates:
+                    async with conn.pipeline(transaction=False) as pipe:
+                        
+                        for update in updates:
+                            logging.info("Book updates received, processing...")
+                            try:
+                                if 'delta' in update:
+                                    update['delta'] = json.dumps(update['delta'])
+                                    logging.info(f"Processing delta for {update['exchange']}-{update['symbol']}")
+                                elif 'book' in update:
+                                    update['book'] = json.dumps(update['book'])
+                                    logging.info(f"Processing full snapshot for {update['exchange']}-{update['symbol']}")
+                                elif 'closed' in update:
+                                    update['closed'] = str(update['closed'])
+                                # SET  <key> <value>    
+                                full_key = f"{self.key}-{update['exchange']}-{update['symbol']}"
+                                pipe = pipe.xadd(full_key, update)
+                                # Set TTL for the key
+                                pipe.expire(full_key, self.ttl)
+                            except Exception as e:
+                                logging.error(f"Error processing update: {e}")
+                                
                         try:
-                            if 'delta' in update:
-                                update['delta'] = json.dumps(update['delta'])
-                                logging.info(f"Processing delta for {update['exchange']}-{update['symbol']}")
-                            elif 'book' in update:
-                                update['book'] = json.dumps(update['book'])
-                                logging.info(f"Processing full snapshot for {update['exchange']}-{update['symbol']}")
-                            elif 'closed' in update:
-                                update['closed'] = str(update['closed'])
-                            # SET  <key> <value>    
-                            full_key = f"{self.key}-{update['exchange']}-{update['symbol']}"
-                            pipe = pipe.xadd(full_key, update)
-                            # Set TTL for the key
-                            pipe.expire(full_key, self.ttl)
+                            await pipe.execute()
+                            await self.publish_message(full_key, "NEWB")
                         except Exception as e:
-                            logging.error(f"Error processing update: {e}")
-                    try:
-                        await pipe.execute()
-                        await self.publish_message(full_key, "NEWB")
-                    except Exception as e:
-                            logging.error(f"Error executing pipeline: {e}")
+                                logging.error(f"Error executing pipeline: {e}")
 
-        # await conn.aclose()
-        # await conn.connection_pool.disconnect()
+            # await conn.aclose()
+            # await conn.connection_pool.disconnect()
+        except (aioredis.ConnectionError, aioredis.RedisError) as e:
+            # Handle connection error, possibly logging it
+            self.conn = None  # Reset connection
+            conn = await self.get_connection()  # Re-establish connection
+            # Retry Redis operations or handle the situation appropriately
         
 
 class CustomBookStream(CustomRedisStreamCallback, BackendBookCallback):
