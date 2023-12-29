@@ -58,16 +58,16 @@ class CustomRedisZSetCallback(CustomRedisCallback):
         try:
             conn = await self.get_connection()
             while self.running:
-                print("Entering the async with self.read_queue() block")
+                #print("Entering the async with self.read_queue() block")
                 async with self.read_queue() as updates:
                     #print("Updates received, processing...")
-                    if not updates:
-                        print("No updates to process")
-                        continue
+                    #if not updates:
+                        #print("No updates to process")
+                        #continue
                     async with conn.pipeline(transaction=False) as pipe:
                         for update in updates:
                             try:
-                                print(f"Processing update: {update}")
+                                #print(f"Processing update: {update}")
                                 key = f"{self.key}-{update['exchange']}-{update['symbol']}"
                                 score = update[self.score_key]
                                 value = json.dumps(update)
@@ -77,11 +77,11 @@ class CustomRedisZSetCallback(CustomRedisCallback):
                                 pipe.expire(key, self.ttl)
                             except Exception as e:
                                 logging.error(f"Error processing update: {e}")
-                        print("Executing pipeline")
+                        #print("Executing pipeline")
                         try:
                             await pipe.execute()
                             await self.publish_message(key, "NEWT")
-                            print("Pipeline executed successfully")
+                            #print("Pipeline executed successfully")
                         except Exception as e:
                             logging.error(f"Error executing pipeline: {e}")
             # await conn.aclose()
@@ -115,14 +115,14 @@ class CustomRedisStreamCallback(CustomRedisCallback):
                     async with conn.pipeline(transaction=False) as pipe:
                         
                         for update in updates:
-                            logging.info("Book updates received, processing...")
+                            #logging.info("Book updates received, processing...")
                             try:
                                 if 'delta' in update:
                                     update['delta'] = json.dumps(update['delta'])
-                                    logging.info(f"Processing delta for {update['exchange']}-{update['symbol']}")
+                                    #logging.info(f"Processing delta for {update['exchange']}-{update['symbol']}")
                                 elif 'book' in update:
                                     update['book'] = json.dumps(update['book'])
-                                    logging.info(f"Processing full snapshot for {update['exchange']}-{update['symbol']}")
+                                    #logging.info(f"Processing full snapshot for {update['exchange']}-{update['symbol']}")
                                 elif 'closed' in update:
                                     update['closed'] = str(update['closed'])
                                 # SET  <key> <value>    
