@@ -117,6 +117,7 @@ def main():
                                     CustomTradeRedis(
                                     host=fh.config.config['redis_host'], 
                                     port=fh.config.config['redis_port'],
+                                    score_key='id',
                                     ssl=True,
                                     decode_responses=True,
                                     ttl=ttl,
