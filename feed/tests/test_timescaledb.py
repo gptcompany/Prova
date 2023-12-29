@@ -101,17 +101,17 @@ async def main():
     columns_trades = ['exchange', 'symbol', 'timestamp', 'receipt', 'side', 'amount', 'price', 'id']
 
     # Check data persistence for multiple pairs
-    trade_data_persistence = await check_data_persistence_for_multiple_pairs('trades', columns_trades, 30, exchanges, symbols, **postgres_cfg)
-    book_data_persistence = await check_data_persistence_for_multiple_pairs('book', columns_book, 30, exchanges, symbols, **postgres_cfg)
+    trade_data_persistence = await check_data_persistence_for_multiple_pairs('trades', columns_trades, 1, exchanges, symbols, **postgres_cfg)
+    book_data_persistence = await check_data_persistence_for_multiple_pairs('book', columns_book, 1, exchanges, symbols, **postgres_cfg)
     for pair, is_persisted in trade_data_persistence.items():
         exchange, symbol = pair
         status = 'Yes' if is_persisted else 'No'
-        print(f"Data persisted for {exchange}-{symbol} in 'trades' table in the last 30 minutes: {status}")
+        print(f"Data persisted for {exchange}-{symbol} in 'trades' table in the last 1 minute: {status}")
 
     for pair, is_persisted in book_data_persistence.items():
         exchange, symbol = pair
         status = 'Yes' if is_persisted else 'No'
-        print(f"Data persisted for {exchange}-{symbol} in 'book' table in the last 30 minutes: {status}")
+        print(f"Data persisted for {exchange}-{symbol} in 'book' table in the last 1 minute: {status}")
 
         
 if __name__ == "__main__":
