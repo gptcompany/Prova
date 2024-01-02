@@ -3,8 +3,9 @@
 # PostgreSQL settings
 DB_NAME="db0"
 PGUSER="postgres"
-PGHOST="0.0.0.0"
+PGHOST="localhost"
 PGPORT="5432"
+PGPASSWORD=$(yq e '.timescaledb_password' /config_cf.yaml)
 
 # pg_probackup settings
 BACKUP_PATH="/home/ec2-user/ts_backups"
@@ -20,7 +21,7 @@ LOCAL_PGDATA_PATH="/home/sam/timescaledb_data" # Define your local PostgreSQL da
 # Date and time format for backup naming
 DATE_FORMAT=$(date +"%Y%m%d%H%M%S")
 # Logging settings
-LOG_FILE="~/ts_backup.log"
+LOG_FILE="$HOME/ts_backup.log"
 # Function to log messages
 log_message() {
     echo "$(date +"%Y-%m-%d %T"): $1" | tee -a $LOG_FILE

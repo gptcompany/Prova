@@ -157,6 +157,8 @@ class TimeScaleCallback(BackendQueue):
                         await self.write_batch(batch)
             except Exception as e:
                 logging.error(f"Error in writer method in TimeScaleCallback: {str(e)}")
+                self.conn = None # reset connection
+                await self._connect()  # Attempt to reconnect
 
 
     async def write_batch(self, updates: list):
