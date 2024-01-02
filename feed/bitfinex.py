@@ -118,7 +118,7 @@ def main():
                                     CustomTradeRedis(
                                     host=fh.config.config['redis_host'], 
                                     port=fh.config.config['redis_port'],
-                                    score_key='id',
+                                    score_key='timestamp',
                                     ssl=True,
                                     decode_responses=True,
                                     ttl=ttl,
