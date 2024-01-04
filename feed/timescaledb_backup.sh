@@ -5,9 +5,9 @@ DB_NAME="db0"
 PGUSER="postgres"
 PGHOST="localhost"
 PGPORT="5432"
-PGPASSWORD=$(yq e '.timescaledb_password' /config_cf.yaml)
+PGPASSWORD="Timescaledb2023"
 export PGPASSWORD
-echo "Password: $PGPASSWORD"
+# echo "Password: $PGPASSWORD"
 
 # pg_probackup settings
 BACKUP_PATH="/home/ec2-user/ts_backups"
@@ -37,10 +37,21 @@ perform_backup() {
 
 # Function to upload the backup to S3
 upload_to_s3() {
-    log_message  "Uploading backup to S3..."
-    aws s3 cp $BACKUP_PATH/$INSTANCE_NAME/backups $S3_BUCKET/$INSTANCE_NAME/$DATE_FORMAT --recursive
-    log_message  "Upload to S3 buckets $S3_BUCKET/$INSTANCE_NAME/$DATE_FORMAT completed."
+    # Identify the most recent backup directory
+    local latest_backup_dir=$(ls -t /home/ec2-user/ts_backups/backups/timescaledb | head -n 1)
+    if [ -z "$latest_backup_dir" ]; then
+        log_message "No backup directory found."
+        return 1
+    fi
+    local full_backup_path="/home/ec2-user/ts_backups/backups/timescaledb/$latest_backup_dir"
+
+    log_message "Uploading backup $latest_backup_dir to S3..."
+    aws s3 cp $full_backup_path $S3_BUCKET/$INSTANCE_NAME/$DATE_FORMAT --recursive
+    log_message "Upload to S3 bucket $S3_BUCKET/$INSTANCE_NAME/$DATE_FORMAT completed."
 }
+
+
+
 
 # Perform the DELTA backup
 perform_backup
@@ -49,13 +60,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 # Perform upload to S3
-if [ -d "$BACKUP_PATH/$INSTANCE_NAME/backups" ] && [ "$(ls -A $BACKUP_PATH/$INSTANCE_NAME/backups)" ]; then
-    log_message "Backup directory is ready for upload."
-else
-    log_message "Backup directory does not exist or is empty."
-    exit 1
-fi
-
 upload_to_s3
 if [ $? -ne 0 ]; then
     log_message  "Upload to S3 failed"

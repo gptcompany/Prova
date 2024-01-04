@@ -30,12 +30,16 @@ log_message() {
 download_from_s3() {
     log_message  "Downloading backup from S3..."
     # List the backups in S3 and sort them to find the most recent one
-    LATEST_BACKUP=$(aws s3 ls $S3_BUCKET/$S3_PATH/$INSTANCE_NAME/ | sort | tail -n 1 | awk '{print $4}')
+    LATEST_BACKUP=$(aws s3 ls $S3_BUCKET/$INSTANCE_NAME/ | sort | tail -n 1 | awk '{print $4}')
+    if [ -z "$LATEST_BACKUP" ]; then
+        log_message "No backup found on S3."
+        return 1
+    fi
     # Download the latest backup
-    aws s3 cp s3://$S3_BUCKET/$S3_PATH/$INSTANCE_NAME/$LATEST_BACKUP $LOCAL_BACKUP_PATH --recursive
-    #aws s3 cp s3://$S3_BUCKET/$S3_PATH/$INSTANCE_NAME/$DATE_FORMAT $LOCAL_BACKUP_PATH --recursive
+    aws s3 cp s3://$S3_BUCKET/$INSTANCE_NAME/$LATEST_BACKUP $LOCAL_BACKUP_PATH --recursive
     log_message "Download complete."
 }
+
 
 # Function to restore the backup locally
 restore_backup() {
