@@ -5,7 +5,7 @@ DB_NAME="db0"
 PGUSER="postgres"
 PGHOST="localhost"
 PGPORT="5432"
-PGPASSWORD=$(yq e '.timescaledb_password' /config_cf.yaml)
+PGPASSWORD=$(/home/sam/.local/share/pypoetry/venv/bin/yq e '.timescaledb_password' /config_cf.yaml)
 
 # pg_probackup settings
 BACKUP_PATH="/home/ec2-user/ts_backups"
@@ -29,8 +29,8 @@ log_message() {
 # Function to download the backup from S3
 download_from_s3() {
     log_message  "Downloading backup from S3..."
-    # List the backups in S3 and sort them to find the most recent one
-    LATEST_BACKUP=$(aws s3 ls $S3_BUCKET/$INSTANCE_NAME/ | sort | tail -n 1 | awk '{print $4}')
+    # List the backups in S3, find the latest one, and trim to get just the directory name
+    LATEST_BACKUP=$(aws s3 ls $S3_BUCKET/$INSTANCE_NAME/ | sort | tail -n 1 | awk '{print $2}' | sed 's/\/$//')
     if [ -z "$LATEST_BACKUP" ]; then
         log_message "No backup found on S3."
         return 1
@@ -39,6 +39,7 @@ download_from_s3() {
     aws s3 cp s3://$S3_BUCKET/$INSTANCE_NAME/$LATEST_BACKUP $LOCAL_BACKUP_PATH --recursive
     log_message "Download complete."
 }
+
 
 
 # Function to restore the backup locally
