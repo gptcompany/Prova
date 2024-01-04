@@ -5,7 +5,7 @@ DB_NAME="db0"
 PGUSER="postgres"
 PGHOST="localhost"
 PGPORT="5432"
-PGPASSWORD=$(/home/sam/.local/share/pypoetry/venv/bin/yq e '.timescaledb_password' /config_cf.yaml)
+#PGPASSWORD=$(/home/sam/.local/share/pypoetry/venv/bin/yq e '.timescaledb_password' /config_cf.yaml)
 
 # pg_probackup settings
 BACKUP_PATH="/home/ec2-user/ts_backups"
@@ -36,7 +36,7 @@ download_from_s3() {
         return 1
     fi
     # Download the latest backup
-    aws s3 cp s3://$S3_BUCKET/$INSTANCE_NAME/$LATEST_BACKUP $LOCAL_BACKUP_PATH --recursive
+    aws s3 cp $S3_BUCKET/$INSTANCE_NAME/$LATEST_BACKUP $LOCAL_BACKUP_PATH --recursive
     log_message "Download complete."
 }
 
