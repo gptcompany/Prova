@@ -12,7 +12,7 @@ BACKUP_PATH="/home/ec2-user/ts_backups"
 INSTANCE_NAME="timescaledb"
 
 # AWS S3 settings
-S3_BUCKET="s3://tsbackups"
+S3_BUCKET="s3://timescalebackups"
 
 # Local paths for backup
 LOCAL_BACKUP_PATH="/home/sam/ts_backups" # Define your local backup path

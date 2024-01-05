@@ -14,7 +14,7 @@ BACKUP_PATH="/home/ec2-user/ts_backups"
 INSTANCE_NAME="timescaledb"
 
 # AWS S3 settings
-S3_BUCKET="s3://tsbackups"
+S3_BUCKET="s3://timescalebackups"
 
 # Date and time format for backup naming
 DATE_FORMAT=$(date +"%Y%m%d%H%M%S")
