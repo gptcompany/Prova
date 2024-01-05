@@ -40,14 +40,32 @@ download_from_s3() {
     log_message "Download complete."
 }
 
-
-
 # Function to restore the backup locally
 restore_backup() {
-    log_message  "Restoring backup locally..."
-    pg_probackup restore -B $LOCAL_BACKUP_PATH -D $LOCAL_PGDATA_PATH --instance $INSTANCE_NAME
-    log_message "Backup restored"
+    log_message "Restoring backup locally..."
+
+    # Restore the latest full backup first
+    local latest_full_backup=$(find $LOCAL_BACKUP_PATH -name "backrest_backup_info" -exec grep -l "backup-type=full" {} \; | sort | tail -n 1)
+    if [ -n "$latest_full_backup" ]; then
+        local full_backup_id=$(basename $(dirname $latest_full_backup))
+        pg_probackup restore -B $LOCAL_BACKUP_PATH -D $LOCAL_PGDATA_PATH --instance $INSTANCE_NAME --backup-id=$full_backup_id
+        log_message "Full backup $full_backup_id restored."
+    else
+        log_message "No full backup found."
+        return 1
+    fi
+
+    # Apply Delta backups in order
+    local incremental_backups=$(find $LOCAL_BACKUP_PATH -name "backrest_backup_info" -exec grep -l "backup-type=delta" {} \; | sort)
+    for backup_info in $incremental_backups; do
+        local backup_id=$(basename $(dirname $backup_info))
+        pg_probackup restore -B $LOCAL_BACKUP_PATH -D $LOCAL_PGDATA_PATH --instance $INSTANCE_NAME --backup-id=$backup_id
+        log_message "Incremental backup $backup_id applied."
+    done
+
+    log_message "Backup restoration completed."
 }
+
 
 # Function to delete the backup from S3
 delete_from_s3() {
