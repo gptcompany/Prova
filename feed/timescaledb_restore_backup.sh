@@ -43,11 +43,15 @@ download_from_s3() {
 # Function to restore the backup locally
 restore_backup() {
     log_message "Restoring backup locally..."
+    log_message "Looking for full backup in $LOCAL_BACKUP_PATH..."
 
-    # Restore the latest full backup first
     local latest_full_backup=$(find $LOCAL_BACKUP_PATH -name "backrest_backup_info" -exec grep -l "backup-type=full" {} \; | sort | tail -n 1)
+
+    log_message "Latest full backup found: $latest_full_backup"
+
     if [ -n "$latest_full_backup" ]; then
         local full_backup_id=$(basename $(dirname $latest_full_backup))
+        log_message "Restoring Full backup with ID: $full_backup_id"
         pg_probackup restore -B $LOCAL_BACKUP_PATH -D $LOCAL_PGDATA_PATH --instance $INSTANCE_NAME --backup-id=$full_backup_id
         log_message "Full backup $full_backup_id restored."
     else

@@ -26,13 +26,28 @@ log_message() {
 }
 # Function to perform a pg_probackup
 perform_backup() {
-    log_message "Starting backup for instance $INSTANCE_NAME..."
+    log_message "Starting DELTA backup for instance $INSTANCE_NAME..."
     pg_probackup backup -B $BACKUP_PATH -b DELTA -U $PGUSER -d $DB_NAME --instance $INSTANCE_NAME --stream -h $PGHOST -p $PGPORT --compress --compress-algorithm=zlib --compress-level=5
-    log_message "Backup completed."
+
+    if [ $? -ne 0 ]; then
+        log_message "Backup operation failed."
+        return 1
+    fi
+
+    log_message "Backup completed successfully."
+    
     log_message "Cleaning old backups on $INSTANCE_NAME..."
     pg_probackup delete -B $BACKUP_PATH --instance $INSTANCE_NAME --delete-wal --retention-redundancy=2 --retention-window=7
-    log_message "Cleaning completed..."
+
+    if [ $? -ne 0 ]; then
+        log_message "Failed to clean old backups."
+        return 1
+    fi
+
+    log_message "Cleaning completed successfully."
+    return 0
 }
+
 
 
 # Function to upload the backup to S3
@@ -52,13 +67,51 @@ upload_to_s3() {
 
 
 
+# Check if a full backup is needed
+full_backup_needed() {
+    local last_full_backup=$(pg_probackup show -B $BACKUP_PATH --instance $INSTANCE_NAME | grep ' FULL ' | tail -1)
+    if [ -z "$last_full_backup" ]; then
+        return 0 # Full backup needed
+    else
+        return 1 # Full backup not needed
+    fi
+}
 
-# Perform the DELTA backup
-perform_backup
-if [ $? -ne 0 ]; then
-    log_message  "Backup failed"
-    exit 1
+# Function to perform a Full backup
+perform_full_backup() {
+    log_message "Starting FULL backup for instance $INSTANCE_NAME..."
+    pg_probackup backup -B $BACKUP_PATH -b FULL -U $PGUSER -d $DB_NAME --instance $INSTANCE_NAME --stream -h $PGHOST -p $PGPORT --compress --compress-algorithm=zlib --compress-level=5
+
+    if [ $? -eq 0 ]; then
+        log_message "FULL Backup completed successfully."
+        return 0
+    else
+        log_message "FULL Backup failed."
+        return 1
+    fi
+}
+
+# Function to check for a full backup in S3
+check_full_backup_in_s3() {
+    log_message "Checking for full backup in S3..."
+    # This command lists the contents of your S3 bucket and looks for a full backup identifier
+    # Modify the grep pattern as per your naming convention for full backups
+    if aws s3 ls $S3_BUCKET/$INSTANCE_NAME/ | grep -q 'FULL'; then
+        log_message "Full backup found in S3."
+        return 0
+    else
+        log_message "No full backup found in S3."
+        return 1
+    fi
+}
+
+# Perform the backup (Full or Delta)
+if full_backup_needed && check_full_backup_in_s3; then
+    perform_backup 
+else
+    perform_full_backup # Your existing function for Delta backup
 fi
+
 # Perform upload to S3
 upload_to_s3
 if [ $? -ne 0 ]; then
