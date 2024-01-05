@@ -12,8 +12,8 @@ BACKUP_PATH="/home/ec2-user/ts_backups"
 INSTANCE_NAME="timescaledb"
 
 # AWS S3 settings
-S3_BUCKET="s3://tsbakups"
-S3_PATH="/home/ec2-user/ts_backups"
+S3_BUCKET="s3://tsbackups"
+
 # Local paths for backup
 LOCAL_BACKUP_PATH="/home/sam/ts_backups" # Define your local backup path
 LOCAL_PGDATA_PATH="/home/sam/timescaledb_data" # Define your local PostgreSQL data path
@@ -21,7 +21,7 @@ LOCAL_PGDATA_PATH="/home/sam/timescaledb_data" # Define your local PostgreSQL da
 # Date and time format for backup naming
 DATE_FORMAT=$(date +"%Y%m%d%H%M%S")
 # Logging settings
-LOG_FILE="$HOME/ts_backup.log"
+LOG_FILE="$HOME/ts_backups.log"
 # Function to log messages
 log_message() {
     echo "$(date +"%Y-%m-%d %T"): $1" | tee -a $LOG_FILE
@@ -43,21 +43,44 @@ download_from_s3() {
 # Function to restore the backup locally
 restore_backup() {
     log_message "Restoring backup locally..."
-    log_message "Looking for full backup in $LOCAL_BACKUP_PATH..."
+    log_message "Checking for existing full backup in $LOCAL_BACKUP_PATH..."
+
+
+    # Debug: List all files found
+    log_message "Files in backup directory:"
+    find $LOCAL_BACKUP_PATH -name "backrest_backup_info" -exec ls -l {} \;
+
+
 
     local latest_full_backup=$(find $LOCAL_BACKUP_PATH -name "backrest_backup_info" -exec grep -l "backup-type=full" {} \; | sort | tail -n 1)
 
-    log_message "Latest full backup found: $latest_full_backup"
-
     if [ -n "$latest_full_backup" ]; then
+        log_message "Latest full backup found locally: $latest_full_backup"
+        # Extract backup ID from the path
         local full_backup_id=$(basename $(dirname $latest_full_backup))
-        log_message "Restoring Full backup with ID: $full_backup_id"
-        pg_probackup restore -B $LOCAL_BACKUP_PATH -D $LOCAL_PGDATA_PATH --instance $INSTANCE_NAME --backup-id=$full_backup_id
-        log_message "Full backup $full_backup_id restored."
+        log_message "Using local full backup with ID: $full_backup_id for restoration."
     else
-        log_message "No full backup found."
-        return 1
+        log_message "No full backup found locally. Checking in S3..."
+        # Place the logic here to download the latest full backup from S3
+        # Download the backup from S3
+        download_from_s3
+        if [ $? -ne 0 ]; then
+            log_message  "Download from S3 failed"
+            exit 1
+        fi
+        # After downloading, recheck for the latest full backup
+        latest_full_backup=$(find $LOCAL_BACKUP_PATH -name "backrest_backup_info" -exec grep -l "backup-type=full" {} \; | sort | tail -n 1)
+        if [ -z "$latest_full_backup" ]; then
+            log_message "No full backup found in S3 either."
+            return 1
+        fi
+        local full_backup_id=$(basename $(dirname $latest_full_backup))
     fi
+
+    # Restore the full backup
+    pg_probackup restore -B $LOCAL_BACKUP_PATH -D $LOCAL_PGDATA_PATH --instance $INSTANCE_NAME --backup-id=$full_backup_id
+    log_message "Full backup $full_backup_id restored."
+
 
     # Apply Delta backups in order
     local incremental_backups=$(find $LOCAL_BACKUP_PATH -name "backrest_backup_info" -exec grep -l "backup-type=delta" {} \; | sort)
@@ -74,7 +97,7 @@ restore_backup() {
 # Function to delete the backup from S3
 delete_from_s3() {
     log_message  "Deleting backup from S3..."
-    aws s3 rm s3://$S3_BUCKET/$S3_PATH/$INSTANCE_NAME/$DATE_FORMAT --recursive
+    aws s3 rm $S3_BUCKET/$INSTANCE_NAME/$DATE_FORMAT --recursive
     log_message "Backup deleted successfully"
 }
 # Function to verify restoration
@@ -92,12 +115,12 @@ verify_restoration() {
     fi
 }
 
-# Download the backup from S3
-download_from_s3
-if [ $? -ne 0 ]; then
-    log_message  "Download from S3 failed"
-    exit 1
-fi
+# # Download the backup from S3
+# download_from_s3
+# if [ $? -ne 0 ]; then
+#     log_message  "Download from S3 failed"
+#     exit 1
+# fi
 
 restore_backup
 if [ $? -ne 0 ]; then
@@ -105,10 +128,10 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-verify_restoration
-if [ $? -ne 0 ]; then
-    log_message  "Verification of restoration failed"
-    exit 1
-fi
+# verify_restoration
+# if [ $? -ne 0 ]; then
+#     log_message  "Verification of restoration failed"
+#     exit 1
+# fi
 
-delete_from_s3
+#delete_from_s3

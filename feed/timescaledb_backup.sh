@@ -14,12 +14,12 @@ BACKUP_PATH="/home/ec2-user/ts_backups"
 INSTANCE_NAME="timescaledb"
 
 # AWS S3 settings
-S3_BUCKET="s3://tsbakups"
+S3_BUCKET="s3://tsbackups"
 
 # Date and time format for backup naming
 DATE_FORMAT=$(date +"%Y%m%d%H%M%S")
 # Logging settings
-LOG_FILE="$HOME/ts_backup.log"
+LOG_FILE="$HOME/ts_backups.log"
 # Function to log messages
 log_message() {
     echo "$(date +"%Y-%m-%d %T"): $1" | tee -a $LOG_FILE
@@ -53,12 +53,12 @@ perform_backup() {
 # Function to upload the backup to S3
 upload_to_s3() {
     # Identify the most recent backup directory
-    local latest_backup_dir=$(ls -t /home/ec2-user/ts_backups/backups/timescaledb | head -n 1)
+    local latest_backup_dir=$(ls -t $BACKUP_PATH/backups/$INSTANCE_NAME | head -n 1)
     if [ -z "$latest_backup_dir" ]; then
         log_message "No backup directory found."
         return 1
     fi
-    local full_backup_path="/home/ec2-user/ts_backups/backups/timescaledb/$latest_backup_dir"
+    local full_backup_path="$BACKUP_PATH/backups/$INSTANCE_NAME/$latest_backup_dir"
 
     log_message "Uploading backup $latest_backup_dir to S3..."
     aws s3 cp $full_backup_path $S3_BUCKET/$INSTANCE_NAME/$DATE_FORMAT --recursive
