@@ -33,9 +33,9 @@ log_message() {
 # Function to download the backup from S3
 download_from_s3() {
     local s3_backup=$1
-    log_message "Downloading backup $s3_backup from S3..."
+    log_message "Downloading backup $s3_backup from S3..." >&2
     aws s3 cp "$S3_BUCKET/$INSTANCE_NAME/$s3_backup" "$LOCAL_BACKUP_PATH" --recursive
-    log_message "Download complete."
+    log_message "Download complete." >&2
 }
 
 # Function to find the latest full backup either locally or on S3
@@ -64,19 +64,19 @@ find_latest_full_backup() {
 
 # Function to restore the backup locally
 restore_backup() {
-    log_message "Restoring backup locally..."
+    log_message "Restoring backup locally..." >&2
 
     local full_backup_id
     full_backup_id=$(find_latest_full_backup)
 
     if [ -z "$full_backup_id" ]; then
-        log_message "Failed to find a full backup."
+        log_message "Failed to find a full backup." >&2
         return 1
     fi
 
-    log_message "Using full backup with ID: $full_backup_id for restoration."
+    log_message "Using full backup with ID: $full_backup_id for restoration." >&2
     pg_probackup restore -B "$LOCAL_BACKUP_PATH" -D "$LOCAL_PGDATA_PATH" --instance "$INSTANCE_NAME" --backup-id="$full_backup_id"
-    log_message "Full backup $full_backup_id restored."
+    log_message "Full backup $full_backup_id restored." >&2
 
     # Apply incremental backups if any
     # Add logic here to apply incremental/delta backups if necessary
