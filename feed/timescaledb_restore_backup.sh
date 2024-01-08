@@ -1,13 +1,13 @@
 #!/bin/bash
-set -eux
+#set -eux
 
 # PostgreSQL settings
 DB_NAME="db0"
 PGUSER="postgres"
 PGHOST="localhost"
 PGPORT="5432"
-# Uncomment the following line if you want to use it
-# PGPASSWORD=$(/home/sam/.local/share/pypoetry/venv/bin/yq e '.timescaledb_password' /config_cf.yaml)
+PGPASSWORD=$(python3 -c "import yaml; print(yaml.safe_load(open('/config_cf.yaml'))['timescaledb_password'])")
+export PGPASSWORD
 
 # pg_probackup settings
 BACKUP_PATH="/home/ec2-user/ts_backups"
