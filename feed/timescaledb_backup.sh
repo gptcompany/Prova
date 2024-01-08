@@ -5,9 +5,9 @@ DB_NAME="db0"
 PGUSER="postgres"
 PGHOST="localhost"
 PGPORT="5432"
-PGPASSWORD="Timescaledb2023"
+#PGPASSWORD=$(grep 'timescaledb_password' /config_cf.yaml | awk '{print $2}' | tr -d '"')
+PGPASSWORD=$(python3 -c "import yaml; print(yaml.safe_load(open('/config_cf.yaml'))['timescaledb_password'])")
 export PGPASSWORD
-# echo "Password: $PGPASSWORD"
 
 # pg_probackup settings
 BACKUP_PATH="/home/ec2-user/ts_backups"
@@ -16,107 +16,128 @@ INSTANCE_NAME="timescaledb"
 # AWS S3 settings
 S3_BUCKET="s3://timescalebackups"
 
-# Date and time format for backup naming
-DATE_FORMAT=$(date +"%Y%m%d%H%M%S")
 # Logging settings
 LOG_FILE="$HOME/ts_backups.log"
+
 # Function to log messages
 log_message() {
     echo "$(date +"%Y-%m-%d %T"): $1" | tee -a $LOG_FILE
 }
-# Function to perform a pg_probackup
-perform_backup() {
-    log_message "Starting DELTA backup for instance $INSTANCE_NAME..."
-    pg_probackup backup -B $BACKUP_PATH -b DELTA -U $PGUSER -d $DB_NAME --instance $INSTANCE_NAME --stream -h $PGHOST -p $PGPORT --compress --compress-algorithm=zlib --compress-level=5
-
-    if [ $? -ne 0 ]; then
-        log_message "Backup operation failed."
-        return 1
-    fi
-
-    log_message "Backup completed successfully."
-    
-    log_message "Cleaning old backups on $INSTANCE_NAME..."
-    pg_probackup delete -B $BACKUP_PATH --instance $INSTANCE_NAME --delete-wal --retention-redundancy=2 --retention-window=7
-
-    if [ $? -ne 0 ]; then
-        log_message "Failed to clean old backups."
-        return 1
-    fi
-
-    log_message "Cleaning completed successfully."
-    return 0
-}
-
-
 
 # Function to upload the backup to S3
 upload_to_s3() {
-    # Identify the most recent backup directory
-    local latest_backup_dir=$(ls -t $BACKUP_PATH/backups/$INSTANCE_NAME | head -n 1)
-    if [ -z "$latest_backup_dir" ]; then
-        log_message "No backup directory found."
+    local backup_id_to_upload=$1
+    local backup_path="$BACKUP_PATH/backups/$INSTANCE_NAME/$backup_id_to_upload"
+    #DEBUG
+    # echo "###########$backup_path###########"
+    # echo "***********$backup_id_to_upload**************"
+    
+
+    if [ ! -d "$backup_path" ]; then
+        log_message "Backup directory $backup_path not found." >&2
         return 1
     fi
-    local full_backup_path="$BACKUP_PATH/backups/$INSTANCE_NAME/$latest_backup_dir"
 
-    log_message "Uploading backup $latest_backup_dir to S3..."
-    aws s3 cp $full_backup_path $S3_BUCKET/$INSTANCE_NAME/$DATE_FORMAT --recursive
-    log_message "Upload to S3 bucket $S3_BUCKET/$INSTANCE_NAME/$DATE_FORMAT completed."
+    log_message "Uploading backup $backup_id_to_upload to S3..." >&2
+    aws s3 cp $backup_path $S3_BUCKET/$INSTANCE_NAME/$backup_id_to_upload --recursive
+    log_message "Upload to S3 bucket $S3_BUCKET/$INSTANCE_NAME/$backup_id_to_upload completed." >&2
 }
 
 
-
-# Check if a full backup is needed
-full_backup_needed() {
-    local last_full_backup=$(pg_probackup show -B $BACKUP_PATH --instance $INSTANCE_NAME | grep ' FULL ' | tail -1)
+# Function to get the latest FULL backup ID
+get_latest_full_backup_id() {
+    local last_full_backup
+    last_full_backup=$(pg_probackup show -B $BACKUP_PATH --instance $INSTANCE_NAME | grep ' FULL ' | grep -v 'ERROR' | tail -1)
     if [ -z "$last_full_backup" ]; then
-        return 0 # Full backup needed
+    # nothing is echoed to standard output
+        echo ""
     else
-        return 1 # Full backup not needed
+        local latest_full_backup_id=$(echo "$last_full_backup" | awk '{print $3}')
+        # Only the latest_full_backup_id is echoed to standard output
+        echo "$latest_full_backup_id"
     fi
 }
 
-# Function to perform a Full backup
-perform_full_backup() {
-    log_message "Starting FULL backup for instance $INSTANCE_NAME..."
-    pg_probackup backup -B $BACKUP_PATH -b FULL -U $PGUSER -d $DB_NAME --instance $INSTANCE_NAME --stream -h $PGHOST -p $PGPORT --compress --compress-algorithm=zlib --compress-level=5
+# Function to perform a pg_probackup and capture backup ID
+perform_backup() {
+    local backup_mode=$1
+    log_message "Starting $backup_mode backup for instance $INSTANCE_NAME..." >&2  # Redirect to standard error
+    
+    local backup_output
+    backup_output=$(pg_probackup backup -B $BACKUP_PATH -b $backup_mode -U $PGUSER -d $DB_NAME --instance $INSTANCE_NAME --stream -h $PGHOST -p $PGPORT --compress --compress-algorithm=zlib --compress-level=5 2>&1)
+    echo "$backup_output" >&2 # Redirect to standard error
+    if [ $? -ne 0 ]; then
+        log_message "Backup operation failed." >&2  # Redirect to standard error
+        return 1
+    fi
+    
+    local backup_id_from_info=$(echo "$backup_output" | grep -oP 'INFO: Backup \K\S+(?= completed)')
+    local backup_id_from_id=$(echo "$backup_output" | grep -oP 'backup ID: \K\S+(?=,)')
 
-    if [ $? -eq 0 ]; then
-        log_message "FULL Backup completed successfully."
+    # Debug messages redirected to standard error
+    #echo "check $backup_id_from_info *** check $backup_id_from_id ***" >&2
+
+    if [ -z "$backup_id_from_info" ] || [ -z "$backup_id_from_id" ]; then
+        log_message "Failed to capture backup ID." >&2  # Redirect to standard error
+        return 1
+    fi
+
+    if [ "$backup_id_from_info" != "$backup_id_from_id" ]; then
+        log_message "Mismatch in captured backup IDs: $backup_id_from_info and $backup_id_from_id." >&2  # Redirect to standard error
+        return 1
+    else
+        local backup_id=$backup_id_from_info
+    fi
+
+    # Only the backup_id is echoed to standard output
+    echo "$backup_id"
+}
+
+
+# Function to check for a specific backup in S3
+check_backup_in_s3() {
+    local backup_id=$1
+    log_message "Checking for backup $backup_id in S3..."
+
+    if aws s3 ls "$S3_BUCKET/$INSTANCE_NAME/$backup_id"; then
+        log_message "Backup $backup_id found in S3."
         return 0
     else
-        log_message "FULL Backup failed."
+        log_message "No backup $backup_id found in S3."
         return 1
     fi
 }
 
-# Function to check for a full backup in S3
-check_full_backup_in_s3() {
-    log_message "Checking for full backup in S3..."
-    # This command lists the contents of your S3 bucket and looks for a full backup identifier
-    # Modify the grep pattern as per your naming convention for full backups
-    if aws s3 ls $S3_BUCKET/$INSTANCE_NAME/ | grep -q 'FULL'; then
-        log_message "Full backup found in S3."
-        return 0
+# Decide whether to perform a Full or Delta backup
+perform_required_backup() {
+    local latest_full_backup_id=$(get_latest_full_backup_id)
+
+    if [ -n "$latest_full_backup_id" ]; then
+        if check_backup_in_s3 "$latest_full_backup_id"; then
+            local delta_backup_id=$(perform_backup DELTA)
+            if [ -n "$delta_backup_id" ]; then
+            #DEBUG
+            log_message "Delta id: $delta_backup_id" >&2
+                upload_to_s3 "$delta_backup_id"
+            else
+                log_message "Delta backup failed or no new backup was created."
+            fi
+        else
+            log_message "Latest full id: $latest_full_backup_id" >&2
+            upload_to_s3 "$latest_full_backup_id"
+        fi
     else
-        log_message "No full backup found in S3."
-        return 1
+        local full_backup_id=$(perform_backup FULL)
+        if [ -n "$full_backup_id" ]; then
+            upload_to_s3 "$full_backup_id"
+        else
+            log_message "Full backup failed or no new full backup was created." >&2
+        fi
     fi
 }
 
-# Perform the backup (Full or Delta)
-if full_backup_needed && check_full_backup_in_s3; then
-    perform_backup 
-else
-    perform_full_backup # Your existing function for Delta backup
-fi
 
-# Perform upload to S3
-upload_to_s3
-if [ $? -ne 0 ]; then
-    log_message  "Upload to S3 failed"
-    exit 1
-fi
+# Execute the backup decision logic
+perform_required_backup
 
 exit 0
