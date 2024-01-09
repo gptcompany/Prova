@@ -29,7 +29,7 @@ upload_to_s3() {
     local backup_id_to_upload=$1
     local backup_type=$2  # New argument for backup type
     local backup_path="$BACKUP_PATH/backups/$INSTANCE_NAME/$backup_id_to_upload"
-    local backup_date=$(date +"%Y%m%d") # Current date in YYYYMMDD format
+    local backup_datetime=$(date +"%Y%m%d%H%M") # Current date in YYYYMMDD format
     #DEBUG
     # echo "###########$backup_path###########"
     # echo "***********$backup_id_to_upload**************"
@@ -40,23 +40,26 @@ upload_to_s3() {
         return 1
     fi
     # Use backup_type in constructing the S3 upload path or for other purposes
-    local s3_upload_path="$S3_BUCKET/$INSTANCE_NAME/$backup_type/$backup_date/$backup_id_to_upload"
+    local s3_upload_path="$S3_BUCKET/$INSTANCE_NAME/$backup_type/$backup_datetime/$backup_id_to_upload"
     log_message "Uploading backup $backup_id_to_upload to S3..." >&2
     aws s3 cp $backup_path $s3_upload_path --recursive
     log_message "Upload to S3 bucket $s3_upload_path completed." >&2
 }
 
 
-# Function to get the latest FULL backup ID
+# Function to get the latest FULL backup ID locally on instance
 get_latest_full_backup_id() {
     local last_full_backup
+    #Check for last full backup locally on instance
     last_full_backup=$(pg_probackup show -B $BACKUP_PATH --instance $INSTANCE_NAME | grep ' FULL ' | grep -v 'ERROR' | tail -1)
     if [ -z "$last_full_backup" ]; then
     # nothing is echoed to standard output
+        log_message "Error checking last full backup or backup not found!" >&2
         echo ""
     else
         local latest_full_backup_id=$(echo "$last_full_backup" | awk '{print $3}')
         # Only the latest_full_backup_id is echoed to standard output
+        log_message "Last full backup: $latest_full_backup_id" >&2
         echo "$latest_full_backup_id"
     fi
 }
@@ -98,19 +101,27 @@ perform_backup() {
 }
 
 
-# Function to check for a specific backup in S3
+# Function to check for backup in S3
 check_backup_in_s3() {
     local backup_id=$1
     log_message "Checking for backup $backup_id in S3..."
 
-    if aws s3 ls "$S3_BUCKET/$INSTANCE_NAME/$backup_id"; then
-        log_message "Backup $backup_id found in S3."
-        return 0
-    else
-        log_message "No backup $backup_id found in S3."
-        return 1
-    fi
+    # List all potential backup folders under FULL and DELTA
+    local backup_folders=$(aws s3 ls "$S3_BUCKET/$INSTANCE_NAME/" --recursive | grep -E 'FULL|DELTA' | awk '{print $4}')
+
+    for folder in $backup_folders; do
+        if [[ $folder == *"$backup_id"* ]]; then
+            log_message "Backup $backup_id found in S3 under $folder."
+            return 0
+        fi
+    done
+
+    log_message "No backup $backup_id found in S3."
+    return 1
 }
+
+
+
 
 # Decide whether to perform a Full or Delta backup
 perform_required_backup() {
@@ -118,22 +129,24 @@ perform_required_backup() {
 
     if [ -n "$latest_full_backup_id" ]; then
         if check_backup_in_s3 "$latest_full_backup_id"; then
+            local backup_type="DELTA"
             local delta_backup_id=$(perform_backup DELTA)
             if [ -n "$delta_backup_id" ]; then
-            #DEBUG
-            log_message "Delta id: $delta_backup_id" >&2
+                log_message "Delta id: $delta_backup_id" >&2
                 upload_to_s3 "$delta_backup_id" "$backup_type"
             else
                 log_message "Delta backup failed or no new backup was created."
             fi
         else
+            local backup_type="FULL"
             log_message "Latest full id: $latest_full_backup_id" >&2
             upload_to_s3 "$latest_full_backup_id" "$backup_type"
         fi
     else
+        local backup_type="FULL"
         local full_backup_id=$(perform_backup FULL)
         if [ -n "$full_backup_id" ]; then
-            upload_to_s3 "$full_backup_id"
+            upload_to_s3 "$full_backup_id" "$backup_type"
         else
             log_message "Full backup failed or no new full backup was created." >&2
         fi
