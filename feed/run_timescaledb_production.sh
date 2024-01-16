@@ -22,7 +22,8 @@ export PGUSER PGHOST PGPORT PGPASSWORD AWS_LOG_REGION AWS_LOG_GROUP
 # Global variable to track if the log group and stream have been verified/created
 LOG_GROUP_VERIFIED=false
 LOG_STREAM_VERIFIED=false
-
+IP_FILE="ip_development.txt"
+S3_BUCKET="s3://timescalebackups"
 # Function to log messages
 exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
@@ -221,10 +222,14 @@ setting_explain(){
     docker exec -it timescaledb psql -U $PGUSER -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
 }
 # pgBadger can be run on log files to generate detailed reports. This is typically done outside of the Docker container.
-setting_performance(){
-    docker exec -it timescaledb psql -U $PGUSER -d $DB_NAME -c "VACUUM (VERBOSE, ANALYZE) book"
-    docker exec -it timescaledb psql -U $PGUSER -d $DB_NAME -c "VACUUM (VERBOSE, ANALYZE) trades"
-    docker exec -it timescaledb psql -U $PGUSER -d $DB_NAME -c "REINDEX DATABASE $DB_NAME;"
+setting_performance() {
+    if docker exec -it timescaledb psql -U $PGUSER -d $DB_NAME -c "VACUUM (VERBOSE, ANALYZE) book" > /dev/null 2>&1 &&
+       docker exec -it timescaledb psql -U $PGUSER -d $DB_NAME -c "VACUUM (VERBOSE, ANALYZE) trades" > /dev/null 2>&1 &&
+       docker exec -it timescaledb psql -U $PGUSER -d $DB_NAME -c "REINDEX DATABASE $DB_NAME;" > /dev/null 2>&1; then
+        return 0  # Success
+    else
+        return 1  # Failure
+    fi
 
     # Example: Creating an index on the 'timestamp' column
     # docker exec -it timescaledb psql -U $PGUSER -c "CREATE INDEX ON my_table (timestamp);"
@@ -281,11 +286,52 @@ check_and_install_cronie() {
         fi
     fi
 }
+update_pg_hba_for_replication() {
+    # AWS S3 Bucket where ip_development.txt is stored
+    local s3_bucket=$S3_BUCKET
+    local ip_file=$IP_FILE
+    local temp_ip_file="/tmp/$ip_file"
+    # Path to pg_hba.conf within the Docker container
+    local pg_hba_file="/var/lib/postgresql/data/pg_hba.conf"
+
+    # Download the file from S3
+    if aws s3 cp "$s3_bucket/$ip_file" "$temp_ip_file"; then
+        log_message "Downloaded $ip_file from S3 bucket."
+    else
+        handle_error "Failed to download $ip_file from S3 bucket."
+    fi
+
+    # Parse the IP address
+    if [ -f "$temp_ip_file" ]; then
+        local dev_ip=$(cat "$temp_ip_file")
+        log_message "Development IP: $dev_ip"
+    else
+        handle_error "IP file does not exist: $temp_ip_file"
+    fi
+
+    # Check and update pg_hba.conf within the Docker container
+    if docker exec $CONTAINER_NAME bash -c "grep -q '$dev_ip' $pg_hba_file"; then
+        log_message "pg_hba.conf already contains an entry for $dev_ip."
+    else
+        docker exec $CONTAINER_NAME bash -c "echo 'host replication all $dev_ip md5' >> $pg_hba_file"
+        log_message "Updated pg_hba.conf with replication entry for $dev_ip."
+        # Reload PostgreSQL configuration inside the container without using pg_ctl
+        docker exec $CONTAINER_NAME bash -c "kill -HUP \$(cat /var/run/postgresql/.s.PGSQL.$PGPORT.pid)"
+        log_message "PostgreSQL configuration reloaded."
+    fi
+}
 
 retry_command start_container 3
+retry_command update_pg_hba_for_replication 3
 retry_command setting_replica 3
 retry_command setting_explain 3
-retry_command setting_performance 3
+retry_command "setting_performance" 3
+if [ $? -eq 0 ]; then
+    log_message "Setting_performance ran successfully"
+else
+    log_message "Setting_performance failed"
+fi
+
 retry_command check_and_install_cronie 2
 retry_command setting_cronjob 2 
 
