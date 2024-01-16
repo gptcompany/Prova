@@ -18,6 +18,8 @@ LOG_FILE="$HOME/ts_replica.log"
 IP_FILE="ip_development.txt"
 IP_FILE_FOLDER="/home/sam/ip_address/"
 REPLICATION_SLOT="timescale"
+PG_PATH_VOLUME="/home/sam/timescaledb_data"
+PGDATA="/var/lib/postgresql/data"
 # Function to log messages
 exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
@@ -93,13 +95,13 @@ start_container(){
         docker run -d \
         --name $CONTAINER_NAME \
         --restart "always" \
-        -e PGDATA=/var/lib/postgresql/data \
+        -e PGDATA=$PGDATA \
         -e POSTGRES_USER="$PGUSER" \
         -e POSTGRES_PASSWORD="$PGPASSWORD" \
         -e POSTGRES_LOG_MIN_DURATION_STATEMENT=1000 \
         -e POSTGRES_LOG_ERROR_VERBOSITY=default \
         -p $PGPORT:$PGPORT \
-        -v /home/sam/timescaledb_data:/var/lib/postgresql/data:z \
+        -v $PG_PATH_VOLUME:$PGDATA:z \
         timescale/timescaledb:latest-pg14
 
         # Check if the container started correctly
@@ -129,7 +131,7 @@ start_container(){
 # Function to initialize data for replication
 initialize_replication_data() {
     log_message "Initializing replication data from production server..."
-    pg_basebackup -h $PROD_DB_HOST -D ~/timescaledb_data -U $PGUSER -v -P -X stream --write-recovery-conf -S $REPLICATION_SLOT
+    pg_basebackup -h $PROD_DB_HOST -D $PG_PATH_VOLUME -U $PGUSER -v -P -X stream --write-recovery-conf -S $REPLICATION_SLOT
     if [ $? -eq 0 ]; then
         log_message "Replication data initialized successfully."
     else
@@ -199,8 +201,31 @@ get_public_ip() {
         handle_error "Failed to retrieve a valid public IP address."
     fi
 }
+check_directory_empty() {
+    local dir_path=$PG_PATH_VOLUME
+
+    if [ -d "$dir_path" ] && [ "$(ls -A "$dir_path")" ]; then
+        echo "Directory $dir_path is not empty. Do you want to delete its contents? (y/n)"
+        read -r response
+        case "$response" in
+            [yY][eE][sS]|[yY])
+                rm -rf "$dir_path"/*
+                echo "Contents of $dir_path have been deleted."
+                ;;
+            *)
+                echo "Operation cancelled. Please manually handle the contents of $dir_path."
+                exit 1
+                ;;
+        esac
+    else
+        echo "Directory $dir_path is empty or does not exist."
+    fi
+}
+
+
 # Main script execution
 retry_command get_public_ip 2
 retry_command upload_to_s3 2
 retry_command start_container 3
+retry_command check_directory_empty 1
 retry_command initialize_replication_data 1
