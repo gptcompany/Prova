@@ -1,28 +1,45 @@
 #!/bin/bash
-
+env >&3
+sudo chmod +x /home/ec2-user/statarb/feed/timescaledb_backup.sh
 # PostgreSQL settings
+#PGPASSWORD=$(grep 'timescaledb_password' /config_cf.yaml | awk '{print $2}' | tr -d '"')
 DB_NAME="db0"
 PGUSER="postgres"
 PGHOST="localhost"
 PGPORT="5432"
-#PGPASSWORD=$(grep 'timescaledb_password' /config_cf.yaml | awk '{print $2}' | tr -d '"')
 PGPASSWORD=$(python3 -c "import yaml; print(yaml.safe_load(open('/config_cf.yaml'))['timescaledb_password'])")
 export PGUSER PGHOST PGPORT PGPASSWORD
-
 # pg_probackup settings
 BACKUP_PATH="/home/ec2-user/ts_backups"
 INSTANCE_NAME="timescaledb"
-
 # AWS S3 settings
 S3_BUCKET="s3://timescalebackups"
-
 # Logging settings
+HOME="/home/ec2-user"
 LOG_FILE="$HOME/ts_backups.log"
+# AWS CloudWatch settings
+AWS_LOG_GROUP="Timescaledb"
+AWS_LOG_STREAM="production"
+AWS_LOG_REGION="ap-northeast-1"
+export PGUSER PGHOST PGPORT PGPASSWORD AWS_LOG_REGION AWS_LOG_GROUP
 
 # Function to log messages
+exec 3>>$LOG_FILE
+# Function to log messages and command output to the log file
 log_message() {
-    echo "$(date +"%Y-%m-%d %T"): $1" | tee -a $LOG_FILE
+    local message="$(date +"%Y-%m-%d %T"): $1"
+    echo "$message" >&3  # Log to the log file via fd3
+    echo "$message" >&2  # Display on the screen (stderr)
+    if [ -n "$2" ]; then
+        echo "$2" >&3   # Log stdout to the log file via fd3
+        echo "$2" >&2   # Display stdout on the screen (stderr)
+    fi
+    if [ -n "$3" ]; then
+        echo "$3" >&3   # Log stderr to the log file via fd3
+        echo "$3" >&2   # Display stderr on the screen (stderr)
+    fi
 }
+
 
 # Function to upload the backup to S3
 upload_to_s3() {
@@ -71,7 +88,7 @@ perform_backup() {
     local backup_output
     log_message "Starting $backup_mode backup for instance $INSTANCE_NAME..." >&2  # Redirect to standard error
     
-    backup_output=$(pg_probackup backup -B $BACKUP_PATH -b $backup_mode -U $PGUSER -d $DB_NAME --instance $INSTANCE_NAME --stream -h $PGHOST -p $PGPORT --compress --compress-algorithm=zlib --compress-level=5 2>&1)
+    backup_output=$(pg_probackup backup -B $BACKUP_PATH -b $backup_mode -U $PGUSER -d $DB_NAME --instance $INSTANCE_NAME --stream -h $PGHOST -p $PGPORT --compress --compress-algorithm=zlib --compress-level=9 2>&1)
     echo "$backup_output" >&2 # Redirect to standard error
     if [ $? -ne 0 ]; then
         log_message "Backup operation failed." >&2  # Redirect to standard error
