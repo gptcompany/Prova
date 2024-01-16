@@ -315,7 +315,7 @@ update_pg_hba_for_replication() {
         log_message "pg_hba.conf already contains an entry for $dev_ip."
         return 0
     else
-        docker exec $CONTAINER_NAME bash -c "echo 'host replication all $dev_ip/32 md5' >> $pg_hba_file"
+        docker exec $CONTAINER_NAME bash -c "echo 'host replication all $dev_ip/32 scram-sha-256' >> $pg_hba_file"
         log_message "Updated pg_hba.conf with replication entry for $dev_ip."
         # Reload PostgreSQL configuration inside the container without using pg_ctl
         docker exec $CONTAINER_NAME bash -c "kill -HUP \$(cat /var/lib/postgresql/.s.PGSQL.$PGPORT.pid)"
