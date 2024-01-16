@@ -24,6 +24,7 @@ LOG_GROUP_VERIFIED=false
 LOG_STREAM_VERIFIED=false
 IP_FILE="ip_development.txt"
 S3_BUCKET="s3://timescalebackups"
+REPLICATION_SLOT="timescale"
 # Function to log messages
 exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
@@ -310,18 +311,45 @@ update_pg_hba_for_replication() {
     fi
 
     # Check and update pg_hba.conf within the Docker container
-    if docker exec $CONTAINER_NAME bash -c "grep -q '$dev_ip' $pg_hba_file"; then
+    if docker exec $CONTAINER_NAME bash -c "grep -q '$dev_ip/32' $pg_hba_file"; then
         log_message "pg_hba.conf already contains an entry for $dev_ip."
+        return 0
     else
-        docker exec $CONTAINER_NAME bash -c "echo 'host replication all $dev_ip md5' >> $pg_hba_file"
+        docker exec $CONTAINER_NAME bash -c "echo 'host replication all $dev_ip/32 md5' >> $pg_hba_file"
         log_message "Updated pg_hba.conf with replication entry for $dev_ip."
         # Reload PostgreSQL configuration inside the container without using pg_ctl
         docker exec $CONTAINER_NAME bash -c "kill -HUP \$(cat /var/run/postgresql/.s.PGSQL.$PGPORT.pid)"
         log_message "PostgreSQL configuration reloaded."
     fi
+
 }
 
+create_replication_slot() {
+    local slot_name=$REPLICATION_SLOT  # Name of the replication slot to create
+
+    if [ -z "$slot_name" ]; then
+        log_message "Error: No slot name provided for create_replication_slot function."
+        handle_error "No slot name provided"
+    fi
+
+    # Check if the replication slot already exists
+    if docker exec $CONTAINER_NAME psql -U $PGUSER -tAc "SELECT 1 FROM pg_replication_slots WHERE slot_name = '$slot_name';" | grep -q 1; then
+        log_message "Replication slot $slot_name already exists."
+    else
+        # Create the replication slot
+        local create_slot_command="SELECT pg_create_physical_replication_slot('$slot_name');"
+        if docker exec $CONTAINER_NAME psql -U $PGUSER -c "$create_slot_command"; then
+            log_message "Replication slot $slot_name created successfully."
+        else
+            log_message "Error: Failed to create replication slot $slot_name."
+            handle_error "Failed to create replication slot"
+        fi
+    fi
+}
+
+
 retry_command start_container 3
+retry_command create_replication_slot 2
 retry_command update_pg_hba_for_replication 3
 retry_command setting_replica 3
 retry_command setting_explain 3
