@@ -116,7 +116,7 @@ start_container(){
         -e POSTGRES_LOG_ERROR_VERBOSITY=default \
         -e POSTGRES_INITDB_ARGS="--wal_level=replica --max_wal_senders=5 --max_replication_slots=5" \
         -p $PGPORT:$PGPORT \
-        -v /home/ec2-user/timescaledb_data:/var/lib/postgresql/data:z \
+        -v $HOME/timescaledb_data:/var/lib/postgresql/data:z \
         --log-driver="awslogs" \
         --log-opt awslogs-region=$AWS_LOG_REGION \
         --log-opt awslogs-group=$AWS_LOG_GROUP \
@@ -318,7 +318,7 @@ update_pg_hba_for_replication() {
         docker exec $CONTAINER_NAME bash -c "echo 'host replication all $dev_ip/32 md5' >> $pg_hba_file"
         log_message "Updated pg_hba.conf with replication entry for $dev_ip."
         # Reload PostgreSQL configuration inside the container without using pg_ctl
-        docker exec $CONTAINER_NAME bash -c "kill -HUP \$(cat /var/run/postgresql/.s.PGSQL.$PGPORT.pid)"
+        docker exec $CONTAINER_NAME bash -c "kill -HUP \$(cat /var/lib/postgresql/.s.PGSQL.$PGPORT.pid)"
         log_message "PostgreSQL configuration reloaded."
     fi
 
