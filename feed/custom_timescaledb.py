@@ -42,8 +42,17 @@ class TimeScaleCallback(BackendQueue):
         self.insert_statement = f"INSERT INTO {self.table} ({','.join([v for v in self.custom_columns.values()])}) VALUES " if custom_columns else None
         self.running = True
     
-    
-    async def ensure_compression(self, segmentby_column, orderby_column):
+    async def set_retention_policy(self):
+        try:
+            # Set retention policy for table
+            await self.conn.execute(f"""
+                SELECT add_retention_policy('public.{self.table}', INTERVAL '7 days', if_not_exists => true);
+            """)
+            logging.info(f"Retention policy set for {self.table} table.")
+        except Exception as e:
+            logging.error(f"Error setting retention policies: {str(e)}")
+            
+    async def ensure_compression(self, segmentby_column, orderby_column, compress_interval='10 minutes'):
         try:
             # Check if compression is enabled
             segmentby_columns_formatted = ", ".join(segmentby_column)  # Format the column names properly
@@ -56,7 +65,7 @@ class TimeScaleCallback(BackendQueue):
                 );
             """.format(self.table, segmentby_columns_formatted, orderby_column_formatted))
             await self.conn.execute(f"""
-                SELECT add_compression_policy('public.{self.table}', INTERVAL '10 minutes', if_not_exists => true);
+                SELECT add_compression_policy('public.{self.table}', INTERVAL '{compress_interval}', if_not_exists => true);
             """)
             logging.info(f"Compression enabled for table {self.table}")
         except Exception as e:
@@ -108,11 +117,12 @@ class TimeScaleCallback(BackendQueue):
 
     async def _connect(self):
         if self.conn is None:
-            logging.info('Connecting to timescaledb')
+            logging.info('Connecting to TimescaleDB')
             try:
                 self.conn = await asyncpg.connect(user=self.user, password=self.pw, database=self.db, host=self.host, port=self.port)
                 await self.ensure_tables_exist()
-                await self.ensure_compression(['exchange','symbol'], ['receipt', 'update_type'] if self.table == 'book' else ['timestamp', 'id'])
+                await self.ensure_compression(['exchange','symbol'], ['receipt', 'update_type'] if self.table == 'book' else ['timestamp', 'id'], compress_interval='10 minutes')
+                await self.set_retention_policy()  # Setting retention policy
                 
             except Exception as e:
                 logging.error(f"Error while connecting to TimescaleDB: {str(e)}")

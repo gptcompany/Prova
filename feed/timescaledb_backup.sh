@@ -7,7 +7,7 @@ PGHOST="localhost"
 PGPORT="5432"
 #PGPASSWORD=$(grep 'timescaledb_password' /config_cf.yaml | awk '{print $2}' | tr -d '"')
 PGPASSWORD=$(python3 -c "import yaml; print(yaml.safe_load(open('/config_cf.yaml'))['timescaledb_password'])")
-export PGPASSWORD
+export PGUSER PGHOST PGPORT PGPASSWORD
 
 # pg_probackup settings
 BACKUP_PATH="/home/ec2-user/ts_backups"
