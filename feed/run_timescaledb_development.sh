@@ -155,7 +155,7 @@ install_aws_cli() {
     fi
 }
 upload_to_s3() {
-    local file_to_upload=$IP_FILE
+    local file_to_upload="${IP_FILE_FOLDER}${IP_FILE}"  # Corrected line
 
     # Ensure AWS CLI is installed
     install_aws_cli
@@ -188,10 +188,10 @@ get_public_ip() {
     # Final check if the IP address is valid
     if [[ $public_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ || $public_ip =~ ^[0-9a-fA-F:]+$ ]]; then
         local ip_file_dir="$IP_FILE_FOLDER"
-        mkdir -p "$ip_file_dir"  # Create the directory if it does not exist
+        mkdir -p "$ip_file_dir"
         local ip_file_path="${ip_file_dir}$IP_FILE"
 
-        log_message "$public_ip" > "$ip_file_path"
+        echo "$public_ip" > "$ip_file_path"  # Corrected line
         log_message "Public IP address: $public_ip"
         log_message "Public IP address saved to $ip_file_path"
     else
