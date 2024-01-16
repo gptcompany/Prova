@@ -9,6 +9,7 @@ PGPORT="5432"
 PGPASSWORD=$(python3 -c "import yaml; print(yaml.safe_load(open('/config_cf.yaml'))['timescaledb_password'])")
 export PGUSER PGHOST PGPORT PGPASSWORD
 CONTAINER_NAME="timescaledb"
+PROD_DB_HOST="57.181.106.64"  # Production Database IP
 
 # Function to log messages
 log_message() {
@@ -106,4 +107,18 @@ start_container(){
         fi
     fi
 }
+# Function to initialize data for replication
+initialize_replication_data() {
+    log_message "Initializing replication data from production server..."
+    pg_basebackup -h $PROD_DB_HOST -D ~/timescaledb_data -U $REPLICATION_USER -v -P --wal-method=stream --write-recovery-conf --slot=your_slot_name
+    if [ $? -eq 0 ]; then
+        log_message "Replication data initialized successfully."
+    else
+        log_message "Error: Failed to initialize replication data."
+        handle_error "Failed to initialize replication data"
+    fi
+}
+
+# Main script execution
 retry_command start_container 3
+initialize_replication_data 1
