@@ -17,6 +17,7 @@ HOME="/home/sam"
 LOG_FILE="$HOME/ts_replica.log"
 IP_FILE="ip_development.txt"
 IP_FILE_FOLDER="/home/sam/ip_address/"
+REPLICATION_SLOT="timescale"
 # Function to log messages
 exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
@@ -128,7 +129,7 @@ start_container(){
 # Function to initialize data for replication
 initialize_replication_data() {
     log_message "Initializing replication data from production server..."
-    pg_basebackup -h $PROD_DB_HOST -D ~/timescaledb_data -U $REPLICATION_USER -v -P --wal-method=stream --write-recovery-conf --slot=your_slot_name
+    pg_basebackup -h $PROD_DB_HOST -D ~/timescaledb_data -U $REPLICATION_USER -v -P -X stream --write-recovery-conf -S $REPLICATION_SLOT
     if [ $? -eq 0 ]; then
         log_message "Replication data initialized successfully."
     else
