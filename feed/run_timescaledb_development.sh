@@ -129,7 +129,7 @@ start_container(){
 # Function to initialize data for replication
 initialize_replication_data() {
     log_message "Initializing replication data from production server..."
-    pg_basebackup -h $PROD_DB_HOST -D ~/timescaledb_data -U $REPLICATION_USER -v -P -X stream --write-recovery-conf -S $REPLICATION_SLOT
+    pg_basebackup -h $PROD_DB_HOST -D ~/timescaledb_data -U $PGUSER -v -P -X stream --write-recovery-conf -S $REPLICATION_SLOT
     if [ $? -eq 0 ]; then
         log_message "Replication data initialized successfully."
     else
