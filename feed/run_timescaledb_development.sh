@@ -435,11 +435,13 @@ retry_command get_public_ip 2
 retry_command upload_to_s3 2
 retry_command start_container 3
 retry_command ensure_database_exists 2
-retry_command create_timescaledb_extension_and_publication 2
-retry_command update_timescaledb_extension 1
-retry_command inspect_hypertables 1
 retry_command set_wal_level_logical 2
 retry_command create_logical_replication_slot 2
+retry_command create_timescaledb_extension_and_publication 2
+#retry_command update_timescaledb_extension 1
+retry_command inspect_hypertables 1
+
+
 retry_command initialize_logical_replication 2
 retry_command restore_database_from_dump 1
 retry_command check_directory_empty 1
