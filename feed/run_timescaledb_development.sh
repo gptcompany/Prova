@@ -300,10 +300,12 @@ restore_database_from_dump() {
         handle_error "Dump file not found in S3 bucket"
         return 1
     fi
-
+    # Temporarily disable standby mode for restoration
+    mv $PG_PATH_VOLUME/standby.signal $PG_PATH_VOLUME/standby.signal.bak
     log_message "Restoring database from dump..."
     docker exec $CONTAINER_NAME pg_restore -U $PGUSER -d $DB_NAME -1 "$dump_file_restore"
-    
+    # Re-enable standby mode after restoration
+    # mv $PG_PATH_VOLUME/standby.signal.bak $PG_PATH_VOLUME/standby.signal
     if [ $? -eq 0 ]; then
         log_message "Database restored successfully from $dump_file_restore"
     else
