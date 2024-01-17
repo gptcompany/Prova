@@ -25,10 +25,13 @@ LOG_STREAM_VERIFIED=false
 IP_FILE="ip_development.txt"
 S3_BUCKET="s3://timescalebackups"
 REPLICATION_SLOT="timescale"
-sudo mkdir -p /var/backups/timescaledb
-sudo chown ec2-user:ec2-user /var/backups/timescaledb
-sudo chmod 700 /var/backups/timescaledb
-DUMP_FILE="/var/backups/timescaledb/prod_backup.sql"
+PGDATA="/var/lib/postgresql/data"
+DUMP_FOLDER="/home/ec2-user/timescaledb_backups"
+sudo mkdir -p $DUMP_FOLDER
+sudo chown ec2-user $DUMP_FOLDER
+sudo chmod 700 $DUMP_FOLDER
+DUMP_FILE_TO_S3="$DUMP_FOLDER/prod_backup.sql"
+DUMP_FILE="/backups/prod_backup.sql"
 # Function to log messages
 exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
@@ -57,19 +60,23 @@ handle_error() {
 # Enhanced function to check Docker container status
 check_container_status() {
     local container_name=$1
-    local status=$(docker inspect --format="{{.State.Running}}" $container_name 2>/dev/null)
+    local exists=$(docker ps -a --format "{{.Names}}" | grep -w $container_name)
 
-    if [ $? -eq 1 ]; then
+    if [ -z "$exists" ]; then
         log_message "Container $container_name does not exist."
         return 1
-    elif [ "$status" == "false" ]; then
-        log_message "Container $container_name is not running."
-        return 2
     else
-        log_message "Container $container_name is running."
-        return 0
+        local status=$(docker inspect --format="{{.State.Running}}" $container_name)
+        if [ "$status" == "false" ]; then
+            log_message "Container $container_name is not running."
+            return 2
+        else
+            log_message "Container $container_name is running."
+            return 0
+        fi
     fi
 }
+
 # Modified retry_command function to handle different types of commands including functions
 retry_command() {
     local cmd="$1"
@@ -113,14 +120,15 @@ start_container(){
         docker run -d \
         --name $CONTAINER_NAME \
         --restart "always" \
-        -e PGDATA=/var/lib/postgresql/data \
+        -e PGDATA=$PGDATA \
         -e POSTGRES_USER="$PGUSER" \
         -e POSTGRES_PASSWORD="$PGPASSWORD" \
         -e POSTGRES_LOG_MIN_DURATION_STATEMENT=1000 \
         -e POSTGRES_LOG_ERROR_VERBOSITY=default \
         -e POSTGRES_INITDB_ARGS="--wal_level=replica --max_wal_senders=5 --max_replication_slots=5" \
         -p $PGPORT:$PGPORT \
-        -v $HOME/timescaledb_data:/var/lib/postgresql/data:z \
+        -v $HOME/timescaledb_data:$PGDATA:z \
+        -v $DUMP_FOLDER:/backups:z \
         --log-driver="awslogs" \
         --log-opt awslogs-region=$AWS_LOG_REGION \
         --log-opt awslogs-group=$AWS_LOG_GROUP \
@@ -153,19 +161,19 @@ start_container(){
 }
 
 
-# Setting up streaming replication
-setting_replica() {
+# Setting up logical
+setting_logical() {
     local needs_restart=false
     local current_setting
 
-    # Check if 'wal_level' is set to 'replica'
+    # Check if 'wal_level' is set to 'logical'
     current_setting=$(docker exec timescaledb psql -U $PGUSER -t -c "SHOW wal_level;" | tr -d '[:space:]')
-    if [ "$current_setting" != "replica" ]; then
-        log_message "Setting 'wal_level' to 'replica'. Current setting: $current_setting"
-        docker exec timescaledb psql -U $PGUSER -c "ALTER SYSTEM SET wal_level = replica;"
+    if [ "$current_setting" != "logical" ]; then
+        log_message "Setting 'wal_level' to 'logical'. Current setting: $current_setting"
+        docker exec timescaledb psql -U $PGUSER -c "ALTER SYSTEM SET wal_level = logical;"
         needs_restart=true
     else
-        log_message "'wal_level' is already set to 'replica'."
+        log_message "'wal_level' is already set to 'logical'."
     fi
 
     # Check 'max_wal_senders'
@@ -367,29 +375,51 @@ create_publication() {
 }
 # Function to create a database dump
 create_database_dump() {
-    local dump_file=$DUMP_FILE  # Specify your desired path
+    local dump_file=$DUMP_FILE
 
-    log_message "Creating database dump..."
-    docker exec $CONTAINER_NAME pg_dump -U $PGUSER -d $DB_NAME -f "$dump_file"
-    
-    if [ $? -eq 0 ]; then
-        log_message "Database dump created successfully at $dump_file"
+    if [ -f "$DUMP_FILE_TO_S3" ]; then
+        log_message "Dump file $DUMP_FILE_TO_S3 already exists. Skipping dump creation."
+        return 0
     else
-        handle_error "Failed to create database dump"
-        return 1
+        log_message "Creating database dump..."
+        docker exec timescaledb pg_dump -U $PGUSER -d $DB_NAME -F c -f "$dump_file"
+
+        if [ $? -eq 0 ]; then
+            log_message "Database dump created successfully at $dump_file"
+        else
+            handle_error "Failed to create database dump"
+            return 1
+        fi
     fi
 }
+
 upload_to_s3() {
-    if [ ! -d "$DUMP_FILE" ]; then
-        handle_error "The dump file $DUMP_FILE not found." >&2
+    local dump_file=$DUMP_FILE_TO_S3
+    local s3_upload_path="$S3_BUCKET/$INSTANCE_NAME/prod_backup.sql"
+
+    # Check if the local dump file exists
+    if [ ! -f "$dump_file" ]; then
+        handle_error "The local dump file $dump_file not found."
         return 1
     fi
-    # Use backup_type in constructing the S3 upload path or for other purposes
-    local s3_upload_path="$S3_BUCKET/$INSTANCE_NAME/prod_backup.sql"
-    log_message "Uploading backup $DUMP_FILE to S3..." >&2
-    aws s3 cp $DUMP_FILE $s3_upload_path --recursive
-    log_message "Upload to S3 bucket $s3_upload_path completed." >&2
+
+    # Check if the dump file already exists on S3
+    if aws s3 ls "$s3_upload_path" > /dev/null; then
+        log_message "Dump file $dump_file already exists on S3. Skipping upload."
+        return 0
+    else
+        log_message "Uploading backup $dump_file to S3..."
+        sudo aws s3 cp $dump_file $s3_upload_path
+
+        if [ $? -eq 0 ]; then
+            log_message "Upload to S3 bucket $s3_upload_path completed."
+        else
+            handle_error "Failed to upload the dump file to S3."
+            return 1
+        fi
+    fi
 }
+
 
 # cleanup_old_backups() {
 #     log_message "Cleaning up old backups..."
@@ -400,7 +430,7 @@ retry_command start_container 3
 retry_command create_publication 1
 retry_command create_replication_slot 2
 retry_command update_pg_hba_for_replication 3
-retry_command setting_replica 3
+retry_command setting_logical 3
 retry_command setting_explain 3
 retry_command "setting_performance" 3
 if [ $? -eq 0 ]; then
