@@ -326,14 +326,20 @@ create_timescaledb_extension_and_publication() {
         return 1
     fi
 
-    log_message "Creating publication for all tables..."
-    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE PUBLICATION my_publication FOR ALL TABLES;"; then
-        handle_error "Failed to create publication for all tables"
-        return 1
+    log_message "Checking if publication for all tables exists..."
+    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "\dp" | grep -q 'my_publication'; then
+        log_message "Creating publication for all tables..."
+        if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE PUBLICATION my_publication FOR ALL TABLES;"; then
+            handle_error "Failed to create publication for all tables"
+            return 1
+        fi
+    else
+        log_message "Publication my_publication already exists. Skipping creation."
     fi
 
-    log_message "Successfully created TimescaleDB extension and publication."
+    log_message "Successfully set up TimescaleDB extension and publication."
 }
+
 # Function to restore the database from a dump
 restore_database_from_dump() {
     local s3_upload_path="$S3_BUCKET/$INSTANCE_NAME/prod_backup.sql"
