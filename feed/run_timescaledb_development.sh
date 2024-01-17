@@ -314,6 +314,9 @@ restore_database_from_dump() {
         docker restart $CONTAINER_NAME
     fi
 
+    log_message "Dropping existing database and recreating..."
+    docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "DROP DATABASE IF EXISTS $DB_NAME; CREATE DATABASE $DB_NAME;"
+
     log_message "Restoring database from dump..."
     docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER -d $DB_NAME -1 "$dump_file_restore"
     
