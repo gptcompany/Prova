@@ -319,6 +319,7 @@ set_wal_level_logical() {
     fi
 }
 # Function to create TimescaleDB extension and publication
+
 create_timescaledb_extension_and_publication() {
     log_message "Creating TimescaleDB extension if it does not exist..."
     if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"; then
@@ -327,7 +328,7 @@ create_timescaledb_extension_and_publication() {
     fi
 
     log_message "Checking if publication for all tables exists..."
-    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "\dp" | grep -q 'my_publication'; then
+    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "\dRp" | grep -q 'my_publication'; then
         log_message "Creating publication for all tables..."
         if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE PUBLICATION my_publication FOR ALL TABLES;"; then
             handle_error "Failed to create publication for all tables"
