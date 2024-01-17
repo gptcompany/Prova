@@ -419,8 +419,8 @@ upload_to_s3() {
     fi
 
     # Check if the dump file already exists on S3
-    if aws s3 ls "$s3_upload_path" > /dev/null; then
-        log_message "Dump file $dump_file already exists on S3. Skipping upload."
+    if aws s3 ls "$s3_upload_path" &>/dev/null; then
+        log_message "Dump file $s3_upload_path already exists on S3. Skipping upload."
         return 0
     else
         log_message "Uploading backup $dump_file to S3..."
@@ -434,6 +434,7 @@ upload_to_s3() {
         fi
     fi
 }
+
 
 
 # cleanup_old_backups() {
@@ -461,8 +462,15 @@ retry_command create_database_dump 3
 retry_command upload_to_s3 3
 # Call the cleanup function after successful upload
 # retry_command cleanup_old_backups 1
-# COMMANDS IF NEED TO PERFORM FRESH SETUP
+
+
+### COMMANDS IF NEED TO PERFORM FRESH SETUP ###
+
 # docker exec -it timescaledb psql -U postgres -c "DROP DATABASE IF EXISTS db0;"
+# sudo sh -c 'crontab -l 2>/dev/null | grep -v "/home/ec2-user/statarb/feed/timescaledb_backup.sh" | crontab -'
+# sudo crontab -l
+# docker exec -u postgres timescaledb psql -U postgres -c "SELECT pg_drop_replication_slot('timescale');" 
+# aws s3 rm s3://timescalebackups/timescaledb/prod_backup.sql
 # sudo rm /home/ec2-user/timescaledb_backups/prod_backup.sql
 # docker stop timescaledb
 # docker rm timescaledb

@@ -288,6 +288,22 @@ initialize_logical_replication() {
         log_message "Logical replication subscription created."
     fi
 }
+# Function to set wal_level and ensure it's effective
+set_wal_level_logical() {
+    log_message "Setting wal_level to 'logical'..."
+    docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "ALTER SYSTEM SET wal_level = 'logical';"
+    docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "SELECT pg_reload_conf();"
+
+    # Check if wal_level is set to 'logical'
+    current_wal_level=$(docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -tAc "SHOW wal_level;")
+    if [ "$current_wal_level" != "logical" ]; then
+        log_message "wal_level is currently set to $current_wal_level. Restarting PostgreSQL to apply changes..."
+        docker restart $CONTAINER_NAME
+        sleep 10  # Wait for PostgreSQL to restart
+    else
+        log_message "wal_level is set to 'logical'."
+    fi
+}
 # Function to restore the database from a dump
 restore_database_from_dump() {
     local s3_upload_path="$S3_BUCKET/$INSTANCE_NAME/prod_backup.sql"
@@ -314,8 +330,8 @@ restore_database_from_dump() {
         docker restart $CONTAINER_NAME
     fi
 
-    log_message "Dropping existing database and recreating..."
-    docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "DROP DATABASE IF EXISTS $DB_NAME; CREATE DATABASE $DB_NAME;"
+    # log_message "Dropping existing database and recreating..."
+    # docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "DROP DATABASE IF EXISTS $DB_NAME; CREATE DATABASE $DB_NAME;"
     log_message "to DROP $DB_NAME use: docker exec -it timescaledb psql -U postgres -c 'DROP DATABASE IF EXISTS db0;'"
     # Check if the database exists
     if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
@@ -333,7 +349,7 @@ restore_database_from_dump() {
     docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "SELECT pg_reload_conf();"
     docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"
     docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE PUBLICATION my_publication FOR ALL TABLES;"
-    docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER --clean --if-exists --disable-triggers --single-transaction --on-error-continue --no-owner --no-acl -d $DB_NAME "$dump_file_restore"
+    docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER --clean --if-exists --disable-triggers --single-transaction --no-owner --no-acl -d $DB_NAME "$dump_file_restore"
     
     # if [ -f "$PG_PATH_VOLUME/standby.signal.bak" ]; then
     #     mv $PG_PATH_VOLUME/standby.signal.bak $PG_PATH_VOLUME/standby.signal
@@ -352,9 +368,10 @@ restore_database_from_dump() {
 # Main script execution
 retry_command get_public_ip 2
 retry_command upload_to_s3 2
+retry_command set_wal_level_logical 2
+retry_command initialize_logical_replication 1
 retry_command start_container 3
 retry_command restore_database_from_dump 1
-retry_command initialize_logical_replication 1
 retry_command check_directory_empty 1
 #retry_command initialize_replication_data 1
 retry_command remove_retention_policies 3
