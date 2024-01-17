@@ -435,7 +435,11 @@ upload_to_s3() {
     fi
 }
 
-
+# Update TimescaleDB Extension
+update_timescaledb_extension() {
+    log_message "Updating TimescaleDB extension (if needed)..."
+    docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c 'ALTER EXTENSION timescaledb UPDATE;'
+}
 
 # cleanup_old_backups() {
 #     log_message "Cleaning up old backups..."
@@ -443,7 +447,8 @@ upload_to_s3() {
 #     log_message "Old backups cleaned up."
 # }
 retry_command start_container 3
-retry_command create_publication 1
+retry_command update_timescaledb_extension 2
+retry_command create_publication 2
 retry_command create_logical_replication_slot 2
 #retry_command create_replication_slot 2
 retry_command update_pg_hba_for_replication 3
