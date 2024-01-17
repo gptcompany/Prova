@@ -292,20 +292,34 @@ initialize_logical_replication() {
 restore_database_from_dump() {
     local s3_upload_path="$S3_BUCKET/$INSTANCE_NAME/prod_backup.sql"
     local dump_file_restore="$PGDATA/prod_backup.sql"
-    log_message "Checking for dump file in S3 bucket..."
-    if aws s3 ls "$s3_upload_path" &>/dev/null; then
-        log_message "Dump file found in S3 bucket. Downloading..."
-        aws s3 cp "$s3_upload_path" "$DUMP_FILE"
+
+    log_message "Checking if the local dump file exists..."
+    if [ -f "$DUMP_FILE" ]; then
+        log_message "Local dump file found. Skipping download from S3."
     else
-        handle_error "Dump file not found in S3 bucket"
-        return 1
+        log_message "Local dump file not found. Checking for dump file in S3 bucket..."
+        if aws s3 ls "$s3_upload_path" &>/dev/null; then
+            log_message "Dump file found in S3 bucket. Downloading..."
+            aws s3 cp "$s3_upload_path" "$DUMP_FILE"
+        else
+            handle_error "Dump file not found in S3 bucket"
+            return 1
+        fi
     fi
+
+    # Stop the PostgreSQL service inside the container before restoring
+    docker exec $CONTAINER_NAME pg_ctl -D $PGDATA stop
+
     # Temporarily disable standby mode for restoration
     mv $PG_PATH_VOLUME/standby.signal $PG_PATH_VOLUME/standby.signal.bak
+
     log_message "Restoring database from dump..."
     docker exec $CONTAINER_NAME pg_restore -U $PGUSER -d $DB_NAME -1 "$dump_file_restore"
-    # Re-enable standby mode after restoration
+    
+    # Restore the standby.signal file and start the PostgreSQL service
     # mv $PG_PATH_VOLUME/standby.signal.bak $PG_PATH_VOLUME/standby.signal
+    docker exec $CONTAINER_NAME pg_ctl -D $PGDATA start
+
     if [ $? -eq 0 ]; then
         log_message "Database restored successfully from $dump_file_restore"
     else
@@ -313,6 +327,7 @@ restore_database_from_dump() {
         return 1
     fi
 }
+
 # Main script execution
 retry_command get_public_ip 2
 retry_command upload_to_s3 2
