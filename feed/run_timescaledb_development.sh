@@ -337,7 +337,7 @@ set_wal_level_logical() {
 
 create_timescaledb_extension_and_publication() {
     log_message "Creating TimescaleDB extension if it does not exist..."
-    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"; then
+    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS timescaledb WITH SCHEMA public CASCADE;" -X; then
         handle_error "Failed to create TimescaleDB extension"
         return 1
     fi
@@ -355,6 +355,7 @@ create_timescaledb_extension_and_publication() {
 
     log_message "Successfully set up TimescaleDB extension and publication."
 }
+
 
 # Function to restore the database from a dump
 restore_database_from_dump() {
@@ -397,7 +398,7 @@ restore_database_from_dump() {
         log_message "Database $DB_NAME already exists. Proceeding with restore."
     fi
     log_message "Restoring database from dump..."
-    docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER --clean --if-exists --disable-triggers --single-transaction --no-owner --no-acl -d $DB_NAME "$dump_file_restore"
+    docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER --clean --if-exists --disable-triggers --no-owner --no-acl -d $DB_NAME "$dump_file_restore" #--single-transaction
     
     # if [ -f "$PG_PATH_VOLUME/standby.signal.bak" ]; then
     #     mv $PG_PATH_VOLUME/standby.signal.bak $PG_PATH_VOLUME/standby.signal
