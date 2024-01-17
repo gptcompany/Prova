@@ -329,6 +329,7 @@ restore_database_from_dump() {
         log_message "Database $DB_NAME already exists. Proceeding with restore."
     fi
     log_message "Restoring database from dump..."
+    docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE PUBLICATION my_publication FOR ALL TABLES;"
     docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER --clean -d $DB_NAME -1 "$dump_file_restore"
     
     # if [ -f "$PG_PATH_VOLUME/standby.signal.bak" ]; then
