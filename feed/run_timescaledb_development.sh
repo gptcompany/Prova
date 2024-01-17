@@ -304,6 +304,22 @@ set_wal_level_logical() {
         log_message "wal_level is set to 'logical'."
     fi
 }
+# Function to create TimescaleDB extension and publication
+create_timescaledb_extension_and_publication() {
+    log_message "Creating TimescaleDB extension if it does not exist..."
+    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"; then
+        handle_error "Failed to create TimescaleDB extension"
+        return 1
+    fi
+
+    log_message "Creating publication for all tables..."
+    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE PUBLICATION my_publication FOR ALL TABLES;"; then
+        handle_error "Failed to create publication for all tables"
+        return 1
+    fi
+
+    log_message "Successfully created TimescaleDB extension and publication."
+}
 # Function to restore the database from a dump
 restore_database_from_dump() {
     local s3_upload_path="$S3_BUCKET/$INSTANCE_NAME/prod_backup.sql"
@@ -345,10 +361,6 @@ restore_database_from_dump() {
         log_message "Database $DB_NAME already exists. Proceeding with restore."
     fi
     log_message "Restoring database from dump..."
-    docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "ALTER SYSTEM SET wal_level = 'logical';"
-    docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "SELECT pg_reload_conf();"
-    docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"
-    docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE PUBLICATION my_publication FOR ALL TABLES;"
     docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER --clean --if-exists --disable-triggers --single-transaction --no-owner --no-acl -d $DB_NAME "$dump_file_restore"
     
     # if [ -f "$PG_PATH_VOLUME/standby.signal.bak" ]; then
@@ -369,7 +381,8 @@ restore_database_from_dump() {
 retry_command get_public_ip 2
 retry_command upload_to_s3 2
 retry_command set_wal_level_logical 2
-retry_command initialize_logical_replication 1
+retry_command initialize_logical_replication 2
+retry_command create_timescaledb_extension_and_publication 2
 retry_command start_container 3
 retry_command restore_database_from_dump 1
 retry_command check_directory_empty 1
