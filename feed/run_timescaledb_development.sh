@@ -308,24 +308,20 @@ restore_database_from_dump() {
     fi
 
     # Stop the PostgreSQL service inside the container before restoring
-    docker exec $CONTAINER_NAME pg_ctl -D $PGDATA stop
-    # Check if the standby.signal file exists and move it
     if [ -f "$PG_PATH_VOLUME/standby.signal" ]; then
         mv $PG_PATH_VOLUME/standby.signal $PG_PATH_VOLUME/standby.signal.bak
-    else
-        log_message "standby.signal file not found, assuming not in standby mode."
+        # Restart the Docker container if standby.signal file is found
+        docker restart $CONTAINER_NAME
     fi
 
-
     log_message "Restoring database from dump..."
-    docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER -d $DB_NAME --clean -1 "$dump_file_restore"
+    docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER -d $DB_NAME -1 "$dump_file_restore"
     
-    # Move the standby.signal file back and restart the PostgreSQL service, if it was moved
     # if [ -f "$PG_PATH_VOLUME/standby.signal.bak" ]; then
     #     mv $PG_PATH_VOLUME/standby.signal.bak $PG_PATH_VOLUME/standby.signal
-    #     docker exec -u postgres $CONTAINER_NAME pg_ctl -D $PGDATA start
+    #     # Restart the Docker container again to re-enable standby mode
+    #     docker restart $CONTAINER_NAME
     # fi
-    docker exec $CONTAINER_NAME pg_ctl -D $PGDATA start
 
     if [ $? -eq 0 ]; then
         log_message "Database restored successfully from $dump_file_restore"
