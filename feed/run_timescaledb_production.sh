@@ -33,6 +33,8 @@ sudo chmod 700 $DUMP_FOLDER
 DUMP_FILE_TO_S3="$DUMP_FOLDER/prod_backup.sql"
 DUMP_FILE="/backups/prod_backup.sql"
 TIMESCALE_VERSION="2.13.1"
+INSTANCE_NAME="timescaledb"
+TABLES=("book" "trades")
 # Function to log messages
 exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
@@ -126,7 +128,6 @@ start_container(){
         -e POSTGRES_PASSWORD="$PGPASSWORD" \
         -e POSTGRES_LOG_MIN_DURATION_STATEMENT=1000 \
         -e POSTGRES_LOG_ERROR_VERBOSITY=default \
-        -e POSTGRES_INITDB_ARGS="--wal_level=logical --max_wal_senders=5 --max_replication_slots=5" \
         -p $PGPORT:$PGPORT \
         -v $HOME/timescaledb_data:$PGDATA:z \
         -v $DUMP_FOLDER:/backups:z \
@@ -161,7 +162,20 @@ start_container(){
     fi
 }
 
-
+# Function to check and create the database if it doesn't exist
+ensure_database_exists() {
+    log_message "Ensuring database $DB_NAME exists..."
+    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
+        log_message "Database $DB_NAME does not exist. Creating database..."
+        docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "CREATE DATABASE $DB_NAME;"
+        if [ $? -ne 0 ]; then
+            handle_error "Failed to create database $DB_NAME"
+            return 1
+        fi
+    else
+        log_message "Database $DB_NAME already exists."
+    fi
+}
 # Setting up logical
 setting_logical() {
     local needs_restart=false
@@ -237,17 +251,24 @@ setting_explain(){
 }
 # pgBadger can be run on log files to generate detailed reports. This is typically done outside of the Docker container.
 setting_performance() {
-    if docker exec -it timescaledb psql -U $PGUSER -d $DB_NAME -c "VACUUM (VERBOSE, ANALYZE) book" > /dev/null 2>&1 &&
-       docker exec -it timescaledb psql -U $PGUSER -d $DB_NAME -c "VACUUM (VERBOSE, ANALYZE) trades" > /dev/null 2>&1 &&
-       docker exec -it timescaledb psql -U $PGUSER -d $DB_NAME -c "REINDEX DATABASE $DB_NAME;" > /dev/null 2>&1; then
-        return 0  # Success
-    else
-        return 1  # Failure
+    # Check if table exists before vacuuming and reindexing
+    for table in "${tables[@]}"; do
+        if docker exec -it timescaledb psql -U $PGUSER -d $DB_NAME -tAc "SELECT 1 FROM pg_tables WHERE tablename = '$table'" | grep -q 1; then
+            if ! docker exec -it timescaledb psql -U $PGUSER -d $DB_NAME -c "VACUUM (VERBOSE, ANALYZE) $table" > /dev/null 2>&1; then
+                return 1  # Failure on vacuuming table
+            fi
+        else
+            log_message "Table $table does not exist. Skipping VACUUM and ANALYZE."
+        fi
+    done
+
+    if ! docker exec -it timescaledb psql -U $PGUSER -d $DB_NAME -c "REINDEX DATABASE $DB_NAME;" > /dev/null 2>&1; then
+        return 1  # Failure on reindexing database
     fi
 
-    # Example: Creating an index on the 'timestamp' column
-    # docker exec -it timescaledb psql -U $PGUSER -c "CREATE INDEX ON my_table (timestamp);"
+    return 0  # Success
 }
+
 setting_cronjob() {
     local backup_script="$BACKUP_SCRIPT_PATH"
 
@@ -419,13 +440,19 @@ upload_to_s3() {
         return 1
     fi
 
-    # Check if the dump file already exists on S3
-    if aws s3 ls "$s3_upload_path" &>/dev/null; then
-        log_message "Dump file $s3_upload_path already exists on S3. Skipping upload."
-        return 0
-    else
+    # Fetch the last modified time of the file on S3
+    local s3_last_modified=$(aws s3api head-object --bucket $(echo $S3_BUCKET | sed 's|s3://||') --key "$INSTANCE_NAME/prod_backup.sql" --query "LastModified" --output text 2>/dev/null)
+
+    # Convert S3 last modified time to Unix timestamp
+    s3_last_modified=$(date -d "$s3_last_modified" +%s)
+
+    # Get last modified time of the local file in Unix timestamp
+    local local_last_modified=$(date -r $dump_file +%s)
+
+    # Check if the local dump file is newer than the one on S3
+    if [ -z "$s3_last_modified" ] || [ $local_last_modified -gt $s3_last_modified ]; then
         log_message "Uploading backup $dump_file to S3..."
-        sudo aws s3 cp $dump_file $s3_upload_path
+        aws s3 cp $dump_file $s3_upload_path
 
         if [ $? -eq 0 ]; then
             log_message "Upload to S3 bucket $s3_upload_path completed."
@@ -433,8 +460,11 @@ upload_to_s3() {
             handle_error "Failed to upload the dump file to S3."
             return 1
         fi
+    else
+        log_message "The S3 file is up-to-date. Skipping upload."
     fi
 }
+
 
 # Update TimescaleDB Extension
 update_timescaledb_extension() {
@@ -448,12 +478,13 @@ update_timescaledb_extension() {
 #     log_message "Old backups cleaned up."
 # }
 retry_command start_container 3
-retry_command update_timescaledb_extension 2
-retry_command create_publication 2
+#retry_command update_timescaledb_extension 2
+retry_command ensure_database_exists 2
+retry_command setting_logical 3
 retry_command create_logical_replication_slot 2
+retry_command create_publication 2
 #retry_command create_replication_slot 2
 retry_command update_pg_hba_for_replication 3
-retry_command setting_logical 3
 retry_command setting_explain 3
 retry_command "setting_performance" 3
 if [ $? -eq 0 ]; then
