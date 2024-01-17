@@ -291,7 +291,7 @@ initialize_logical_replication() {
 # Function to restore the database from a dump
 restore_database_from_dump() {
     local s3_upload_path="$S3_BUCKET/$INSTANCE_NAME/prod_backup.sql"
-
+    local dump_file_restore="$PGDATA/prod_backup.sql"
     log_message "Checking for dump file in S3 bucket..."
     if aws s3 ls "$s3_upload_path" &>/dev/null; then
         log_message "Dump file found in S3 bucket. Downloading..."
@@ -302,10 +302,10 @@ restore_database_from_dump() {
     fi
 
     log_message "Restoring database from dump..."
-    docker exec $CONTAINER_NAME pg_restore -U $PGUSER -d $DB_NAME -1 "$DUMP_FILE"
+    docker exec $CONTAINER_NAME pg_restore -U $PGUSER -d $DB_NAME -1 "$dump_file_restore"
     
     if [ $? -eq 0 ]; then
-        log_message "Database restored successfully from $DUMP_FILE"
+        log_message "Database restored successfully from $dump_file_restore"
     else
         handle_error "Failed to restore database from dump"
         return 1
