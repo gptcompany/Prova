@@ -120,9 +120,9 @@ class TimeScaleCallback(BackendQueue):
             logging.info('Connecting to TimescaleDB')
             try:
                 self.conn = await asyncpg.connect(user=self.user, password=self.pw, database=self.db, host=self.host, port=self.port)
-                await self.ensure_tables_exist()
-                await self.ensure_compression(['exchange','symbol'], ['receipt', 'update_type'] if self.table == 'book' else ['timestamp', 'id'], compress_interval='10 minutes')
-                await self.set_retention_policy()  # Setting retention policy
+                # await self.ensure_tables_exist()
+                # await self.ensure_compression(['exchange','symbol'], ['receipt', 'update_type'] if self.table == 'book' else ['timestamp', 'id'], compress_interval='10 minutes')
+                # await self.set_retention_policy()  # Setting retention policy
                 
             except Exception as e:
                 logging.error(f"Error while connecting to TimescaleDB: {str(e)}")

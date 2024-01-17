@@ -1,6 +1,7 @@
 #!/bin/bash
 # Production Environment Setup Script for PostgreSQL with TimescaleDB on EC2 Instance
-sudo chmod +x /home/ec2-user/statarb/feed/run_timescaledb_production.sh
+#sudo chmod +x /home/ec2-user/statarb/feed/run_timescaledb_production.sh
+sudo chmod +x /home/ec2-user/statarb/feed/set_timescaledb_production.sh
 #PGPASSWORD=$(grep 'timescaledb_password' /config_cf.yaml | awk '{print $2}' | tr -d '"')
 DB_NAME="db0"
 PGUSER="postgres"
@@ -40,15 +41,16 @@ exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
 log_message() {
     local message="$(date +"%Y-%m-%d %T"): $1"
-    echo "$message" >&3  # Log to the log file via fd3
-    echo "$message" >&2  # Display on the screen (stderr)
+    printf "%-100s\n" "$message" >&3  # Log to the log file via fd3
+    printf "%-100s\n" "$message" >&2  # Display on the screen (stderr)
+
     if [ -n "$2" ]; then
-        echo "$2" >&3   # Log stdout to the log file via fd3
-        echo "$2" >&2   # Display stdout on the screen (stderr)
+        printf "%-100s\n" "$2" >&3   # Log stdout to the log file via fd3
+        printf "%-100s\n" "$2" >&2   # Display stdout on the screen (stderr)
     fi
     if [ -n "$3" ]; then
-        echo "$3" >&3   # Log stderr to the log file via fd3
-        echo "$3" >&2   # Display stderr on the screen (stderr)
+        printf "%-100s\n" "$3" >&3   # Log stderr to the log file via fd3
+        printf "%-100s\n" "$3" >&2   # Display stderr on the screen (stderr)
     fi
 }
 
@@ -126,8 +128,10 @@ start_container(){
         -e PGDATA=$PGDATA \
         -e POSTGRES_USER="$PGUSER" \
         -e POSTGRES_PASSWORD="$PGPASSWORD" \
-        -e POSTGRES_LOG_MIN_DURATION_STATEMENT=1000 \
-        -e POSTGRES_LOG_ERROR_VERBOSITY=default \
+        -e POSTGRES_LOG_MIN_DURATION_STATEMENT=5000 \
+        -e POSTGRES_LOG_ERROR_VERBOSITY=terse \
+        -e POSTGRES_LOG_MIN_MESSAGES=ERROR \
+        -e PG_LOG_REPLICATION_COMMANDS=off \
         -p $PGPORT:$PGPORT \
         -v $HOME/timescaledb_data:$PGDATA:z \
         -v $DUMP_FOLDER:/backups:z \
@@ -159,21 +163,6 @@ start_container(){
             log_message "Error: Failed to start existing container $CONTAINER_NAME."
             handle_error "Failed to start existing container"
         fi
-    fi
-}
-
-# Function to check and create the database if it doesn't exist
-ensure_database_exists() {
-    log_message "Ensuring database $DB_NAME exists..."
-    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
-        log_message "Database $DB_NAME does not exist. Creating database..."
-        docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "CREATE DATABASE $DB_NAME;"
-        if [ $? -ne 0 ]; then
-            handle_error "Failed to create database $DB_NAME"
-            return 1
-        fi
-    else
-        log_message "Database $DB_NAME already exists."
     fi
 }
 # Setting up logical
@@ -373,28 +362,6 @@ create_logical_replication_slot() {
     fi
 }
 
-create_replication_slot() {
-    local slot_name=$REPLICATION_SLOT  # Name of the replication slot to create
-
-    if [ -z "$slot_name" ]; then
-        log_message "Error: No slot name provided for create_replication_slot function."
-        handle_error "No slot name provided"
-    fi
-
-    # Check if the replication slot already exists
-    if docker exec $CONTAINER_NAME psql -U $PGUSER -tAc "SELECT 1 FROM pg_replication_slots WHERE slot_name = '$slot_name';" | grep -q 1; then
-        log_message "Replication slot $slot_name already exists."
-    else
-        # Create the replication slot
-        local create_slot_command="SELECT pg_create_physical_replication_slot('$slot_name');"
-        if docker exec $CONTAINER_NAME psql -U $PGUSER -c "$create_slot_command"; then
-            log_message "Replication slot $slot_name created successfully."
-        else
-            log_message "Error: Failed to create replication slot $slot_name."
-            handle_error "Failed to create replication slot"
-        fi
-    fi
-}
 # Function to create a publication for all tables
 create_publication() {
     log_message "Creating a publication for all tables..."
@@ -465,38 +432,43 @@ upload_to_s3() {
     fi
 }
 
-
-# Update TimescaleDB Extension
-update_timescaledb_extension() {
-    log_message "Updating TimescaleDB extension (if needed)..."
-    docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c 'ALTER EXTENSION timescaledb UPDATE;'
+adjust_log_verbosity() {
+    local new_log_level="$1"  # e.g., 'warning', 'error', 'info', 'fatal', 'notice'
+    log_message "Adjusting log verbosity to $new_log_level"
+    docker exec $CONTAINER_NAME psql -U $PGUSER -c "ALTER SYSTEM SET log_min_messages TO '$new_log_level';"
+    docker exec $CONTAINER_NAME psql -U $PGUSER -c "ALTER SYSTEM SET log_min_error_statement TO '$new_log_level';"
+    # Set log_min_duration_statement to log only long duration queries (e.g., 1000 ms for 1 second)
+    docker exec $CONTAINER_NAME psql -U $PGUSER -c "ALTER SYSTEM SET log_min_duration_statement TO '5000';"
+    # Disable logging of each individual SQL statement
+    docker exec $CONTAINER_NAME psql -U $PGUSER -c "ALTER SYSTEM SET log_statement = 'none';"
+    docker exec $CONTAINER_NAME psql -U $PGUSER -c "SELECT pg_reload_conf();"
 }
-
+set_timescaledb_production(){
+    sudo $HOME/statarb/feed/set_timescaledb_production.sh
+}
 # cleanup_old_backups() {
 #     log_message "Cleaning up old backups..."
 #     find "$DUMP_FILE" -mtime +7 -exec sudo rm {} \;
 #     log_message "Old backups cleaned up."
 # }
 retry_command start_container 3
-#retry_command update_timescaledb_extension 2
-retry_command ensure_database_exists 2
+retry_command set_timescaledb_production 1
 retry_command setting_logical 3
 retry_command create_logical_replication_slot 2
 retry_command create_publication 2
-#retry_command create_replication_slot 2
 retry_command update_pg_hba_for_replication 3
 retry_command setting_explain 3
-retry_command "setting_performance" 3
+retry_command setting_performance 3
 if [ $? -eq 0 ]; then
     log_message "Setting_performance ran successfully"
 else
     log_message "Setting_performance failed"
 fi
-
 retry_command check_and_install_cronie 2
 retry_command setting_cronjob 2
 retry_command create_database_dump 3
 retry_command upload_to_s3 3
+adjust_log_verbosity "ERROR" # e.g., 'warning', 'error', 'info', 'fatal', 'notice'
 # Call the cleanup function after successful upload
 # retry_command cleanup_old_backups 1
 
@@ -519,6 +491,12 @@ retry_command upload_to_s3 3
 # sudo rm /home/ec2-user/timescaledb_backups/prod_backup.sql
 # sudo rm -r /home/ec2-user/timescaledb_data/
 # sudo rm -r /home/ec2-user/timescaledb_backups/
+
+
+#TO CHECK PERSISTANCE
+# docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
+# docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT COUNT(*) FROM public.book;"
+# docker exec -it timescaledb psql -U postgres -c "SELECT COUNT(*) FROM trades;"
 
 
 

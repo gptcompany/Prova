@@ -1,11 +1,11 @@
 #!/bin/bash
 # DEVELOPMENT Environment Setup Script for PostgreSQL with TimescaleDB on local pc instance
 # chmod +x /home/ec2-user/statarb/feed/run_timescaledb.sh
+
 DB_NAME="db0"
 PGUSER="postgres"
 PGHOST="localhost"
 PGPORT="5432"
-#PGPASSWORD=$(grep 'timescaledb_password' /config_cf.yaml | awk '{print $2}' | tr -d '"')
 PGPASSWORD=$(python3 -c "import yaml; print(yaml.safe_load(open('/config_cf.yaml'))['timescaledb_password'])")
 export PGUSER PGHOST PGPORT PGPASSWORD
 CONTAINER_NAME="timescaledb"
@@ -14,7 +14,7 @@ PROD_DB_HOST="57.181.106.64"  # Production Database IP
 S3_BUCKET="s3://timescalebackups"
 # Logging settings
 HOME="/home/sam"
-LOG_FILE="$HOME/ts_replica.log"
+LOG_FILE="$HOME/ts_development.log"
 IP_FILE="ip_development.txt"
 IP_FILE_FOLDER="/home/sam/ip_address/"
 REPLICATION_SLOT="timescale"
@@ -34,15 +34,16 @@ exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
 log_message() {
     local message="$(date +"%Y-%m-%d %T"): $1"
-    echo "$message" >&3  # Log to the log file via fd3
-    echo "$message" >&2  # Display on the screen (stderr)
+    printf "%-100s\n" "$message" >&3  # Log to the log file via fd3
+    printf "%-100s\n" "$message" >&2  # Display on the screen (stderr)
+
     if [ -n "$2" ]; then
-        echo "$2" >&3   # Log stdout to the log file via fd3
-        echo "$2" >&2   # Display stdout on the screen (stderr)
+        printf "%-100s\n" "$2" >&3   # Log stdout to the log file via fd3
+        printf "%-100s\n" "$2" >&2   # Display stdout on the screen (stderr)
     fi
     if [ -n "$3" ]; then
-        echo "$3" >&3   # Log stderr to the log file via fd3
-        echo "$3" >&2   # Display stderr on the screen (stderr)
+        printf "%-100s\n" "$3" >&3   # Log stderr to the log file via fd3
+        printf "%-100s\n" "$3" >&2   # Display stderr on the screen (stderr)
     fi
 }
 # Improved error handling within functions
@@ -110,8 +111,10 @@ start_container(){
         -e PGDATA=$PGDATA \
         -e POSTGRES_USER="$PGUSER" \
         -e POSTGRES_PASSWORD="$PGPASSWORD" \
-        -e POSTGRES_LOG_MIN_DURATION_STATEMENT=1000 \
-        -e POSTGRES_LOG_ERROR_VERBOSITY=default \
+        -e POSTGRES_LOG_MIN_DURATION_STATEMENT=5000 \
+        -e POSTGRES_LOG_ERROR_VERBOSITY=terse \
+        -e POSTGRES_LOG_MIN_MESSAGES=ERROR \
+        -e PG_LOG_REPLICATION_COMMANDS=off \
         -p $PGPORT:$PGPORT \
         -v $PG_PATH_VOLUME:$PGDATA:z \
         timescale/timescaledb:$TIMESCALE_VERSION-pg14
@@ -140,40 +143,7 @@ start_container(){
         fi
     fi
 }
-# Function to initialize data for replication
-initialize_replication_data() {
-    if [ -d "$PG_PATH_VOLUME" ] && [ -z "$(ls -A "$PG_PATH_VOLUME")" ]; then
-        log_message "Initializing replication data from production server..."
-        pg_basebackup -h $PROD_DB_HOST -D $PG_PATH_VOLUME -U $PGUSER -v -P -X stream --write-recovery-conf -S $REPLICATION_SLOT
-        if [ $? -eq 0 ]; then
-            log_message "Replication data initialized successfully."
-        else
-            log_message "Error: Failed to initialize replication data."
-            handle_error "Failed to initialize replication data"
-            return 1
-        fi
-    else
-        log_message "$PG_PATH_VOLUME is not empty. Skipping pg_basebackup."
-    fi
 
-    # Configure PostgreSQL for streaming replication (standby mode)
-    if ! grep -q "standby_mode = 'on'" $PG_PATH_VOLUME/postgresql.conf; then
-        echo "standby_mode = 'on'" > $PG_PATH_VOLUME/standby.signal
-    fi
-    if ! grep -q "primary_conninfo" $PG_PATH_VOLUME/postgresql.conf; then
-        echo "primary_conninfo = 'host=$PROD_DB_HOST port=5432 user=$PGUSER password=$PGPASSWORD'" >> $PG_PATH_VOLUME/postgresql.conf
-    fi
-
-
-    if ! grep -q "restore_command" $PG_PATH_VOLUME/postgresql.conf; then
-        echo "restore_command = 'cp $WAL_ARCHIVE_PATH/%f %p'" >> $PG_PATH_VOLUME/postgresql.conf
-    fi
-    if ! grep -q "trigger_file" $PG_PATH_VOLUME/postgresql.conf; then
-        echo "trigger_file = '/tmp/postgresql.trigger.5432'" >> $PG_PATH_VOLUME/postgresql.conf
-    fi
-
-    log_message "Streaming replication configured for standby mode."
-}
 install_aws_cli() {
     log_message "Checking for AWS CLI installation..."
     if ! command -v aws &> /dev/null; then
@@ -272,37 +242,24 @@ remove_retention_policies() {
     "
     log_message "Removed all retention policies on development server."
 }
-# Function to check and create the database if it doesn't exist
-ensure_database_exists() {
-    log_message "Ensuring database $DB_NAME exists..."
-    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
-        log_message "Database $DB_NAME does not exist. Creating database..."
-        docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "CREATE DATABASE $DB_NAME;"
-        if [ $? -ne 0 ]; then
-            handle_error "Failed to create database $DB_NAME"
-            return 1
-        fi
-    else
-        log_message "Database $DB_NAME already exists."
-    fi
-}
+
 # Function to initialize logical replication
 initialize_logical_replication() {
+    local slot_name=$REPLICATION_SLOT
     log_message "Setting up logical replication..."
 
-    # Check if subscription already exists (modify this check as needed)
     if docker exec $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "\dRp+" | grep -q 'my_subscription'; then
         log_message "Logical replication subscription already exists."
     else
-        # Create the subscription
         docker exec $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "
             CREATE SUBSCRIPTION my_subscription
             CONNECTION 'host=$PROD_DB_HOST port=5432 dbname=$DB_NAME user=$PGUSER password=$PGPASSWORD'
-            PUBLICATION my_publication;
+            PUBLICATION my_publication WITH (slot_name = '$slot_name');
         "
-        log_message "Logical replication subscription created."
+        log_message "Logical replication subscription created using slot '$slot_name'."
     fi
 }
+
 create_logical_replication_slot() {
     local slot_name=$REPLICATION_SLOT
 
@@ -414,11 +371,6 @@ restore_database_from_dump() {
         return 1
     fi
 }
-# Update TimescaleDB Extension
-update_timescaledb_extension() {
-    log_message "Updating TimescaleDB extension (if needed)..."
-    docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c 'ALTER EXTENSION timescaledb UPDATE;'
-}
 # Run TimescaleDB-specific Diagnostics
 run_diagnostics() {
     log_message "Running TimescaleDB-specific diagnostics..."
@@ -429,28 +381,39 @@ inspect_hypertables() {
     log_message "Inspecting hypertables..."
     docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c 'SELECT * FROM timescaledb_information.hypertables;'
 }
-# docker exec -it timescaledb psql -U postgres -c "DROP DATABASE IF EXISTS db0;"
+adjust_log_verbosity() {
+    local new_log_level="$1"  # e.g., 'warning', 'error', 'info', 'fatal', 'notice'
+
+    log_message "Adjusting log verbosity to $new_log_level"
+    docker exec $CONTAINER_NAME psql -U $PGUSER -c "ALTER SYSTEM SET log_min_messages TO '$new_log_level';"
+    docker exec $CONTAINER_NAME psql -U $PGUSER -c "ALTER SYSTEM SET log_min_error_statement TO '$new_log_level';"
+    # Set log_min_duration_statement to log only long duration queries (e.g., 1000 ms for 1 second)
+    docker exec $CONTAINER_NAME psql -U $PGUSER -c "ALTER SYSTEM SET log_min_duration_statement TO '5000';"
+    # Disable logging of each individual SQL statement
+    docker exec $CONTAINER_NAME psql -U $PGUSER -c "ALTER SYSTEM SET log_statement = 'none';"
+    docker exec $CONTAINER_NAME psql -U $PGUSER -c "SELECT pg_reload_conf();"
+}
+set_timescaledb_development(){
+    sudo chmod +x $HOME/statarb/feed/set_timescaledb_development.sh
+    sudo $HOME/statarb/feed/set_timescaledb_development.sh
+}
+
 # Main script execution
 retry_command get_public_ip 2
 retry_command upload_to_s3 2
 retry_command start_container 3
-retry_command ensure_database_exists 2
+retry_command set_timescaledb_development 1
 retry_command set_wal_level_logical 2
 retry_command create_logical_replication_slot 2
 retry_command create_timescaledb_extension_and_publication 2
-#retry_command update_timescaledb_extension 1
 retry_command inspect_hypertables 1
-
-
 retry_command initialize_logical_replication 2
 retry_command restore_database_from_dump 1
 retry_command check_directory_empty 1
-#retry_command initialize_replication_data 1
 retry_command remove_retention_policies 3
 retry_command run_diagnostics 1
+adjust_log_verbosity "ERROR" # e.g., 'warning', 'error', 'info', 'fatal', 'notice'
 #TODO: delete the dump local file if restoration is ok
-
-
 ### COMMANDS IF NEED TO PERFORM FRESH SETUP ###
 
 # docker exec -it timescaledb psql -U postgres -c "DROP DATABASE IF EXISTS db0;"
@@ -462,3 +425,8 @@ retry_command run_diagnostics 1
 # docker rm timescaledb
 # sudo aws s3 rm s3://timescalebackups/timescaledb/prod_backup.sql
 # sudo rm -r /home/sam/timescaledb_data/
+
+#TO CHECK PERSISTANCE
+# docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
+# docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT COUNT(*) FROM public.book;"
+# docker exec -it timescaledb psql -U postgres -c "SELECT COUNT(*) FROM trades;"
