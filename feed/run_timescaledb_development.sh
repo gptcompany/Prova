@@ -20,6 +20,11 @@ IP_FILE_FOLDER="/home/sam/ip_address/"
 REPLICATION_SLOT="timescale"
 PG_PATH_VOLUME="/home/sam/timescaledb_data"
 PGDATA="/var/lib/postgresql/data"
+sudo mkdir -p /var/lib/postgresql/wal_archive
+sudo chown postgres:postgres /var/lib/postgresql/wal_archive
+sudo chmod 700 /var/lib/postgresql/wal_archive
+WAL_ARCHIVE_PATH="/var/lib/postgresql/wal_archive"
+
 # Function to log messages
 exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
@@ -130,14 +135,37 @@ start_container(){
 }
 # Function to initialize data for replication
 initialize_replication_data() {
-    log_message "Initializing replication data from production server..."
-    pg_basebackup -h $PROD_DB_HOST -D $PG_PATH_VOLUME -U $PGUSER -v -P -X stream --write-recovery-conf -S $REPLICATION_SLOT
-    if [ $? -eq 0 ]; then
-        log_message "Replication data initialized successfully."
+    if [ -d "$PG_PATH_VOLUME" ] && [ -z "$(ls -A "$PG_PATH_VOLUME")" ]; then
+        log_message "Initializing replication data from production server..."
+        pg_basebackup -h $PROD_DB_HOST -D $PG_PATH_VOLUME -U $PGUSER -v -P -X stream --write-recovery-conf -S $REPLICATION_SLOT
+        if [ $? -eq 0 ]; then
+            log_message "Replication data initialized successfully."
+        else
+            log_message "Error: Failed to initialize replication data."
+            handle_error "Failed to initialize replication data"
+            return 1
+        fi
     else
-        log_message "Error: Failed to initialize replication data."
-        handle_error "Failed to initialize replication data"
+        log_message "$PG_PATH_VOLUME is not empty. Skipping pg_basebackup."
     fi
+
+    # Configure PostgreSQL for streaming replication (standby mode)
+    if ! grep -q "standby_mode = 'on'" $PG_PATH_VOLUME/postgresql.conf; then
+        echo "standby_mode = 'on'" > $PG_PATH_VOLUME/standby.signal
+    fi
+    if ! grep -q "primary_conninfo" $PG_PATH_VOLUME/postgresql.conf; then
+        echo "primary_conninfo = 'host=$PROD_DB_HOST port=5432 user=$PGUSER password=$PGPASSWORD'" >> $PG_PATH_VOLUME/postgresql.conf
+    fi
+
+
+    if ! grep -q "restore_command" $PG_PATH_VOLUME/postgresql.conf; then
+        echo "restore_command = 'cp $WAL_ARCHIVE_PATH/%f %p'" >> $PG_PATH_VOLUME/postgresql.conf
+    fi
+    if ! grep -q "trigger_file" $PG_PATH_VOLUME/postgresql.conf; then
+        echo "trigger_file = '/tmp/postgresql.trigger.5432'" >> $PG_PATH_VOLUME/postgresql.conf
+    fi
+
+    log_message "Streaming replication configured for standby mode."
 }
 install_aws_cli() {
     log_message "Checking for AWS CLI installation..."
@@ -221,7 +249,22 @@ check_directory_empty() {
         echo "Directory $dir_path is empty or does not exist."
     fi
 }
-
+# Function to remove retention policies
+remove_retention_policies() {
+    # Connect to the TimescaleDB and remove retention policies
+    docker exec $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "
+        DO \$\$
+        DECLARE
+            r RECORD;
+        BEGIN
+            FOR r IN SELECT hypertable_schema, hypertable_name FROM timescaledb_information.hypertables LOOP
+                EXECUTE format('SELECT remove_retention_policy(''%I.%I'');', r.hypertable_schema, r.hypertable_name);
+            END LOOP;
+        END
+        \$\$;
+    "
+    log_message "Removed all retention policies on development server."
+}
 
 # Main script execution
 retry_command get_public_ip 2
@@ -229,3 +272,4 @@ retry_command upload_to_s3 2
 retry_command start_container 3
 retry_command check_directory_empty 1
 retry_command initialize_replication_data 1
+retry_command remove_retention_policies 3

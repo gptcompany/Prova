@@ -40,6 +40,12 @@ log_message() {
     fi
 }
 
+# Function to clean up old backups
+cleanup_old_backups() {
+    log_message "Cleaning up old backups..."
+    find "$BACKUP_PATH/backups/$INSTANCE_NAME" -type d -mtime +7 -exec rm -rf {} \;
+    log_message "Old backups cleaned up."
+}
 
 # Function to upload the backup to S3
 upload_to_s3() {
@@ -61,6 +67,9 @@ upload_to_s3() {
     log_message "Uploading backup $backup_id_to_upload to S3..." >&2
     aws s3 cp $backup_path $s3_upload_path --recursive
     log_message "Upload to S3 bucket $s3_upload_path completed." >&2
+
+    # Call the cleanup function after successful upload
+    cleanup_old_backups
 }
 
 
