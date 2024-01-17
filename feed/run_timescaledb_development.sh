@@ -242,7 +242,7 @@ check_directory_empty() {
                 ;;
             *)
                 echo "Operation cancelled. Please manually handle the contents of $dir_path."
-                exit 1
+                #exit 1
                 ;;
         esac
     else
