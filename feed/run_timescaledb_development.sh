@@ -394,11 +394,11 @@ restore_database_from_dump() {
 # Main script execution
 retry_command get_public_ip 2
 retry_command upload_to_s3 2
+retry_command start_container 3
+retry_command ensure_database_exists 2
 retry_command set_wal_level_logical 2
 retry_command initialize_logical_replication 2
-retry_command ensure_database_exists 2
 retry_command create_timescaledb_extension_and_publication 2
-retry_command start_container 3
 retry_command restore_database_from_dump 1
 retry_command check_directory_empty 1
 #retry_command initialize_replication_data 1
