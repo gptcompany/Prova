@@ -271,6 +271,20 @@ remove_retention_policies() {
     "
     log_message "Removed all retention policies on development server."
 }
+# Function to check and create the database if it doesn't exist
+ensure_database_exists() {
+    log_message "Ensuring database $DB_NAME exists..."
+    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
+        log_message "Database $DB_NAME does not exist. Creating database..."
+        docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "CREATE DATABASE $DB_NAME;"
+        if [ $? -ne 0 ]; then
+            handle_error "Failed to create database $DB_NAME"
+            return 1
+        fi
+    else
+        log_message "Database $DB_NAME already exists."
+    fi
+}
 # Function to initialize logical replication
 initialize_logical_replication() {
     log_message "Setting up logical replication..."
@@ -382,9 +396,14 @@ retry_command get_public_ip 2
 retry_command upload_to_s3 2
 retry_command set_wal_level_logical 2
 retry_command initialize_logical_replication 2
+retry_command ensure_database_exists 2
 retry_command create_timescaledb_extension_and_publication 2
 retry_command start_container 3
 retry_command restore_database_from_dump 1
 retry_command check_directory_empty 1
 #retry_command initialize_replication_data 1
 retry_command remove_retention_policies 3
+
+### COMMANDS IF NEED TO PERFORM FRESH SETUP ###
+
+# docker exec -it timescaledb psql -U postgres -c "DROP DATABASE IF EXISTS db0;"
