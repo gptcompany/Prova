@@ -367,8 +367,8 @@ restore_database_from_dump() {
     if [ $? -eq 0 ]; then
         log_message "Database restored successfully from $dump_file_restore"
     else
-        handle_error "Failed to restore database from dump"
-        return 1
+        handle_error "Failed to restore database from dump, check log!"
+        
     fi
 }
 # Run TimescaleDB-specific Diagnostics
@@ -408,8 +408,8 @@ retry_command create_logical_replication_slot 2
 retry_command create_timescaledb_extension_and_publication 2
 retry_command inspect_hypertables 1
 retry_command initialize_logical_replication 2
-retry_command restore_database_from_dump 1
 retry_command check_directory_empty 1
+retry_command restore_database_from_dump 1
 retry_command remove_retention_policies 3
 retry_command run_diagnostics 1
 adjust_log_verbosity "ERROR" # e.g., 'warning', 'error', 'info', 'fatal', 'notice'
