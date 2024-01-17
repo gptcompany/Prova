@@ -329,6 +329,9 @@ restore_database_from_dump() {
         log_message "Database $DB_NAME already exists. Proceeding with restore."
     fi
     log_message "Restoring database from dump..."
+    docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "ALTER SYSTEM SET wal_level = 'logical';"
+    docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "SELECT pg_reload_conf();"
+    docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"
     docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE PUBLICATION my_publication FOR ALL TABLES;"
     docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER --clean --if-exists -d $DB_NAME "$dump_file_restore"
     
@@ -345,7 +348,7 @@ restore_database_from_dump() {
         return 1
     fi
 }
-
+# docker exec -it timescaledb psql -U postgres -c "DROP DATABASE IF EXISTS db0;"
 # Main script execution
 retry_command get_public_ip 2
 retry_command upload_to_s3 2
