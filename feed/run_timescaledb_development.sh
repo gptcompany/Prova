@@ -316,7 +316,18 @@ restore_database_from_dump() {
 
     log_message "Dropping existing database and recreating..."
     docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "DROP DATABASE IF EXISTS $DB_NAME; CREATE DATABASE $DB_NAME;"
-
+    log_message "to DROP $DB_NAME use: docker exec -it timescaledb psql -U postgres -c 'DROP DATABASE IF EXISTS db0;'"
+    # Check if the database exists
+    if ! docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -tAc "SELECT 1 FROM pg_database WHERE datname = '$DB_NAME'" | grep -q 1; then
+        log_message "Database $DB_NAME does not exist. Creating database..."
+        docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "CREATE DATABASE $DB_NAME;"
+        if [ $? -ne 0 ]; then
+            handle_error "Failed to create database $DB_NAME"
+            return 1
+        fi
+    else
+        log_message "Database $DB_NAME already exists. Proceeding with restore."
+    fi
     log_message "Restoring database from dump..."
     docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER -d $DB_NAME -1 "$dump_file_restore"
     
