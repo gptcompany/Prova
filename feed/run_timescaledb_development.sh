@@ -394,8 +394,8 @@ adjust_log_verbosity() {
     docker exec $CONTAINER_NAME psql -U $PGUSER -c "SELECT pg_reload_conf();"
 }
 set_timescaledb_development(){
-    sudo chmod +x $HOME/statarb/feed/set_timescaledb_development.sh
-    sudo $HOME/statarb/feed/set_timescaledb_development.sh
+    sudo chmod +x /mnt/f/statarb/feed/set_timescaledb_development.sh
+    sudo /mnt/f/statarb/feed/set_timescaledb_development.sh
 }
 
 # Main script execution
