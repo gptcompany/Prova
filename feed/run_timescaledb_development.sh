@@ -53,6 +53,16 @@ handle_error() {
     # Exit the script or perform any necessary cleanup
     exit 1
 }
+AUTO_CLEAN_DIR=false
+
+while [ "$1" != "" ]; do
+    case $1 in
+        --auto-clean-dir )  AUTO_CLEAN_DIR=true
+                            ;;
+    esac
+    shift
+done
+
 # Enhanced function to check Docker container status
 check_container_status() {
     local container_name=$1
@@ -210,22 +220,27 @@ check_directory_empty() {
     local dir_path=$PG_PATH_VOLUME
 
     if [ -d "$dir_path" ] && [ "$(ls -A "$dir_path")" ]; then
-        log_message "Directory $dir_path is not empty. Do you want to delete its contents? (y/n)"
-        read -r response
-        case "$response" in
-            [yY][eE][sS]|[yY])
-                rm -rf "$dir_path"/*
-                echo "Contents of $dir_path have been deleted."
-                ;;
-            *)
-                echo "Operation cancelled. Please manually handle the contents of $dir_path."
-                #exit 1
-                ;;
-        esac
+        if [ "$AUTO_CLEAN_DIR" = true ]; then
+            echo "Auto-clean enabled. Deleting contents of $dir_path."
+            rm -rf "$dir_path"/*
+        else
+            log_message "Directory $dir_path is not empty. Do you want to delete its contents? (y/n)"
+            read -r response
+            case "$response" in
+                [yY][eE][sS]|[yY])
+                    rm -rf "$dir_path"/*
+                    echo "Contents of $dir_path have been deleted."
+                    ;;
+                *)
+                    echo "Operation cancelled. Please manually handle the contents of $dir_path."
+                    ;;
+            esac
+        fi
     else
         handle_error "Directory $dir_path is empty or does not exist."
     fi
 }
+
 # Function to remove retention policies
 remove_retention_policies() {
     # Connect to the TimescaleDB and remove retention policies
@@ -373,9 +388,16 @@ restore_database_from_dump() {
 }
 # Run TimescaleDB-specific Diagnostics
 run_diagnostics() {
-    log_message "Running TimescaleDB-specific diagnostics..."
-    docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c 'SELECT * FROM timescaledb_information.policy_stats;'
+    local check_view_exists=$(docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -tAc "SELECT 1 FROM pg_views WHERE viewname = 'policy_stats' AND schemaname = 'timescaledb_information';")
+    
+    if [ "$check_view_exists" = "1" ]; then
+        log_message "Running TimescaleDB-specific diagnostics..."
+        docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c 'SELECT * FROM timescaledb_information.policy_stats;'
+    else
+        log_message "The 'policy_stats' view does not exist in this version of TimescaleDB. Skipping diagnostics."
+    fi
 }
+
 # Inspect Hypertables
 inspect_hypertables() {
     log_message "Inspecting hypertables..."
