@@ -43,7 +43,7 @@ log_message() {
 # Function to clean up old backups
 cleanup_old_backups() {
     log_message "Cleaning up old backups..."
-    find "$BACKUP_PATH/backups/$INSTANCE_NAME" -type d -mtime +7 -exec rm -rf {} \;
+    find "$BACKUP_PATH/backups/$INSTANCE_NAME" -type d -mtime +7 -exec sudo rm -rf {} \;
     log_message "Old backups cleaned up."
 }
 

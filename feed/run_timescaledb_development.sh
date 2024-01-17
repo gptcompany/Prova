@@ -24,7 +24,10 @@ sudo mkdir -p /var/lib/postgresql/wal_archive
 sudo chown postgres:postgres /var/lib/postgresql/wal_archive
 sudo chmod 700 /var/lib/postgresql/wal_archive
 WAL_ARCHIVE_PATH="/var/lib/postgresql/wal_archive"
-
+sudo mkdir -p /var/backups/timescaledb
+sudo chown ec2-user:ec2-user /var/backups/timescaledb
+sudo chmod 700 /var/backups/timescaledb
+DUMP_FILE="/var/backups/timescaledb/prod_backup.sql"
 # Function to log messages
 exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
@@ -202,7 +205,7 @@ upload_to_s3() {
     then
         log_message "Successfully uploaded $file_to_upload to S3 bucket $S3_BUCKET"
     else
-        log_message "Failed to upload $file_to_upload to S3"
+        handle_error "Failed to upload $file_to_upload to S3"
         return 1
     fi
 }
@@ -233,7 +236,7 @@ check_directory_empty() {
     local dir_path=$PG_PATH_VOLUME
 
     if [ -d "$dir_path" ] && [ "$(ls -A "$dir_path")" ]; then
-        echo "Directory $dir_path is not empty. Do you want to delete its contents? (y/n)"
+        log_message "Directory $dir_path is not empty. Do you want to delete its contents? (y/n)"
         read -r response
         case "$response" in
             [yY][eE][sS]|[yY])
@@ -246,7 +249,7 @@ check_directory_empty() {
                 ;;
         esac
     else
-        echo "Directory $dir_path is empty or does not exist."
+        handle_error "Directory $dir_path is empty or does not exist."
     fi
 }
 # Function to remove retention policies
@@ -265,11 +268,52 @@ remove_retention_policies() {
     "
     log_message "Removed all retention policies on development server."
 }
+# Function to initialize logical replication
+initialize_logical_replication() {
+    log_message "Setting up logical replication..."
 
+    # Check if subscription already exists (modify this check as needed)
+    if docker exec $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "\dRp+" | grep -q 'my_subscription'; then
+        log_message "Logical replication subscription already exists."
+    else
+        # Create the subscription
+        docker exec $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "
+            CREATE SUBSCRIPTION my_subscription
+            CONNECTION 'host=$PROD_DB_HOST port=5432 dbname=$DB_NAME user=$PGUSER password=$PGPASSWORD'
+            PUBLICATION my_publication;
+        "
+        log_message "Logical replication subscription created."
+    fi
+}
+# Function to restore the database from a dump
+restore_database_from_dump() {
+    local s3_upload_path="$S3_BUCKET/$INSTANCE_NAME/prod_backup.sql"
+
+    log_message "Checking for dump file in S3 bucket..."
+    if aws s3 ls "$s3_upload_path" &>/dev/null; then
+        log_message "Dump file found in S3 bucket. Downloading..."
+        aws s3 cp "$s3_upload_path" "$DUMP_FILE"
+    else
+        handle_error "Dump file not found in S3 bucket"
+        return 1
+    fi
+
+    log_message "Restoring database from dump..."
+    docker exec $CONTAINER_NAME pg_restore -U $PGUSER -d $DB_NAME -1 "$DUMP_FILE"
+    
+    if [ $? -eq 0 ]; then
+        log_message "Database restored successfully from $DUMP_FILE"
+    else
+        handle_error "Failed to restore database from dump"
+        return 1
+    fi
+}
 # Main script execution
 retry_command get_public_ip 2
 retry_command upload_to_s3 2
 retry_command start_container 3
+retry_command restore_database_from_dump 1
+retry_command initialize_logical_replication 1
 retry_command check_directory_empty 1
-retry_command initialize_replication_data 1
+#retry_command initialize_replication_data 1
 retry_command remove_retention_policies 3

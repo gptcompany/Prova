@@ -25,6 +25,10 @@ LOG_STREAM_VERIFIED=false
 IP_FILE="ip_development.txt"
 S3_BUCKET="s3://timescalebackups"
 REPLICATION_SLOT="timescale"
+sudo mkdir -p /var/backups/timescaledb
+sudo chown ec2-user:ec2-user /var/backups/timescaledb
+sudo chmod 700 /var/backups/timescaledb
+DUMP_FILE="/var/backups/timescaledb/prod_backup.sql"
 # Function to log messages
 exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
@@ -266,7 +270,7 @@ check_and_install_cronie() {
         if ps -ef | grep -q '[c]rond'; then
             log_message "crond service is running."
         else
-            log_message "Error: crond service failed to start."
+            handle_error "crond service failed to start."
             exit 1
         fi
     else
@@ -281,7 +285,7 @@ check_and_install_cronie() {
             if ps -ef | grep -q '[c]rond'; then
                 log_message "crond service started successfully."
             else
-                log_message "Error: Failed to start crond service."
+                handle_error "Failed to start crond service."
                 exit 1
             fi
         fi
@@ -346,9 +350,54 @@ create_replication_slot() {
         fi
     fi
 }
+# Function to create a publication for all tables
+create_publication() {
+    log_message "Creating a publication for all tables..."
 
+    # Check if the publication already exists (modify this check as needed)
+    if docker exec $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "\dRp+" | grep -q 'my_publication'; then
+        log_message "Publication 'my_publication' already exists."
+    else
+        # Create the publication
+        docker exec $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "
+            CREATE PUBLICATION my_publication FOR ALL TABLES;
+        "
+        log_message "Publication 'my_publication' created for all tables."
+    fi
+}
+# Function to create a database dump
+create_database_dump() {
+    local dump_file=$DUMP_FILE  # Specify your desired path
 
+    log_message "Creating database dump..."
+    docker exec $CONTAINER_NAME pg_dump -U $PGUSER -d $DB_NAME -f "$dump_file"
+    
+    if [ $? -eq 0 ]; then
+        log_message "Database dump created successfully at $dump_file"
+    else
+        handle_error "Failed to create database dump"
+        return 1
+    fi
+}
+upload_to_s3() {
+    if [ ! -d "$DUMP_FILE" ]; then
+        handle_error "The dump file $DUMP_FILE not found." >&2
+        return 1
+    fi
+    # Use backup_type in constructing the S3 upload path or for other purposes
+    local s3_upload_path="$S3_BUCKET/$INSTANCE_NAME/prod_backup.sql"
+    log_message "Uploading backup $DUMP_FILE to S3..." >&2
+    aws s3 cp $DUMP_FILE $s3_upload_path --recursive
+    log_message "Upload to S3 bucket $s3_upload_path completed." >&2
+}
+
+# cleanup_old_backups() {
+#     log_message "Cleaning up old backups..."
+#     find "$DUMP_FILE" -mtime +7 -exec sudo rm {} \;
+#     log_message "Old backups cleaned up."
+# }
 retry_command start_container 3
+retry_command create_publication 1
 retry_command create_replication_slot 2
 retry_command update_pg_hba_for_replication 3
 retry_command setting_replica 3
@@ -361,5 +410,9 @@ else
 fi
 
 retry_command check_and_install_cronie 2
-retry_command setting_cronjob 2 
+retry_command setting_cronjob 2
+retry_command create_database_dump 3
+retry_command upload_to_s3 3
+# Call the cleanup function after successful upload
+#retry_command cleanup_old_backups 1
 
