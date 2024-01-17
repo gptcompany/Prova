@@ -32,6 +32,7 @@ sudo chown ec2-user $DUMP_FOLDER
 sudo chmod 700 $DUMP_FOLDER
 DUMP_FILE_TO_S3="$DUMP_FOLDER/prod_backup.sql"
 DUMP_FILE="/backups/prod_backup.sql"
+TIMESCALE_VERSION="2.13.1"
 # Function to log messages
 exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
@@ -133,7 +134,7 @@ start_container(){
         --log-opt awslogs-region=$AWS_LOG_REGION \
         --log-opt awslogs-group=$AWS_LOG_GROUP \
         --log-opt awslogs-create-group=true \
-        timescale/timescaledb:latest-pg14
+        timescale/timescaledb:$TIMESCALE_VERSION-pg14
 
         # Check if the container started correctly
         if [ $? -eq 0 ]; then
@@ -470,7 +471,7 @@ retry_command upload_to_s3 3
 
 
 ### COMMANDS IF NEED TO PERFORM FRESH SETUP ###
-
+# docker exec -u postgres timescaledb psql -U postgres -d db0 -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'timescaledb';"
 # docker exec -it timescaledb psql -U postgres -c "DROP DATABASE IF EXISTS db0;"
 # sudo sh -c 'crontab -l 2>/dev/null | grep -v "/home/ec2-user/statarb/feed/timescaledb_backup.sh" | crontab -'
 # sudo crontab -l
@@ -479,5 +480,14 @@ retry_command upload_to_s3 3
 # sudo rm /home/ec2-user/timescaledb_backups/prod_backup.sql
 # docker stop timescaledb
 # docker rm timescaledb
+
+##CLEAN UP EVERYTHING
+# docker stop timescaledb
+# docker rm timescaledb
+# sudo aws s3 rm s3://timescalebackups/timescaledb/prod_backup.sql
+# sudo rm /home/ec2-user/timescaledb_backups/prod_backup.sql
+# sudo rm -r /home/ec2-user/timescaledb_data/
+# sudo rm -r /home/ec2-user/timescaledb_backups/
+
 
 

@@ -28,6 +28,7 @@ sudo mkdir -p $PG_PATH_VOLUME
 #sudo chown sam $PG_PATH_VOLUME
 sudo chmod 700 $PG_PATH_VOLUME
 DUMP_FILE="$PG_PATH_VOLUME/prod_backup.sql"
+TIMESCALE_VERSION="2.13.1"
 # Function to log messages
 exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
@@ -113,7 +114,7 @@ start_container(){
         -e POSTGRES_LOG_ERROR_VERBOSITY=default \
         -p $PGPORT:$PGPORT \
         -v $PG_PATH_VOLUME:$PGDATA:z \
-        timescale/timescaledb:latest-pg14
+        timescale/timescaledb:$TIMESCALE_VERSION-pg14
 
         # Check if the container started correctly
         if [ $? -eq 0 ]; then
@@ -451,3 +452,11 @@ retry_command run_diagnostics 1
 ### COMMANDS IF NEED TO PERFORM FRESH SETUP ###
 
 # docker exec -it timescaledb psql -U postgres -c "DROP DATABASE IF EXISTS db0;"
+# docker exec -u postgres timescaledb psql -U postgres -d db0 -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'timescaledb';"
+
+
+##CLEAN UP EVERYTHING
+# docker stop timescaledb
+# docker rm timescaledb
+# sudo aws s3 rm s3://timescalebackups/timescaledb/prod_backup.sql
+# sudo rm -r /home/sam/timescaledb_data/
