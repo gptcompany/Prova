@@ -24,10 +24,10 @@ sudo mkdir -p /var/lib/postgresql/wal_archive
 sudo chown postgres:postgres /var/lib/postgresql/wal_archive
 sudo chmod 700 /var/lib/postgresql/wal_archive
 WAL_ARCHIVE_PATH="/var/lib/postgresql/wal_archive"
-sudo mkdir -p /var/backups/timescaledb
-sudo chown ec2-user:ec2-user /var/backups/timescaledb
-sudo chmod 700 /var/backups/timescaledb
-DUMP_FILE="/var/backups/timescaledb/prod_backup.sql"
+sudo mkdir -p $PG_PATH_VOLUME
+#sudo chown sam $PG_PATH_VOLUME
+sudo chmod 700 $PG_PATH_VOLUME
+DUMP_FILE="$PG_PATH_VOLUME/prod_backup.sql"
 # Function to log messages
 exec 3>>$LOG_FILE
 # Function to log messages and command output to the log file
@@ -54,17 +54,20 @@ handle_error() {
 # Enhanced function to check Docker container status
 check_container_status() {
     local container_name=$1
-    local status=$(docker inspect --format="{{.State.Running}}" $container_name 2>/dev/null)
+    local exists=$(docker ps -a --format "{{.Names}}" | grep -w $container_name)
 
-    if [ $? -eq 1 ]; then
+    if [ -z "$exists" ]; then
         log_message "Container $container_name does not exist."
         return 1
-    elif [ "$status" == "false" ]; then
-        log_message "Container $container_name is not running."
-        return 2
     else
-        log_message "Container $container_name is running."
-        return 0
+        local status=$(docker inspect --format="{{.State.Running}}" $container_name)
+        if [ "$status" == "false" ]; then
+            log_message "Container $container_name is not running."
+            return 2
+        else
+            log_message "Container $container_name is running."
+            return 0
+        fi
     fi
 }
 # Modified retry_command function to handle different types of commands including functions
