@@ -329,7 +329,7 @@ restore_database_from_dump() {
             log_message "Dump file found in S3 bucket. Downloading..."
             aws s3 cp "$s3_upload_path" "$DUMP_FILE"
         else
-            handle_error "Dump file not found in S3 bucket"
+            log_message "Dump file not found in S3 bucket"
             return 1
         fi
     fi
@@ -349,7 +349,7 @@ restore_database_from_dump() {
         log_message "Database $DB_NAME does not exist. Creating database..."
         docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "CREATE DATABASE $DB_NAME;"
         if [ $? -ne 0 ]; then
-            handle_error "Failed to create database $DB_NAME"
+            log_message "Failed to create database $DB_NAME"
             return 1
         fi
     else
@@ -367,7 +367,7 @@ restore_database_from_dump() {
     if [ $? -eq 0 ]; then
         log_message "Database restored successfully from $dump_file_restore"
     else
-        handle_error "Failed to restore database from dump, check log!"
+        log_message "Failed to restore database from dump, check log!"
         
     fi
 }
