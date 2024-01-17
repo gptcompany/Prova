@@ -125,7 +125,7 @@ start_container(){
         -e POSTGRES_PASSWORD="$PGPASSWORD" \
         -e POSTGRES_LOG_MIN_DURATION_STATEMENT=1000 \
         -e POSTGRES_LOG_ERROR_VERBOSITY=default \
-        -e POSTGRES_INITDB_ARGS="--wal_level=replica --max_wal_senders=5 --max_replication_slots=5" \
+        -e POSTGRES_INITDB_ARGS="--wal_level=logical --max_wal_senders=5 --max_replication_slots=5" \
         -p $PGPORT:$PGPORT \
         -v $HOME/timescaledb_data:$PGDATA:z \
         -v $DUMP_FOLDER:/backups:z \
@@ -335,6 +335,21 @@ update_pg_hba_for_replication() {
     fi
 
 }
+create_logical_replication_slot() {
+    local slot_name=$REPLICATION_SLOT
+
+    if [ -z "$slot_name" ]; then
+        log_message "Error: No slot name provided for create_logical_replication_slot function."
+        handle_error "No slot name provided"
+    fi
+
+    if docker exec $CONTAINER_NAME psql -U $PGUSER -tAc "SELECT 1 FROM pg_replication_slots WHERE slot_name = '$slot_name' AND slot_type = 'logical';" | grep -q 1; then
+        log_message "Logical replication slot $slot_name already exists."
+    else
+        docker exec $CONTAINER_NAME psql -U $PGUSER -c "SELECT pg_create_logical_replication_slot('$slot_name', 'pgoutput');"
+        log_message "Logical replication slot $slot_name created successfully."
+    fi
+}
 
 create_replication_slot() {
     local slot_name=$REPLICATION_SLOT  # Name of the replication slot to create
@@ -428,7 +443,8 @@ upload_to_s3() {
 # }
 retry_command start_container 3
 retry_command create_publication 1
-retry_command create_replication_slot 2
+retry_command create_logical_replication_slot 2
+#retry_command create_replication_slot 2
 retry_command update_pg_hba_for_replication 3
 retry_command setting_logical 3
 retry_command setting_explain 3
@@ -444,5 +460,11 @@ retry_command setting_cronjob 2
 retry_command create_database_dump 3
 retry_command upload_to_s3 3
 # Call the cleanup function after successful upload
-#retry_command cleanup_old_backups 1
+# retry_command cleanup_old_backups 1
+# COMMANDS IF NEED TO PERFORM FRESH SETUP
+# docker exec -it timescaledb psql -U postgres -c "DROP DATABASE IF EXISTS db0;"
+# sudo rm /home/ec2-user/timescaledb_backups/prod_backup.sql
+# docker stop timescaledb
+# docker rm timescaledb
+
 

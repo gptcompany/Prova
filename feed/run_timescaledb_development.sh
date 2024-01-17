@@ -333,7 +333,7 @@ restore_database_from_dump() {
     docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -c "SELECT pg_reload_conf();"
     docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"
     docker exec -u postgres $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "CREATE PUBLICATION my_publication FOR ALL TABLES;"
-    docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER --clean --if-exists -d $DB_NAME "$dump_file_restore"
+    docker exec -u postgres $CONTAINER_NAME pg_restore -U $PGUSER --clean --if-exists --disable-triggers --single-transaction --on-error-continue --no-owner --no-acl -d $DB_NAME "$dump_file_restore"
     
     # if [ -f "$PG_PATH_VOLUME/standby.signal.bak" ]; then
     #     mv $PG_PATH_VOLUME/standby.signal.bak $PG_PATH_VOLUME/standby.signal
