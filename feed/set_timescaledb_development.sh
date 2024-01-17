@@ -1,6 +1,4 @@
 #!/bin/bash
-# DEVELOPMENT Environment Setup Script for PostgreSQL with TimescaleDB on local pc instance
-# chmod +x /home/ec2-user/statarb/feed/run_timescaledb.sh
 # Environment (set this to either 'development' or 'production')
 ENVIRONMENT="development"
 DB_NAME="db0"
@@ -10,27 +8,6 @@ PGPORT="5432"
 PGPASSWORD=$(python3 -c "import yaml; print(yaml.safe_load(open('/config_cf.yaml'))['timescaledb_password'])")
 export PGUSER PGHOST PGPORT PGPASSWORD
 CONTAINER_NAME="timescaledb"
-TABLES=("book" "trades")
-# Associative array declaration
-declare -A table1_config
-declare -A table2_config
-
-# Configuration for table1 (e.g., 'trades')
-table1_config[name]="trades"
-table1_config[time_column]="timestamp"
-table1_config[chunk_interval]="10 minutes"
-table1_config[segmentby_column]="exchange, symbol"
-table1_config[orderby_column]="timestamp, id"
-table1_config[compress_interval]="10 minutes"
-table1_config[retention_interval]="7 days"  # Use only for production
-
-# Configuration for table2 (e.g., 'book')
-table2_config[name]="book"
-# ... similarly, fill the settings for table2
-
-# Add configurations to an array
-table_configs=(table1_config table2_config)
-
 # Function to log messages
 log_message() {
     local message="$(date +"%Y-%m-%d %T"): $1"
@@ -92,17 +69,17 @@ book_config[name]="book"
 book_config[create_command]="CREATE TABLE book (
     exchange TEXT,
     symbol TEXT,
-    bid DOUBLE PRECISION,
-    ask DOUBLE PRECISION,
-    timestamp TIMESTAMPTZ,
-    PRIMARY KEY (exchange, symbol, timestamp)
+    data JSONB,
+    receipt TIMESTAMPTZ,
+    update_type TEXT,
+    PRIMARY KEY (exchange, symbol, receipt, update_type)
 );"
-book_config[time_column]="timestamp"
+book_config[time_column]="receipt"
 book_config[chunk_interval]="10 minutes"
-book_config[segmentby_column]="exchange, symbol"
-book_config[orderby_column]="timestamp"
+book_config[segmentby_column]="exchange, symbol"  # Ensure this matches Python logic
+book_config[orderby_column]="receipt, update_type"  # Ensure this matches Python logic
 book_config[compress_interval]="10 minutes"
-#book_config[retention_interval]="7 days"  # Only for production
+book_config[retention_interval]="7 days"  # Only for production
 
 
 # Add configurations to an array
