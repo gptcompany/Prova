@@ -295,7 +295,7 @@ initialize_logical_replication() {
     else
         # Create the subscription
         docker exec $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "
-            CREATE SUBSCRIPTION my_subscription
+            CREATE SUBSCRIPTION my_subscription FOR ALL TABLES
             CONNECTION 'host=$PROD_DB_HOST port=5432 dbname=$DB_NAME user=$PGUSER password=$PGPASSWORD'
             PUBLICATION my_publication;
         "
@@ -397,19 +397,37 @@ restore_database_from_dump() {
         return 1
     fi
 }
+# Update TimescaleDB Extension
+update_timescaledb_extension() {
+    log_message "Updating TimescaleDB extension (if needed)..."
+    docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c 'ALTER EXTENSION timescaledb UPDATE;'
+}
+# Run TimescaleDB-specific Diagnostics
+run_diagnostics() {
+    log_message "Running TimescaleDB-specific diagnostics..."
+    docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c 'SELECT * FROM timescaledb_information.policy_stats;'
+}
+# Inspect Hypertables
+inspect_hypertables() {
+    log_message "Inspecting hypertables..."
+    docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c 'SELECT * FROM timescaledb_information.hypertables;'
+}
 # docker exec -it timescaledb psql -U postgres -c "DROP DATABASE IF EXISTS db0;"
 # Main script execution
 retry_command get_public_ip 2
 retry_command upload_to_s3 2
 retry_command start_container 3
 retry_command ensure_database_exists 2
+retry_command create_timescaledb_extension_and_publication 2
+retry_command update_timescaledb_extension 1
+retry_command inspect_hypertables 1
 retry_command set_wal_level_logical 2
 retry_command initialize_logical_replication 2
-retry_command create_timescaledb_extension_and_publication 2
 retry_command restore_database_from_dump 1
 retry_command check_directory_empty 1
 #retry_command initialize_replication_data 1
 retry_command remove_retention_policies 3
+retry_command run_diagnostics 1
 
 ### COMMANDS IF NEED TO PERFORM FRESH SETUP ###
 
