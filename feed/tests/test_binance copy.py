@@ -2,7 +2,7 @@ import redis
 from cryptofeed import FeedHandler
 from cryptofeed.callback import TradeCallback, BookCallback
 from cryptofeed.defines import BID, ASK,TRADES, L3_BOOK, L2_BOOK, TICKER, OPEN_INTEREST, FUNDING, LIQUIDATIONS, BALANCES, ORDER_INFO
-from cryptofeed.exchanges import Binance
+from cryptofeed.exchanges import Binance, BinanceFutures
 #from app.Custom_Coinbase import CustomCoinbase
 from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey
 from decimal import Decimal
@@ -16,6 +16,12 @@ from custom_timescaledb import BookTimeScale, TradesTimeScale
 from statistics import mean
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
+async def funding(f, receipt_timestamp):
+    print(f"Funding update received at {receipt_timestamp}: {f}")
+async def liquidations(liquidation, receipt_timestamp):
+    print(f"Liquidation received at {receipt_timestamp}: {liquidation}")
+async def oi(update, receipt_timestamp):
+    print(f"Open Interest update received at {receipt_timestamp}: {update}")
 async def trade(t, receipt_timestamp):
     assert isinstance(t.timestamp, float)
     assert isinstance(t.side, str)
@@ -69,7 +75,7 @@ def main():
     try:
         fh = FeedHandler(config=path_to_config)
         postgres_cfg = {
-            'host': fh.config.config['pg_host'], 
+            'host': '0.0.0.0', 
             'user': 'postgres', 
             'db': 'db0', 
             'pw': fh.config.config['timescaledb_password'], 
@@ -77,62 +83,74 @@ def main():
                         }
         
         symbols = fh.config.config['bn_symbols']
-        pairs = Binance.symbols()[:]
-        [print(f"{symbol} is {'in' if symbol in pairs else 'not in'} pairs list") for symbol in symbols]
-        #symbols = ['BTC-USDT','ETH-BTC']
+        symbols_fut = ['PERP-BTC-USDT','PERP-ETH-USDT', 'PERP-ETH-USDT']
         fh.run(start_loop=False)
-        fh.add_feed(Binance(
-                    max_depth=50,
-                    subscription={
-                        L2_BOOK: symbols,   
-                    },
-                    callbacks={
-                            L2_BOOK:[
-                                    CustomBookStream(
-                                    host=fh.config.config['redis_host'], 
-                                    port=fh.config.config['redis_port'],
-                                    password=fh.config.config['redis_password'], 
-                                    snapshots_only=False,
-                                    ssl=True,
-                                    decode_responses=True,
-                                    snapshot_interval=snapshot_interval,
-                                    ttl=ttl,
-                                    #score_key='timestamp',
-                                        ),
-                                    BookTimeScale(
-                                        snapshots_only=False,
-                                        snapshot_interval=snapshot_interval,
-                                        #table='book',
-                                        custom_columns=custom_columns, 
-                                        **postgres_cfg
-                                        )
-                            ]
-                        },
-                        cross_check=True,
-                        )
-                        )
-        fh.add_feed(Binance(
+        # fh.add_feed(Binance(
+        #             max_depth=50,
+        #             subscription={
+        #                 L2_BOOK: symbols,   
+        #             },
+        #             callbacks={
+        #                     L2_BOOK:[
+        #                             CustomBookStream(
+        #                             #host=fh.config.config['redis_host'],
+        #                             host 
+        #                             port=fh.config.config['redis_port'], 
+        #                             snapshots_only=False,
+        #                             ssl=True,
+        #                             decode_responses=True,
+        #                             snapshot_interval=snapshot_interval,
+        #                             ttl=ttl,
+        #                             #score_key='timestamp',
+        #                                 ),
+        #                             BookTimeScale(
+        #                                 snapshots_only=False,
+        #                                 snapshot_interval=snapshot_interval,
+        #                                 #table='book',
+        #                                 custom_columns=custom_columns, 
+        #                                 **postgres_cfg
+        #                                 )
+        #                     ]
+        #                 },
+        #                 cross_check=True,
+        #                 )
+        #                 )
+        # fh.add_feed(Binance(
+        #                 subscription={
+        #                     TRADES: symbols,
+        #                 },
+        #                 callbacks={
+        #                     TRADES:[ 
+        #                             CustomTradeRedis(
+        #                             host=fh.config.config['redis_host'], 
+        #                             port=fh.config.config['redis_port'],
+        #                             score_key='timestamp',
+        #                             ssl=True,
+        #                             decode_responses=True,
+        #                             ttl=ttl,
+        #                                 ),
+        #                             TradesTimeScale(
+        #                                 custom_columns=custom_columns_trades,
+        #                                 #table='trades',
+        #                                 **postgres_cfg
+        #                                 )
+                                    
+        #                     ]
+        #                 },
+        #                 #cross_check=True,
+        #                 #timeout=-1
+        #                 )
+        #                 )
+        fh.add_feed(BinanceFutures(
                         subscription={
-                            TRADES: symbols,
+                            FUNDING: symbols_fut,
+                            OPEN_INTEREST: symbols_fut,
+                            LIQUIDATIONS: symbols_fut,
                         },
                         callbacks={
-                            TRADES:[ 
-                                    CustomTradeRedis(
-                                    host=fh.config.config['redis_host'], 
-                                    port=fh.config.config['redis_port'],
-                                    password=fh.config.config['redis_password'],
-                                    score_key='timestamp',
-                                    ssl=True,
-                                    decode_responses=True,
-                                    ttl=ttl,
-                                        ),
-                                    TradesTimeScale(
-                                        custom_columns=custom_columns_trades,
-                                        #table='trades',
-                                        **postgres_cfg
-                                        )
-                                    
-                            ]
+                            FUNDING:[funding],
+                            OPEN_INTEREST:[oi],
+                            LIQUIDATIONS:[liquidations],
                         },
                         #cross_check=True,
                         #timeout=-1

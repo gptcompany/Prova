@@ -9,7 +9,7 @@ from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, Fundi
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 #logger = logging.getLogger(__name__)
 class CustomRedisCallback(RedisCallback):
-    def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, none_to='None', numeric_type=float, score_key='timestamp', ttl=3600, ssl=True, decode_responses=True, password=None, **kwargs):
+    def __init__(self, host='127.0.0.1', port=6379, socket=None, key=None, none_to='None', numeric_type=float, score_key='timestamp', ttl=3600, ssl=True, decode_responses=True, **kwargs):
         """
         Custom Redis Callback with SSL and decode_responses support.
         """
@@ -18,9 +18,7 @@ class CustomRedisCallback(RedisCallback):
             prefix = 'unix://'
             port = None
 
-        self.password = password
-        self.redis = f"{prefix}" + (f":{password}@" if password else "") + f"{host}" + (f":{port}" if port else "")
-        print(self.redis)
+        self.redis = f"{prefix}{host}" + f":{port}" if port else ""
         self.key = key if key else self.default_key
         self.numeric_type = numeric_type
         self.none_to = none_to
@@ -33,7 +31,6 @@ class CustomRedisCallback(RedisCallback):
     
     async def get_connection(self):
         if self.conn is None:
-            logging.info(f"Connecting to Redis with URL: {self.redis}")
             self.conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
         return self.conn
     def __del__(self):
@@ -108,18 +105,6 @@ class CustomBookRedis(CustomRedisZSetCallback, BackendBookCallback):
 class CustomTradeRedis(CustomRedisZSetCallback, BackendCallback):
     default_key = 'trades'
     logging.info("Initializing TradeRedis")
-    
-class CustomFundingRedis(CustomRedisZSetCallback, BackendCallback):
-    default_key = 'funding'
-    logging.info("Initializing FundingRedis")
-    
-class CustomOpenInterestRedis(CustomRedisZSetCallback, BackendCallback):
-    default_key = 'open_interest'
-    logging.info("Initializing OpenInterestRedis")
-    
-class CustomLiquidationsRedis(CustomRedisZSetCallback, BackendCallback):
-    default_key = 'liquidations'
-    logging.info("Initializing LiquidationsRedis")
     
 class CustomRedisStreamCallback(CustomRedisCallback):
     async def writer(self):

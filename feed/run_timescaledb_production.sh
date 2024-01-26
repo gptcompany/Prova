@@ -497,6 +497,10 @@ adjust_log_verbosity "ERROR" # e.g., 'warning', 'error', 'info', 'fatal', 'notic
 # docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
 # docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT COUNT(*) FROM public.book;"
 # docker exec -it timescaledb psql -U postgres -c "SELECT COUNT(*) FROM trades;"
+# docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT * FROM pg_replication_slots;"
+# docker exec -it timescaledb psql -U postgres -d db0 -c "\du"
+# docker exec -it timescaledb psql -U postgres -d db0 -c "\d+ public.trades"
+
 
 
 

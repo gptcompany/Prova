@@ -73,7 +73,7 @@ async def process_trade_update(trade_update, symbol, exchange, trade_threshold=1
             
             
 if __name__ == '__main__':
-    redis_host="redis-0001-001.redis.tetmd7.apne1.cache.amazonaws.com"
+    redis_host="57.181.106.64" #"redis-0001-001.redis.tetmd7.apne1.cache.amazonaws.com"
     redis_port=6379
     asyncio.run(asyncio.run(check_redis_updates(redis_host=redis_host, 
                                                 redis_port=redis_port, 
@@ -82,8 +82,8 @@ if __name__ == '__main__':
                                                 threshold_seconds=0.2, 
                                                 num_updates=5, 
                                                 check_interval=3, 
-                                                symbols=['BTC-USDT', 'ETH-USDT', 'ETH-BTC'],
-                                                exchanges=['BITFINEX', 'BINANCE'],
+                                                symbols=['BTC-USDT', 'ETH-USDT', 'ETH-BTC', 'BTC-USDT-PERP'],
+                                                exchanges=['BITFINEX', 'BINANCE', 'BINANCEFUTURES'],
                                                 )
                             )
                 )

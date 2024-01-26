@@ -449,6 +449,14 @@ adjust_log_verbosity "ERROR" # e.g., 'warning', 'error', 'info', 'fatal', 'notic
 # sudo rm -r /home/sam/timescaledb_data/
 
 #TO CHECK PERSISTANCE
+# docker exec -it timescaledb psql -U postgres -d db0 -c "CREATE SUBSCRIPTION my_subscription CONNECTION 'host=57.181.106.64 port=5432 dbname=db0 user=postgres password=Timescaledb2023' PUBLICATION my_publication;"
 # docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
-# docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT COUNT(*) FROM public.book;"
-# docker exec -it timescaledb psql -U postgres -c "SELECT COUNT(*) FROM trades;"
+docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT COUNT(*) FROM public.book;"
+docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT COUNT(*) FROM public.trades;"
+docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT * FROM pg_stat_subscription;"
+docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT * FROM pg_publication_tables;"
+docker exec -it timescaledb psql -U postgres -d db0 -c "SELECT * FROM pg_replication_slots;"
+docker exec -it timescaledb psql -U postgres -d db0 -c "\du"
+docker exec -it timescaledb psql -U postgres -d db0 -c "\d+ public.trades"
+
+

@@ -203,41 +203,6 @@ class TradesTimeScale(TimeScaleCallback, BackendCallback):
             logging.error(f"Error in format method of TradesTimeScale: {str(e)}")
             # Optionally, you can raise the exception again to propagate it
             #raise
-            
-class FundingTimeScale(TimeScaleCallback, BackendCallback):
-    default_table = FUNDING
-
-    def format(self, data: Tuple):
-        if self.custom_columns:
-            if data[4]['next_funding_time']:
-                data[4]['next_funding_time'] = dt.utcfromtimestamp(data[4]['next_funding_time'])
-            return self._custom_format(data)
-        else:
-            exchange, symbol, timestamp, receipt, data = data
-            ts = dt.utcfromtimestamp(data['next_funding_time']) if data['next_funding_time'] else 'NULL'
-            return f"(DEFAULT,'{timestamp}','{receipt}','{exchange}','{symbol}',{data['mark_price'] if data['mark_price'] else 'NULL'},{data['rate']},'{ts}',{data['predicted_rate']})"
-        
-class OpenInterestTimeScale(TimeScaleCallback, BackendCallback):
-    default_table = OPEN_INTEREST
-
-    def format(self, data: Tuple):
-        if self.custom_columns:
-            return self._custom_format(data)
-        else:
-            exchange, symbol, timestamp, receipt, data = data
-            return f"(DEFAULT,'{timestamp}','{receipt}','{exchange}','{symbol}',{data['open_interest']})"
-        
-class LiquidationsTimeScale(TimeScaleCallback, BackendCallback):
-    default_table = LIQUIDATIONS
-
-    def format(self, data: Tuple):
-        if self.custom_columns:
-            return self._custom_format(data)
-        else:
-            exchange, symbol, timestamp, receipt, data = data
-            return f"(DEFAULT,'{timestamp}','{receipt}','{exchange}','{symbol}','{data['side']}',{data['quantity']},{data['price']},'{data['id']}','{data['status']}')"
-
-        
 class BookTimeScale(TimeScaleCallback, BackendBookCallback):
     default_table = 'book'
 
@@ -274,5 +239,3 @@ class BookTimeScale(TimeScaleCallback, BackendBookCallback):
             logging.error(f"Error in format method of BookTimeScale: {str(e)}")
             # Optionally, you can raise the exception again to propagate it
             #raise
-            
-        

@@ -93,9 +93,9 @@ create_hypertable() {
     local time_column=${config[time_column]}
     local chunk_interval=${config[chunk_interval]}
 
-    docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "\dt" | grep -q $table_name
-    if [ $? -ne 0 ]; then
-        docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "$create_command SELECT create_hypertable('$table_name', '$time_column', chunk_time_interval => INTERVAL '$chunk_interval');"
+    if ! docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "\d+ $table_name" | grep -q 'Table'; then
+        docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "$create_command"
+        docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "SELECT create_hypertable('$table_name', '$time_column', chunk_time_interval => INTERVAL '$chunk_interval');"
         log_message "Hypertable $table_name created."
     else
         log_message "Hypertable $table_name already exists."
@@ -110,8 +110,13 @@ enable_compression() {
     local orderby_column=${config[orderby_column]}
     local compress_interval=${config[compress_interval]}
 
-    docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "ALTER TABLE $table_name SET (timescaledb.compress, timescaledb.compress_segmentby = '$segmentby_column', timescaledb.compress_orderby = '$orderby_column'); SELECT add_compression_policy('$table_name', INTERVAL '$compress_interval', if_not_exists => true);"
-    log_message "Compression enabled for $table_name."
+    if ! docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "SELECT * FROM timescaledb_information.compressed_hypertable WHERE hypertable_name = '$table_name';" | grep -q "$table_name"; then
+        docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "ALTER TABLE $table_name SET (timescaledb.compress, timescaledb.compress_segmentby = '$segmentby_column', timescaledb.compress_orderby = '$orderby_column');"
+        docker exec -it $CONTAINER_NAME psql -U $PGUSER -d $DB_NAME -c "SELECT add_compression_policy('$table_name', INTERVAL '$compress_interval', if_not_exists => true);"
+        log_message "Compression enabled for $table_name."
+    else
+        log_message "Compression already enabled for $table_name."
+    fi
 }
 
 # Function to set retention policy (only for production)
