@@ -33,7 +33,7 @@ class CustomRedisCallback(RedisCallback):
     
     async def get_connection(self):
         if self.conn is None:
-            logging.info(f"Connecting to Redis with URL: {self.redis}")
+            #logging.info(f"Connecting to Redis with URL: {self.redis}")
             self.conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
         return self.conn
     def __del__(self):
