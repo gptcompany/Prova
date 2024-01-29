@@ -20,7 +20,7 @@ class CustomRedisCallback(RedisCallback):
 
         self.password = password
         self.redis = f"{prefix}" + (f":{password}@" if password else "") + f"{host}" + (f":{port}" if port else "")
-        print(self.redis)
+        #print(self.redis)
         self.key = key if key else self.default_key
         self.numeric_type = numeric_type
         self.none_to = none_to
