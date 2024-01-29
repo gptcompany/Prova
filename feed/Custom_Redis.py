@@ -1,5 +1,6 @@
 from collections import defaultdict
 import sys
+import ssl
 from redis import asyncio as aioredis
 import asyncio
 from yapic import json
@@ -33,8 +34,17 @@ class CustomRedisCallback(RedisCallback):
     
     async def get_connection(self):
         if self.conn is None:
+            # Define the SSL context
+            ssl_context = ssl.create_default_context()
+            ssl_context.load_verify_locations('/home/ec2-user/ca.crt')
             #logging.info(f"Connecting to Redis with URL: {self.redis}")
-            self.conn = await aioredis.from_url(self.redis, decode_responses=self.decode_responses)
+            self.conn = await aioredis.from_url(
+                self.redis, 
+                decode_responses=self.decode_responses,
+                ssl=ssl_context,
+                ssl_cert_reqs=ssl.CERT_REQUIRED,
+                
+                )
         return self.conn
     def __del__(self):
         # Cleanup code, if synchronous closing is possible
