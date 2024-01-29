@@ -41,7 +41,7 @@ class CustomRedisCallback(RedisCallback):
                 self.redis,
                 #ssl=ssl,
                 decode_responses=self.decode_responses,
-                ssl=True,  # Enable SSL
+                #ssl=True,  # Enable SSL
                 ssl_cert_reqs='required',  # Require a certificate
                 # Optionally, specify paths to SSL key and cert files if needed
                 ssl_keyfile='/home/ec2-user/server.key',
