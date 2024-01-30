@@ -24,7 +24,18 @@ upload_to_s3() {
     local path=$1
     local s3_path="${S3_BUCKET}/${DATE}${path}"
     echo "Uploading ${path} to ${s3_path}..."
-    aws s3 cp "$path" "$s3_path" --recursive
+    if [ -d "$path" ]; then
+        # It's a directory
+        echo "Uploading directory ${path} to ${s3_path}..."
+        aws s3 cp "$path" "$s3_path" --recursive
+    elif [ -f "$path" ]; then
+        # It's a file
+        echo "Uploading file ${path} to ${s3_path}..."
+        aws s3 cp "$path" "$s3_path"
+    else
+        echo "Warning: Path not found or not a regular file/directory - $path"
+    fi
+
 }
 
 # Main Backup Process
