@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # AWS S3 Bucket Name
-S3_BUCKET="s3://timescaledb"
+S3_BUCKET="s3://timescaledbinstance"
 
 # Current Date
 DATE=$(date +%F)
