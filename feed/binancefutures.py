@@ -101,7 +101,7 @@ def main():
         symbols_fut = ['BTC-USDT-PERP','ETH-USDT-PERP', 'ETH-USDT-PERP']
         symbols = fh.config.config['bnf_symbols']
         pairs = BinanceFutures.symbols()
-        [print(f"{symbol} is {'in' if symbol in pairs else 'not in'} pairs list") for symbol in symbols]
+        [print(f"{symbol} is {'in' if symbol in pairs else 'not in'} symbols list") for symbol in symbols]
         #symbols = ['BTC-USDT','ETH-BTC']
         fh.run(start_loop=False)
         fh.add_feed(BinanceFutures(

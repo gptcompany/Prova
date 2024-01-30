@@ -80,7 +80,7 @@ def main():
                         }
         symbols = fh.config.config['bf_symbols']
         pairs = Bitfinex.symbols()[:]
-        [print(f"{symbol} is {'in' if symbol in pairs else 'not in'} pairs list") for symbol in symbols]
+        [print(f"{symbol} is {'in' if symbol in pairs else 'not in'} symbols list") for symbol in symbols]
         fh.run(start_loop=False)
         fh.add_feed(BITFINEX,
                         max_depth=50,

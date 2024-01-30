@@ -78,7 +78,7 @@ def main():
         
         symbols = fh.config.config['bn_symbols']
         pairs = Binance.symbols()[:]
-        [print(f"{symbol} is {'in' if symbol in pairs else 'not in'} pairs list") for symbol in symbols]
+        [print(f"{symbol} is {'in' if symbol in pairs else 'not in'} symbols list") for symbol in symbols]
         #symbols = ['BTC-USDT','ETH-BTC']
         fh.run(start_loop=False)
         fh.add_feed(Binance(
