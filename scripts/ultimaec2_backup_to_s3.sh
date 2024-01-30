@@ -1,21 +1,29 @@
 #!/bin/bash
+# Function to log messages
+log_message() {
+    echo "$(date +"%Y-%m-%d %T"): $1" >&2 
+}
+# Improved error handling within functions
+handle_error() {
+    local error_message=$1
+    log_message "Error: $error_message"
+    # Exit the script or perform any necessary cleanup
+    exit 1
+}
 
 # AWS S3 Bucket Name
-S3_BUCKET="s3://timescaledbinstance"
+S3_BUCKET="s3://ultimaec2"
 
 # Current Date
 DATE=$(date +%F)
 
 # Files and Directories to Backup
 declare -a PATHS_TO_BACKUP=(
-    '/var/lib/redis/server.key'
-    '/var/lib/redis/server.crt'
-    '/var/lib/redis/ca.crt'
-    '/etc/redis/redis.conf'
-    '/etc/postgresql/15/main/postgresql.conf'
-    '/etc/postgresql/15/main/pg_hba.conf'
-    '/home/ubuntu/.ssh'
+    '/etc/barman.conf'
+    '/home/barman/.ssh'
+    '/home/ec2-user/.ssh'
     '/home/postgres/.ssh'
+    '/etc/ssh/sshd_config'
     '/etc/ssh/sshd_config'
 )
 
