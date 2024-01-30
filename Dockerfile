@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10
+FROM python:3.9.16
 ARG GTB_ACCESS_TOKEN
 # Set them as environment variables if needed in the running container
 ENV GTB_ACCESS_TOKEN=${GTB_ACCESS_TOKEN}
@@ -18,7 +18,7 @@ COPY ./README.md /code/
 COPY ./feed ./feed
 RUN poetry install  --no-interaction --no-ansi --no-root
 RUN apt-get update
-CMD ["python", "-m", "feed.nbbo"]
+
 
 
 # Copy the Supervisor configuration file

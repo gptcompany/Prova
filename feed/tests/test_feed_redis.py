@@ -23,14 +23,14 @@ async def check_redis_updates(redis_host, redis_port, use_ssl=True, trade_thresh
                 for symbol in symbols:
                     # Check book updates
                     book_key = f"book-{exchange}-{symbol}"
-                    book_updates = await r.zrange(book_key, -num_updates, -1, withscores=True)
-                    await process_book_updates(book_updates, symbol, exchange, threshold_seconds, num_updates)
+                    # Using xrevrange to get the last num_updates entries from the stream
+                    book_updates = await r.xrevrange(book_key, count=num_updates)
+                    await process_book_updates(book_updates, symbol, exchange, threshold_seconds)
 
-                    # Check trade updates
+                    # Check trade updates (this remains the same as your original code)
                     trade_key = f"trades-{exchange}-{symbol}"
                     trade_update = await r.zrange(trade_key, -1, -1, withscores=True)
                     await process_trade_update(trade_update, symbol, exchange, trade_threshold)
-
 
         except Exception as e:
             logger.error(f"Error occurred: {e}")
@@ -41,11 +41,12 @@ async def check_redis_updates(redis_host, redis_port, use_ssl=True, trade_thresh
         # Wait before checking again
         await asyncio.sleep(check_interval)
 
-async def process_book_updates(book_updates, symbol, exchange, threshold_seconds, num_updates):
-    if len(book_updates) < num_updates:
+async def process_book_updates(book_updates, symbol, exchange, threshold_seconds):
+    if len(book_updates) < 2:
         logger.warning(f"Insufficient data for mean interval calculation for book {symbol} on {exchange}.")
     else:
-        timestamps = [float(score) for _, score in book_updates]
+        # Parsing the stream data
+        timestamps = [float(entry[1]['timestamp']) for entry in book_updates]
         current_time = datetime.now(timezone.utc).timestamp()
         timestamps.append(current_time)
         time_diffs = [timestamps[i] - timestamps[i - 1] for i in range(1, len(timestamps))]
@@ -54,6 +55,7 @@ async def process_book_updates(book_updates, symbol, exchange, threshold_seconds
             logger.warning(f"BOOK Mean interval ({mean_diff} seconds) for {symbol} on {exchange} is above threshold. Last updates at {[datetime.fromtimestamp(ts, tz=timezone.utc).isoformat() for ts in timestamps[:-1]]}")
         else:
             logger.info(f"BOOK Mean update interval for {symbol} on {exchange} is {mean_diff} seconds")
+
 
 async def process_trade_update(trade_update, symbol, exchange, trade_threshold=10):
     if not trade_update:
@@ -71,7 +73,7 @@ async def process_trade_update(trade_update, symbol, exchange, trade_threshold=1
             
             
 if __name__ == '__main__':
-    redis_host="redis-0001-001.redis.tetmd7.apne1.cache.amazonaws.com"
+    redis_host="57.181.106.64" #"redis-0001-001.redis.tetmd7.apne1.cache.amazonaws.com"
     redis_port=6379
     asyncio.run(asyncio.run(check_redis_updates(redis_host=redis_host, 
                                                 redis_port=redis_port, 
@@ -80,8 +82,8 @@ if __name__ == '__main__':
                                                 threshold_seconds=0.2, 
                                                 num_updates=5, 
                                                 check_interval=3, 
-                                                symbols=['BTC-USDT', 'ETH-USDT', 'ETH-BTC'],
-                                                exchanges=['BITFINEX', 'BINANCE'],
+                                                symbols=['BTC-USDT', 'ETH-USDT', 'ETH-BTC', 'BTC-USDT-PERP'],
+                                                exchanges=['BITFINEX', 'BINANCE', 'BINANCEFUTURES'],
                                                 )
                             )
                 )

@@ -15,6 +15,12 @@ from Custom_Redis import CustomBookRedis, CustomTradeRedis, CustomBookStream
 from custom_timescaledb import BookTimeScale, TradesTimeScale
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
+async def funding(f, receipt_timestamp):
+    print(f"Funding update received at {receipt_timestamp}: {f}")
+async def liquidations(liquidation, receipt_timestamp):
+    print(f"Liquidation received at {receipt_timestamp}: {liquidation}")
+async def oi(update, receipt_timestamp):
+    print(f"Open Interest update received at {receipt_timestamp}: {update}")
 async def trade(t, receipt_timestamp):
     assert isinstance(t.timestamp, float)
     assert isinstance(t.side, str)
@@ -72,73 +78,89 @@ def main():
     try:
         fh = FeedHandler(config=path_to_config)  
         postgres_cfg = {
-            'host': fh.config.config['pg_host'],
+            'host': '0.0.0.0', 
             'user': 'postgres', 
             'db': 'db0', 
             'pw': fh.config.config['timescaledb_password'], 
             'port': '5432',
                         }
+        pairs = Bitfinex.symbols()
+        print(pairs)
+        symbols_fut = ['BTC-USDT-PERP','ETH-USDT-PERP', 'ETH-USDT-PERP']
+        #function to check if symbols are in the pairs list:
+        [print(f"{symbol} is {'in' if symbol in pairs else 'not in'} pairs list") for symbol in symbols_fut]
         symbols = fh.config.config['bf_symbols']
-        pairs = Bitfinex.symbols()[:]
-        [print(f"{symbol} is {'in' if symbol in pairs else 'not in'} symbols list") for symbol in symbols]
         fh.run(start_loop=False)
-        fh.add_feed(BITFINEX,
-                        max_depth=50,
-                        subscription={
-                            L3_BOOK: symbols, 
-                        },
-                        callbacks={
-                            L3_BOOK:[
-                                    CustomBookStream(
-                                    host=fh.config.config['redis_host'], 
-                                    port=fh.config.config['redis_port'],
-                                    password=fh.config.config['redis_password'], 
-                                    snapshots_only=False,
-                                    ssl=True,
-                                    decode_responses=True,
-                                    snapshot_interval=snapshot_interval,
-                                    ttl=ttl,
-                                    #score_key='timestamp',
-                                        ),
-                                    BookTimeScale(
-                                        snapshots_only=False,
-                                        snapshot_interval=snapshot_interval,
-                                        #table='book',
-                                        custom_columns=custom_columns, 
-                                        **postgres_cfg
-                                        )
-                            ]
-                        },
-                        cross_check=True,
-                        )
+        # fh.add_feed(BITFINEX,
+        #                 max_depth=50,
+        #                 subscription={
+        #                     L3_BOOK: symbols, 
+        #                 },
+        #                 callbacks={
+        #                     L3_BOOK:[
+        #                             CustomBookStream(
+        #                             host=fh.config.config['redis_host'], 
+        #                             port=fh.config.config['redis_port'], 
+        #                             snapshots_only=False,
+        #                             ssl=True,
+        #                             decode_responses=True,
+        #                             snapshot_interval=snapshot_interval,
+        #                             ttl=ttl,
+        #                             #score_key='timestamp',
+        #                                 ),
+        #                             BookTimeScale(
+        #                                 snapshots_only=False,
+        #                                 snapshot_interval=snapshot_interval,
+        #                                 #table='book',
+        #                                 custom_columns=custom_columns, 
+        #                                 **postgres_cfg
+        #                                 )
+        #                     ]
+        #                 },
+        #                 cross_check=True,
+        #                 )
                         
-        fh.add_feed(Bitfinex(
+        # fh.add_feed(Bitfinex(
+        #                 subscription={
+        #                     TRADES: symbols,
+        #                 },
+        #                 callbacks={
+        #                     TRADES:[ 
+        #                             CustomTradeRedis(
+        #                             host=fh.config.config['redis_host'], 
+        #                             port=fh.config.config['redis_port'],
+        #                             score_key='timestamp',
+        #                             ssl=True,
+        #                             decode_responses=True,
+        #                             ttl=ttl,
+        #                                 ),
+        #                             TradesTimeScale(
+        #                                 custom_columns=custom_columns_trades,
+        #                                 #table='trades',
+        #                                 **postgres_cfg
+        #                                 )
+                                    
+        #                     ]
+        #                 },
+        #                 #cross_check=True,
+        #                 #timeout=-1
+        #                 )
+        #                 )
+        fh.add_feed(BITFINEX,
                         subscription={
-                            TRADES: symbols,
+                            FUNDING: symbols_fut,
+                            #OPEN_INTEREST: symbols,
+                            LIQUIDATIONS: symbols_fut,
                         },
                         callbacks={
-                            TRADES:[ 
-                                    CustomTradeRedis(
-                                    host=fh.config.config['redis_host'], 
-                                    port=fh.config.config['redis_port'],
-                                    password=fh.config.config['redis_password'],
-                                    score_key='timestamp',
-                                    ssl=True,
-                                    decode_responses=True,
-                                    ttl=ttl,
-                                        ),
-                                    TradesTimeScale(
-                                        custom_columns=custom_columns_trades,
-                                        #table='trades',
-                                        **postgres_cfg
-                                        )
-                                    
-                            ]
+                            FUNDING:[funding],
+                            OPEN_INTEREST:[oi],
+                            LIQUIDATIONS:[liquidations],
                         },
                         #cross_check=True,
                         #timeout=-1
                         )
-                        )
+                        
         loop = asyncio.get_event_loop()
         # loop.create_task()
         loop.run_forever()
