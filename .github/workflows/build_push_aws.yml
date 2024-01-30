@@ -20,7 +20,7 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       IMAGE_TAG: latest
       SSH_PRIVATE_KEY: ${{secrets.AMAZON_PEM}}
-      AWS_EC2_IP: ec2-3-112-191-215
+      AWS_EC2_IP: ec2-52-196-55-114
 
     steps:
     - name: Checkout Repository
