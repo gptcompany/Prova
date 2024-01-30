@@ -24,9 +24,10 @@ declare -a PATHS_TO_BACKUP=(
     '/etc/redis/redis.conf'
     '/etc/postgresql/15/main/postgresql.conf'
     '/etc/postgresql/15/main/pg_hba.conf'
+    '/etc/ssh/sshd_config'
     '/home/ubuntu/.ssh'
     '/home/postgres/.ssh'
-    '/etc/ssh/sshd_config'
+    
 )
 
 # Function to Upload a File or Directory to S3

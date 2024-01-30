@@ -14,7 +14,7 @@ sudo systemctl restart sshd
 sudo service ssh restart
 
 ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
-ssh-copy-id 192.168.0.10
+#ssh-copy-id 192.168.1.100
 cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 chmod 700 ~/.ssh
 chmod 600 ~/.ssh/authorized_keys
