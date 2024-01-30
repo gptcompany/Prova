@@ -31,6 +31,7 @@ install_dependencies
 #sudo yum install git python3-pip
 #sudo yum install postgresql15-server
 #sudo ln -sf /usr/bin/python3 /usr/bin/python
+# install ip configure or something like that to upload the ip to the service timescaledb.mywire.org dynu
 
 
 
