@@ -119,7 +119,7 @@ jobs:
     - name: Deploy CloudFormation Stack Without AWS Roles 
       run: |
         DEPLOY_CMD="aws cloudformation deploy \
-          --template-file './cloudformation/ecs_cloudformation_withroles.yaml' \
+          --template-file '~/cloudformation/ecs_cloudformation_withroles.yaml' \
           --stack-name test-${{env.TASK_FAMILY}} \
           --parameter-overrides \
           ECRRepositoryURI=${{env.ECR_URI}} \
