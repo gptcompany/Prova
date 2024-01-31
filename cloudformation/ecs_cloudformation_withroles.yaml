@@ -45,6 +45,15 @@ Resources:
             - "-m"
             - !Sub "${ECSTaskFamily}"
           MountPoints: 
+            - SourceVolume: "sslKeyVolume"
+              ContainerPath: "/home/ec2-user/server.key"
+              ReadOnly: true
+            - SourceVolume: "sslCertVolume"
+              ContainerPath: "/home/ec2-user/server.crt"
+              ReadOnly: true
+            - SourceVolume: "sslCaVolume"
+              ContainerPath: "/home/ec2-user/ca.crt"
+              ReadOnly: true
             - SourceVolume: "configVolume"
               ContainerPath: "/config_cf.yaml"
               ReadOnly: false
@@ -66,6 +75,15 @@ Resources:
         - Name: configVolume
           Host:
             SourcePath: "/config_cf.yaml"
+        - Name: sslKeyVolume
+          Host:
+            SourcePath: "~/server.key"
+        - Name: sslCertVolume
+          Host:
+            SourcePath: "~/server.crt"
+        - Name: sslCaVolume
+          Host:
+            SourcePath: "~/ca.crt"
 
 
   # Example ECS Service

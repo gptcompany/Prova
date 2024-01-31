@@ -44,9 +44,9 @@ class CustomRedisCallback(RedisCallback):
                 #ssl=True,  # Enable SSL
                 ssl_cert_reqs='required',  # Require a certificate
                 # Optionally, specify paths to SSL key and cert files if needed
-                ssl_keyfile='/home/ec2-user/server.key',
-                ssl_certfile='/home/ec2-user/server.crt',
-                ssl_ca_certs='/home/ec2-user/ca.crt',
+                ssl_keyfile='~/server.key',
+                ssl_certfile='~/server.crt',
+                ssl_ca_certs='~/ca.crt',
                 
                 )
         return self.conn
