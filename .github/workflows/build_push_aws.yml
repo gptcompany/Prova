@@ -136,8 +136,8 @@ jobs:
           ECSExecutionRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskExecutionRole \
           ECSTaskRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskRole"
         echo "Waiting for the stack deployment to complete..."
-        aws cloudformation wait stack-create-complete --stack-name ${STACK_NAME}
-        aws cloudformation wait stack-update-complete --stack-name ${STACK_NAME}
+        aws cloudformation wait stack-create-complete --stack-name test-${{env.TASK_FAMILY}}
+        aws cloudformation wait stack-update-complete --stack-name test-${{env.TASK_FAMILY}}
 
         if ! $DEPLOY_CMD; then
           echo "Deployment failed. Attempting to delete the stack..."
@@ -145,7 +145,7 @@ jobs:
           echo "Waiting for the stack to be deleted..."
           aws cloudformation wait stack-delete-complete --stack-name test-${{env.TASK_FAMILY}}
           echo "Redeploying the stack..."
-          aws cloudformation wait stack-update-complete --stack-name ${STACK_NAME}
+          aws cloudformation wait stack-update-complete --stack-name test-${{env.TASK_FAMILY}}
           $DEPLOY_CMD
         fi
 
