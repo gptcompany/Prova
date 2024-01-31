@@ -120,9 +120,13 @@ jobs:
 
     - name: Deploy CloudFormation Stack Without AWS Roles
       run: |
+        aws --version
         ls
         ls -l ./cloudformation/
-        TEMPLATE_PATH="./cloudformation/ecs_cloudformation_withroles.yaml"
+        pwd
+        CURRENT_DIR=$(pwd)
+        TEMPLATE_PATH="${CURRENT_DIR}/cloudformation/ecs_cloudformation_withroles.yaml"
+        echo "Using template at ${TEMPLATE_PATH}"
         DEPLOY_CMD="aws cloudformation deploy \
           --template-file '${TEMPLATE_PATH}' \
           --stack-name test-${{env.TASK_FAMILY}} \
