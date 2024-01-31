@@ -108,7 +108,7 @@ jobs:
     steps:
       # ... [steps specific to deployment]
     - name: Checkout Repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -118,8 +118,6 @@ jobs:
 
     - name: Deploy CloudFormation Stack Without AWS Roles 
       run: |
-        set -e # Ensure the script exits on errors
-
         DEPLOY_CMD="aws cloudformation deploy \
           --template-file './cloudformation/ecs_cloudformation_withroles.yaml' \
           --stack-name test-${{env.TASK_FAMILY}} \
