@@ -46,13 +46,13 @@ Resources:
             - !Sub "${ECSTaskFamily}"
           MountPoints: 
             - SourceVolume: "sslKeyVolume"
-              ContainerPath: "/home/ec2-user/server.key"
+              ContainerPath: "~/server.key"
               ReadOnly: true
             - SourceVolume: "sslCertVolume"
-              ContainerPath: "/home/ec2-user/server.crt"
+              ContainerPath: "~/server.crt"
               ReadOnly: true
             - SourceVolume: "sslCaVolume"
-              ContainerPath: "/home/ec2-user/ca.crt"
+              ContainerPath: "~/ca.crt"
               ReadOnly: true
             - SourceVolume: "configVolume"
               ContainerPath: "/config_cf.yaml"
