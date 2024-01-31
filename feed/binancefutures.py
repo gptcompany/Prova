@@ -81,7 +81,7 @@ custom_columns_liquidations= {
     'side': 'side',
     'quantity': 'quantity',   # Maps Cryptofeed's 'timestamp' field to the 'timestamp' column in TimescaleDB
     'timestamp': 'timestamp',
-    'price': 'price ',
+    'price': 'price',
     'id': 'id', 
 }
 def main():

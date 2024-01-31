@@ -26,8 +26,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Ref ECSTaskFamily
-      Cpu: '250' # Specify CPU units
-      Memory: '250' # Specify memory in MB
+      Cpu: '150' # Specify CPU units
+      Memory: '300' # Specify memory in MB
       NetworkMode: bridge # Specify the network mode (bridge awsvpc (awsvpc needs network configuration in task definition))
       RequiresCompatibilities:
         - EC2 # or FARGATE
@@ -36,28 +36,54 @@ Resources:
       ContainerDefinitions:
         - Name: mycontainer
           Image: !Sub '${ECRRepositoryURI}:latest' # Image from ECR
-          Cpu: 250
-          Memory: 250
+          Cpu: 150
+          Memory: 300
           Essential: true
           WorkingDirectory: "/code/feed/"
           Command: 
-            - "python"
+            - "python3"
             - "-m"
             - !Sub "${ECSTaskFamily}"
           MountPoints: 
+            - SourceVolume: "sslKeyVolume"
+              ContainerPath: "/server.key"
+              ReadOnly: true
+            - SourceVolume: "sslCertVolume"
+              ContainerPath: "/server.crt"
+              ReadOnly: true
+            - SourceVolume: "sslCaVolume"
+              ContainerPath: "/ca.crt"
+              ReadOnly: true
             - SourceVolume: "configVolume"
               ContainerPath: "/config_cf.yaml"
-              ReadOnly: false
+              ReadOnly: true
           LogConfiguration: 
             LogDriver: "awslogs"
             Options: 
               awslogs-group: "mycontainer"
               awslogs-region: "ap-northeast-1"
               awslogs-stream-prefix: !Sub "${ECSTaskFamily}"
+          HealthCheck:
+            command: 
+              - "CMD-SHELL"
+              - !Sub "pgrep -f 'python3 -m ${ECSTaskFamily}' > /dev/null || exit 1"
+            interval: 30
+            timeout: 60
+            retries: 10
+            startPeriod: 60
       Volumes:
         - Name: configVolume
           Host:
             SourcePath: "/config_cf.yaml"
+        - Name: sslKeyVolume
+          Host:
+            SourcePath: "/home/ec2-user/server.key"
+        - Name: sslCertVolume
+          Host:
+            SourcePath: "/home/ec2-user/server.crt"
+        - Name: sslCaVolume
+          Host:
+            SourcePath: "/home/ec2-user/ca.crt"
 
 
   # Example ECS Service

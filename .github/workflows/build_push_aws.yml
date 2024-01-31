@@ -144,9 +144,9 @@ jobs:
           echo "Redeploying the stack..."
           $DEPLOY_CMD
         fi
-        echo "Waiting for the stack deployment to complete..."
-        aws cloudformation wait stack-create-complete --stack-name test-${{env.TASK_FAMILY}}
-        aws cloudformation wait stack-update-complete --stack-name test-${{env.TASK_FAMILY}}
+        # echo "Waiting for the stack deployment to complete..."
+        # aws cloudformation wait stack-create-complete --stack-name test-${{env.TASK_FAMILY}}
+        # aws cloudformation wait stack-update-complete --stack-name test-${{env.TASK_FAMILY}}
 
     - name: Ensure CloudWatch Log Group and Stream Exist
       run: |

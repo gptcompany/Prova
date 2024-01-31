@@ -1,5 +1,4 @@
 #!/bin/bash
-env >&3
 
 # Database and AWS S3 settings
 PGUSER="barman"
@@ -9,7 +8,7 @@ PGPASSWORD=$(python3 -c "import yaml; print(yaml.safe_load(open('/config_cf.yaml
 S3_BUCKET="s3://timescalebackups"
 LOG_FILE="$HOME/ts_backups.log"
 export PGUSER PGHOST PGPORT PGPASSWORD
-
+env >&3
 # Function to log messages
 exec 3>>$LOG_FILE
 log_message() {
