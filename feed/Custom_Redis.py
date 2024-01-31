@@ -1,5 +1,6 @@
 from collections import defaultdict
 import sys
+import os
 from redis import asyncio as aioredis
 import asyncio
 from yapic import json
@@ -37,6 +38,9 @@ class CustomRedisCallback(RedisCallback):
             # ssl_context = ssl.create_default_context()
             # ssl_context.load_verify_locations('/home/ec2-user/ca.crt')
             #logging.info(f"Connecting to Redis with URL: {self.redis}")
+            ssl_keyfile = '/server.key' if os.path.exists('/server.key') else '/home/ec2-user/server.key'
+            ssl_certfile = '/server.crt' if os.path.exists('/server.crt') else '/home/ec2-user/server.crt'
+            ssl_ca_certs = '/ca.crt' if os.path.exists('/ca.crt') else '/home/ec2-user/ca.crt'
             self.conn = await aioredis.from_url(
                 self.redis,
                 #ssl=ssl,
@@ -44,9 +48,9 @@ class CustomRedisCallback(RedisCallback):
                 #ssl=True,  # Enable SSL
                 ssl_cert_reqs='required',  # Require a certificate
                 # Optionally, specify paths to SSL key and cert files if needed
-                ssl_keyfile='~/server.key',
-                ssl_certfile='~/server.crt',
-                ssl_ca_certs='~/ca.crt',
+                ssl_keyfile=ssl_keyfile,
+                ssl_certfile=ssl_certfile,
+                ssl_ca_certs=ssl_ca_certs,
                 
                 )
         return self.conn
