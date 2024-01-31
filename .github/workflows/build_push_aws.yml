@@ -128,7 +128,7 @@ jobs:
         TEMPLATE_PATH="${CURRENT_DIR}/cloudformation/ecs_cloudformation_withroles.yaml"
         echo "Using template at ${TEMPLATE_PATH}"
         DEPLOY_CMD="aws cloudformation deploy \
-          --template-file '${TEMPLATE_PATH}' \
+          --template-file ${TEMPLATE_PATH} \
           --stack-name test-${{env.TASK_FAMILY}} \
           --parameter-overrides \
           ECRRepositoryURI=${{env.ECR_URI}} \
