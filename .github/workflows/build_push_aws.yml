@@ -33,7 +33,7 @@ jobs:
       run: docker buildx create --name mybuilder --use
     # Cache setup
     - name: Cache Docker layers
-      uses: actions/cache@v3
+      uses: actions/cache@v4.0.0
       with:
         path: /tmp/.buildx-cache
         key: ${{ runner.os }}-buildx-${{ github.sha }}
@@ -71,11 +71,13 @@ jobs:
           --push \
           .  
     # Updating cache
-    - name: Update cache
-      uses: actions/cache@v3
+    - name: Cache Docker layers
+      uses: actions/cache@v4.0.0
       with:
         path: /tmp/.buildx-cache-new
         key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
     
     - name: Copy CloudFormation file to EC2
       run: |
