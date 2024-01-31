@@ -48,7 +48,7 @@ jobs:
         
     - name: Log in to Amazon ECR and create repository if not exist
       id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
+      uses: aws-actions/amazon-ecr-login@v2.0.1
     - name: Create ECR repository if it doesn't exist
       run: |
         if ! aws ecr describe-repositories --repository-names ${{env.REPO_NAME}} --region ${{secrets.AWS_REGION}}; then

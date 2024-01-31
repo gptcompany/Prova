@@ -18,6 +18,9 @@ COPY ./README.md /code/
 COPY ./feed ./feed
 RUN poetry install  --no-interaction --no-ansi --no-root
 RUN apt-get update
+EXPOSE 5432
+EXPOSE 6379
+#EXPOSE 22
 
 
 
@@ -25,8 +28,7 @@ RUN apt-get update
 #COPY ./supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 
-#EXPOSE 8000
-#EXPOSE 9001
+
 
 
 # Start Supervisor to manage your processes
