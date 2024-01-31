@@ -118,7 +118,7 @@ jobs:
         aws-region: ${{secrets.AWS_REGION}}
         role-to-assume: arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/github_action
 
-    - name: Deploy CloudFormation Stack Without AWS Roles
+    - name: Deploy CloudFormation Stack With AWS Roles
       run: |
         aws --version
         ls -l ./cloudformation/
