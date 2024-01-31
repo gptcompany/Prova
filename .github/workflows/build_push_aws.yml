@@ -116,10 +116,13 @@ jobs:
         aws-region: ${{secrets.AWS_REGION}}
         role-to-assume: arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/github_action
 
-    - name: Deploy CloudFormation Stack Without AWS Roles 
+    - name: Deploy CloudFormation Stack Without AWS Roles
       run: |
+        ls
+        ls -l ./cloudformation/
+        TEMPLATE_PATH="./cloudformation/ecs_cloudformation_withroles.yaml"
         DEPLOY_CMD="aws cloudformation deploy \
-          --template-file '~/cloudformation/ecs_cloudformation_withroles.yaml' \
+          --template-file '${TEMPLATE_PATH}' \
           --stack-name test-${{env.TASK_FAMILY}} \
           --parameter-overrides \
           ECRRepositoryURI=${{env.ECR_URI}} \
