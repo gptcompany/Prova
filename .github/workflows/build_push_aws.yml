@@ -118,17 +118,26 @@ jobs:
 
     - name: Deploy CloudFormation Stack Without AWS Roles 
       run: |
-        # aws cloudformation delete-stack --stack-name test-${{env.TASK_FAMILY}}
-        aws cloudformation deploy \
-          --template-file "./cloudformation/ecs_cloudformation_withroles.yaml" \
+        set -e # Ensure the script exits on errors
+
+        DEPLOY_CMD="aws cloudformation deploy \
+          --template-file './cloudformation/ecs_cloudformation.yaml' \
           --stack-name test-${{env.TASK_FAMILY}} \
           --parameter-overrides \
           ECRRepositoryURI=${{env.ECR_URI}} \
           ECSTaskFamily=${{env.TASK_FAMILY}} \
           ECSCluster=${{env.ECS_CLUSTER}} \
           ECSExecutionRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskExecutionRole \
-          ECSTaskRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskRole 
-          
+          ECSTaskRole=arn:aws:iam::${{secrets.AWS_ACCOUNT_ID}}:role/ecsTaskRole"
+
+        if ! $DEPLOY_CMD; then
+          echo "Deployment failed. Attempting to delete the stack..."
+          aws cloudformation delete-stack --stack-name test-${{env.TASK_FAMILY}}
+          echo "Waiting for the stack to be deleted..."
+          aws cloudformation wait stack-delete-complete --stack-name test-${{env.TASK_FAMILY}}
+          echo "Redeploying the stack..."
+          $DEPLOY_CMD
+        fi
 
     - name: Ensure CloudWatch Log Group and Stream Exist
       run: |
