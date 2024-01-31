@@ -121,7 +121,6 @@ jobs:
     - name: Deploy CloudFormation Stack Without AWS Roles
       run: |
         aws --version
-        ls
         ls -l ./cloudformation/
         pwd
         CURRENT_DIR=$(pwd)
