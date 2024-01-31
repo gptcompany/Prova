@@ -27,7 +27,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      uses: docker/setup-buildx-action@v3.0.0
     # Create a new builder that supports cache export/import
     - name: Create a new builder
       run: docker buildx create --name mybuilder --use
