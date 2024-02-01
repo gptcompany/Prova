@@ -20,9 +20,9 @@ fi
 # Make executable the files in terminal-profile folder
 chmod +x $HOME/terminal-profile/install_powerline_ubuntu.sh
 chmod +x $HOME/terminal-profile/install_terminal_ubuntu.sh
-chmod +x $HOME/terminal-profile/install_profile.sh
+chmod +x $HOME/terminal-profile/install_profile_ubuntu.sh
 
 # Run the scripts
 $HOME/terminal-profile/install_powerline_ubuntu.sh
 $HOME/terminal-profile/install_terminal_ubuntu.sh
-$HOME/terminal-profile/install_profile.sh
+$HOME/terminal-profile/install_profile_ubuntu.sh

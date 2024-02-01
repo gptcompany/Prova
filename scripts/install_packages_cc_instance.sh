@@ -1,5 +1,9 @@
 #!/bin/bash
-
+TIMESCALEDB_IP="57.181.106.64"
+# User to SSH into TimescaleDB server
+SSH_USER="postgres"
+# Command to get the IP of the current server
+LOCAL_IP=$(hostname -I | awk '{print $1}')
 # Function to generate and display SSH key
 generate_and_cat_ssh_key() {
     local user=$1
@@ -20,7 +24,12 @@ install_dependencies() {
 if command -v apt-get &>/dev/null; then
         # Debian, Ubuntu, or other apt-based systems
 
-        # Configure aws configure first or check if configured?
+        # install aws cli 2 if version 2 isn't installed?
+        aws --version
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        sudo ./aws/install
+        aws --version
         # Check if AWS is configured
         if aws configure list; then
             echo "AWS is configured."
@@ -54,6 +63,12 @@ generate_and_cat_ssh_key "postgres"
 generate_and_cat_ssh_key "barman"
 # Generate and display SSH key for barman
 generate_and_cat_ssh_key "ubuntu"
+echo "copy the ssh key in sudo nano ~/.ssh/authorized_keys or sudo vi ~/.ssh/authorized_keys on the machine you want SSH into"
+# wait for user to confirm that authorized_key are saved before continuing with the script
+# test ssh connection to 
+# SSH command to append to pg_hba.conf
+SSH_COMMAND="grep -q -F 'host all all ${LOCAL_IP}/32 trust' /etc/postgresql/15/main/pg_hba.conf || echo 'host all all ${LOCAL_IP}/32 trust' | sudo tee -a /etc/postgresql/15/main/pg_hba.conf"
+ssh ${SSH_USER}@${TIMESCALEDB_IP} "${SSH_COMMAND}"
 
 
 

@@ -37,17 +37,17 @@ declare -a PATHS_TO_BACKUP=(
 upload_to_s3() {
     local path=$1
     local s3_path="${S3_BUCKET}/${DATE}${path}"
-    echo "Uploading ${path} to ${s3_path}..."
+    log_message "Uploading ${path} to ${s3_path}..."
     if [ -d "$path" ]; then
         # It's a directory
-        echo "Uploading directory ${path} to ${s3_path}..."
+        log_message "Uploading directory ${path} to ${s3_path}..."
         aws s3 cp "$path" "$s3_path" --recursive
     elif [ -f "$path" ]; then
         # It's a file
-        echo "Uploading file ${path} to ${s3_path}..."
+        log_message "Uploading file ${path} to ${s3_path}..."
         aws s3 cp "$path" "$s3_path"
     else
-        echo "Warning: Path not found or not a regular file/directory - $path"
+        log_message "Warning: Path not found or not a regular file/directory - $path"
     fi
 
 }
@@ -57,8 +57,8 @@ for path in "${PATHS_TO_BACKUP[@]}"; do
     if [ -e "$path" ]; then
         upload_to_s3 "$path"
     else
-        echo "Warning: Path not found - $path"
+        log_message "Warning: Path not found - $path"
     fi
 done
 
-echo "Backup to S3 completed."
+log_message "Backup to S3 completed."
