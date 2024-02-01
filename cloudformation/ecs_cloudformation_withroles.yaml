@@ -26,8 +26,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Ref ECSTaskFamily
-      Cpu: '128' # Specify CPU units
-      Memory: '512' # Specify memory in MB
+      Cpu: '256' # Specify CPU units
+      Memory: '320' # Specify memory in MB
       NetworkMode: bridge # Specify the network mode (bridge awsvpc (awsvpc needs network configuration in task definition))
       RequiresCompatibilities:
         - EC2 # or FARGATE
@@ -36,8 +36,8 @@ Resources:
       ContainerDefinitions:
         - Name: mycontainer
           Image: !Sub '${ECRRepositoryURI}:latest' # Image from ECR
-          Cpu: 128
-          Memory: 512
+          Cpu: 256
+          Memory: 320
           Essential: true
           WorkingDirectory: "/code/feed/"
           Command: 
