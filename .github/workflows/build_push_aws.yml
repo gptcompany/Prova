@@ -151,7 +151,7 @@ jobs:
     - name: Ensure CloudWatch Log Group and Stream Exist
       run: |
         aws logs create-log-group --log-group-name CloudFormation || true
-        aws logs create-log-stream --log-group-name CloudFormation --log-stream-name test_${{env.TASK_FAMILY}} || true
+        aws logs create-log-stream --log-group-name CloudFormation --log-stream-name test-${{env.TASK_FAMILY}} || true
 
     - name: Describe CloudFormation Stack and Send to CloudWatch
       run: |

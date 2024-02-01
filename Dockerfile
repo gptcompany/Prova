@@ -1,7 +1,8 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9.16
+# Use a smaller Python Alpine base image
+FROM python:3.9.16-alpine
+
+# Set environment variables
 ARG GTB_ACCESS_TOKEN
-# Set them as environment variables if needed in the running container
 ENV GTB_ACCESS_TOKEN=${GTB_ACCESS_TOKEN}
 ARG AWS_REGION
 ENV AWS_REGION=${AWS_REGION}
@@ -9,29 +10,23 @@ ARG AMAZON_ACCESS_KEY
 ENV AMAZON_ACCESS_KEY=${AMAZON_ACCESS_KEY}
 ARG AMAZON_SECRET_ACCESS_KEY
 ENV AMAZON_SECRET_ACCESS_KEY=${AMAZON_SECRET_ACCESS_KEY}
-RUN pip install poetry==1.6.1
-RUN poetry config virtualenvs.create false
+
+# Set the working directory
 WORKDIR /code
+
+# Copy necessary files
 COPY ./feed/pyproject.toml ./feed/poetry.lock* ./
 COPY ./cloudformation ./cloudformation
 COPY ./README.md /code/
 COPY ./feed ./feed
-RUN poetry install  --no-interaction --no-ansi --no-root
-RUN apt-get update
+
+# Install dependencies in one layer, and clean up in the same layer to minimize size
+RUN apk add --no-cache gcc musl-dev && \
+    pip install poetry==1.6.1 && \
+    poetry config virtualenvs.create false && \
+    poetry install --no-interaction --no-ansi --no-root && \
+    apk del gcc musl-dev
+
+# Expose necessary ports
 EXPOSE 5432
 EXPOSE 6379
-#EXPOSE 22
-
-
-
-# Copy the Supervisor configuration file
-#COPY ./supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-
-
-
-
-# Start Supervisor to manage your processes
-#CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
-
-
