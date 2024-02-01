@@ -2,7 +2,7 @@
 
 # AWS S3 Bucket Name
 S3_BUCKET="s3://timescaledbinstance"
-
+echo "RUN WITH SUDO!"
 # Paths that were backed up (must match backup script)
 declare -a PATHS_TO_BACKUP=(
     '/var/lib/redis/server.key'
@@ -14,6 +14,9 @@ declare -a PATHS_TO_BACKUP=(
     '/home/ubuntu/.ssh'
     '/home/postgres/.ssh'
     '/etc/ssh/sshd_config'
+    '/home/ubuntu/.p10k.zsh'
+    '/home/ubuntu/.zprofile'
+    '/home/ubuntu/.zshrc'
 )
 
 # Function to Fetch the Latest Backup Date from S3

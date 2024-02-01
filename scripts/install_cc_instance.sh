@@ -27,5 +27,7 @@ fi
 sudo chmod +x $HOME/startarb/scripts/install_packages_cc_instance.sh
 $HOME/startarb/scripts/install_packages_cc_instance.sh
 
+# function to copy from s3 the config files
+
 
 

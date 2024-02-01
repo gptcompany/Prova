@@ -15,8 +15,8 @@ S3_BUCKET="s3://timescaledbinstance"
 
 # Current Date
 DATE=$(date +%F)
-
-# Files and Directories to Backup
+log_message "RUN WITH SUDO!"
+# Paths that were backed up (must match recover script)
 declare -a PATHS_TO_BACKUP=(
     '/var/lib/redis/server.key'
     '/var/lib/redis/server.crt'
@@ -27,6 +27,9 @@ declare -a PATHS_TO_BACKUP=(
     '/etc/ssh/sshd_config'
     '/home/ubuntu/.ssh'
     '/home/postgres/.ssh'
+    '/home/ubuntu/.p10k.zsh'
+    '/home/ubuntu/.zprofile'
+    '/home/ubuntu/.zshrc'
     
 )
 
