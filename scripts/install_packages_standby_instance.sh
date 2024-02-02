@@ -2,7 +2,7 @@
 TIMESCALEDB_IP="57.181.106.64"
 STANDBY_IP="timescaledb.mywire.org"
 CLUSTER_CONTROL_IP="43.207.147.235"
-# User to SSH into TimescaleDB server
+# User to SSH into TimescaleDB server user postgres
 SSH_USER_POSTGRES="postgres"
 # Command to get the IP of the current server
 LOCAL_IP=$(hostname -I | awk '{print $1}')

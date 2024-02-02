@@ -12,7 +12,7 @@ cd $HOME
 # Check if the terminal-profile folder exists and update or clone the repo
 if [ -d "$HOME/terminal-profile" ]; then
     cd $HOME/terminal-profile
-    git pull origin main
+    git pull origin main --force
 else
     git clone https://github.com/gptcompany/terminal-profile.git
 fi

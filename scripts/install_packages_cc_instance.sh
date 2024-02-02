@@ -3,6 +3,9 @@ TIMESCALEDB_IP="57.181.106.64"
 STANDBY_IP="timescaledb.mywire.org"
 # User to SSH into TimescaleDB server
 SSH_USER_POSTGRES="postgres"
+# Identify the key binary or service to check for ClusterControl's presence.
+CLUSTERCONTROL_BINARY="/usr/bin/cmon"
+CLUSTERCONTROL_SERVICE="cmon" # Adjust the service name based on your setup.
 # Command to get the IP of the current server
 LOCAL_IP=$(hostname -I | awk '{print $1}')
 # Function to generate and display SSH key
@@ -32,6 +35,43 @@ generate_and_cat_ssh_key() {
     sudo -u $user cat $ssh_key.pub
     echo "End of public SSH key for user: $user <<<<<<<"
 }
+# Function to check if ClusterControl is installed via package manager
+check_clustercontrol_package() {
+    if which apt > /dev/null; then
+        # For Debian/Ubuntu systems
+        dpkg -l | grep -qw cmon && return 0
+    elif which yum > /dev/null; then
+        # For RHEL/CentOS systems
+        yum list installed | grep -qw cmon && return 0
+    fi
+    return 1
+}
+
+# Function to find ClusterControl binary
+find_clustercontrol_binary() {
+    local binary=$(which cmon 2>/dev/null)
+    if [ ! -z "$binary" ]; then
+        echo "$binary"
+        return 0
+    else
+        # Fallback: Check common installation paths
+        for path in /usr/bin/cmon /usr/local/bin/cmon; do
+            if [ -x "$path" ]; then
+                echo "$path"
+                return 0
+            fi
+        done
+    fi
+    return 1
+}
+
+# Check if ClusterControl package is installed
+if check_clustercontrol_package; then
+    echo "ClusterControl package is installed."
+else
+    echo "ClusterControl package is not installed."
+fi
+
 
 
 install_dependencies() {
@@ -68,11 +108,6 @@ install_dependencies() {
         fi
         sudo apt-get update && sudo apt-get upgrade -y
         sudo apt-get install build-essential libpq-dev python3-dev curl wget rsync software-properties-common postgresql postgresql-contrib -y
-        #install cluster controll by several nines and all his dependancies
-        cd
-        curl -L https://severalnines.com/downloads/cmon/install-cc -o install-cc
-        chmod +x install-cc
-        sudo ./install-cc
         # INSTALL BARMAN
         sudo apt-get install barman -y
         # Check if barman user exists, and create if it does not
@@ -89,6 +124,20 @@ install_dependencies() {
 
 # Main 
 install_dependencies
+# Attempt to find the ClusterControl binary
+CLUSTERCONTROL_BINARY=$(find_clustercontrol_binary)
+if [ $? -eq 0 ]; then
+    echo "Found ClusterControl binary at $CLUSTERCONTROL_BINARY."
+else
+    echo "ClusterControl binary not found. Installing ClusterControl..."
+
+    # Download and install ClusterControl
+    cd || exit # Ensures that the script exits if changing directory fails.
+    curl -L https://severalnines.com/downloads/cmon/install-cc -o install-cc
+    chmod +x install-cc
+    sudo ./install-cc
+fi
+
 # Generate and display SSH key for postgres
 #generate_and_cat_ssh_key "postgres"
 # Generate and display SSH key for barman
@@ -132,7 +181,6 @@ echo "$REMOTE_KEY" >> $HOME/.ssh/authorized_keys
 chmod 600 $HOME/.ssh/authorized_keys
 sudo su - ubuntu
 # INSTALL ZSH
-# check first if oh my zsh installed and powerlevel10k installed before running the script
 sudo chmod +x $HOME/statarb/scripts/install_terminal_ubuntu.sh
 $HOME/statarb/scripts/install_terminal_ubuntu.sh
 

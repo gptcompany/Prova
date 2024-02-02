@@ -75,8 +75,10 @@ sudo ufw disable
 # Check if the statarb folder exists and update or clone the repo
 if [ -d "$HOME/statarb" ]; then
     cd $HOME/statarb
-    git pull origin main
+    git switch test
+    git pull origin test --force
 else
+    cd $HOME
     git clone https://github.com/gptcompany/statarb.git
 fi
 # SET 2GB SWAP
