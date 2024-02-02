@@ -43,22 +43,28 @@ cat <<EOF > $HOME/statarb/scripts/configure_timescaledb.yml
   become: yes  # This elevates privilege for the entire playbook; adjust as necessary for your environment
 
   tasks:
-    - name: Get PostgreSQL data directory
-      ansible.builtin.command: psql -U postgres -tA -c "SHOW data_directory;"
-      become: yes  # Ensure this task is executed with elevated privileges
-      become_user: postgres  # Specifies the user to become; uses 'sudo' under the hood
-      register: pg_data_dir
+    - name: Get PostgreSQL config file location
+      ansible.builtin.command: psql -U postgres -tA -c "SHOW config_file;"
+      become: yes
+      become_user: postgres
+      register: pg_config_file
       changed_when: false
-      ignore_errors: true  # Optionally ignore errors if command execution is not crucial
+
+    - name: Set fact for pg_hba.conf directory
+      set_fact:
+        pg_hba_dir: "{{ pg_config_file.stdout | dirname }}"
 
     - name: Ensure TimescaleDB can accept connections
       ansible.builtin.lineinfile:
-        path: "{{ pg_data_dir.stdout_lines[0] }}/pg_hba.conf"  # Adjusted to use stdout_lines for cleaner output handling
+        path: "{{ pg_hba_dir }}/pg_hba.conf"
         line: "host all all {{ ansible_default_ipv4.address }}/32 trust"
-        line: "local all postgres trust"
-        state: present
       notify: reload postgresql
-      when: pg_data_dir is succeeded  # Ensures this task runs only if the previous task succeeded
+
+    - name: Ensure local access for PostgreSQL user
+      ansible.builtin.lineinfile:
+        path: "{{ pg_hba_dir }}/pg_hba.conf"
+        line: "local all postgres trust"
+      notify: reload postgresql
 
   handlers:
     - name: reload postgresql
