@@ -158,20 +158,14 @@ if [ $? -ne 0 ]; then
     echo "SSH connection failed. Please check your settings."
     read -p "Press Enter once the SSH key is saved in authorized_keys..."
 fi
-# SSH command to append to pg_hba.conf
-SSH_COMMAND="grep -q -F 'host all all ${LOCAL_IP}/32 trust' /etc/postgresql/15/main/pg_hba.conf || echo 'host all all ${LOCAL_IP}/32 trust' | sudo tee -a /etc/postgresql/15/main/pg_hba.conf"
-ssh ${SSH_USER_POSTGRES}@${TIMESCALEDB_IP} "${SSH_COMMAND}"
-
 echo "Testing SSH connection to ${SSH_USER_POSTGRES}@${STANDBY_IP}..."
 ssh -o BatchMode=yes -o ConnectTimeout=5 ${SSH_USER_POSTGRES}@${STANDBY_IP} "echo 'SSH connection successful'"
 if [ $? -ne 0 ]; then
     echo "SSH connection failed. Please check your settings."
     read -p "Press Enter once the SSH key is saved in authorized_keys..."
 fi
-# SSH command to append to pg_hba.conf
-SSH_COMMAND="grep -q -F 'host all all ${LOCAL_IP}/32 trust' /etc/postgresql/15/main/pg_hba.conf || echo 'host all all ${LOCAL_IP}/32 trust' | sudo tee -a /etc/postgresql/15/main/pg_hba.conf"
-ssh ${SSH_USER_POSTGRES}@${STANDBY_IP} "${SSH_COMMAND}"
-
+sudo chmod +x $HOME/statarb/scripts/set_cc_ansible.sh 
+$HOME/statarb/scripts/set_cc_ansible.sh  ${TIMESCALEDB_IP} ${STANDBY_IP} ${SSH_USER_POSTGRES}
 sudo su - barman
 mkdir -p $HOME/.ssh
 chmod 700 $HOME/.ssh

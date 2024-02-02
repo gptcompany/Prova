@@ -1,34 +1,42 @@
 #!/bin/bash
 
-# Source the variables from the first script
-#source $HOME/statarb/scripts/install_packages_cc_instance.sh
+# Check for the correct number of arguments
+if [ "$#" -ne 3 ]; then
+    echo "Usage: $0 TIMESCALEDB_IP STANDBY_IP SSH_USER_POSTGRES"
+    exit 1
+fi
+
+# Assign arguments to variables
+TIMESCALEDB_IP=$1
+STANDBY_IP=$2
+SSH_USER_POSTGRES=$3
 
 # Echo variables for debugging
 echo "TIMESCALEDB_IP: $TIMESCALEDB_IP"
 echo "STANDBY_IP: $STANDBY_IP"
 echo "SSH_USER_POSTGRES: $SSH_USER_POSTGRES"
 
-if [ -z "$TIMESCALEDB_IP" ] || [ -z "$STANDBY_IP" ] || [ -z "$SSH_USER_POSTGRES" ]; then
-    echo "One or more variables are undefined."
-    echo "Please source install_packages_cc_instance.sh or define TIMESCALEDB_IP, STANDBY_IP, SSH_USER_POSTGRES."
-    exit 1
-fi
-
 # Check if Ansible is installed, install if not
 if ! command -v ansible > /dev/null; then
+    echo "Ansible not found. Installing Ansible..."
     sudo apt update
     sudo apt install -y ansible
+else
+    echo "Ansible is already installed."
 fi
 
 # Create the inventory file dynamically
-cat <<EOF > hosts.ini
+cat <<EOF > $HOME/statarb/scripts/hosts.ini
 [timescaledb_servers]
 timescaledb_primary ansible_host=$TIMESCALEDB_IP ansible_user=$SSH_USER_POSTGRES
 timescaledb_standby ansible_host=$STANDBY_IP ansible_user=$SSH_USER_POSTGRES
 EOF
 
+# Echo the path of hosts.ini for debugging
+echo "Inventory file created at: $HOME/statarb/scripts/hosts.ini"
+
 # Create the Ansible playbook file dynamically
-cat <<EOF > configure_timescaledb.yml
+cat <<EOF > $HOME/statarb/scripts/configure_timescaledb.yml
 ---
 - name: Configure TimescaleDB Servers
   hosts: timescaledb_servers
@@ -55,5 +63,8 @@ cat <<EOF > configure_timescaledb.yml
 
 EOF
 
+# Echo the path of configure_timescaledb.yml for debugging
+echo "Playbook file created at: $HOME/statarb/scripts/configure_timescaledb.yml"
+
 # Execute the Ansible playbook
-ansible-playbook -i hosts.ini configure_timescaledb.yml
+ansible-playbook -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_timescaledb.yml
