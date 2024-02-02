@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Source the variables from the first script
-source $HOME/statarb/scripts/install_packages_cc_instance.sh
+#source $HOME/statarb/scripts/install_packages_cc_instance.sh
 
 # Echo variables for debugging
 echo "TIMESCALEDB_IP: $TIMESCALEDB_IP"
