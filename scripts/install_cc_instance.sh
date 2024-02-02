@@ -14,6 +14,7 @@ if aws --version &>/dev/null; then
         curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
         unzip -o awscliv2.zip
         sudo ./aws/install --update
+        sudo rm awscliv2.zip
     else
         echo "AWS CLI is up to date."
     fi
@@ -48,13 +49,30 @@ else
     git clone https://github.com/gptcompany/statarb.git
 fi
 # SET 2GB SWAP
-sudo swapoff -a #turn off existing swap file
-sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo '/swapfile swap swap defaults 0 0' | sudo tee -a /etc/fstab
-sudo swapon --show
+# Check for existing swap files
+existing_swapfile=$(sudo swapon --show | awk 'NR>1 {print $1}')
+
+if [ -n "$existing_swapfile" ]; then
+    echo "An existing swap file $existing_swapfile is already active."
+    exit 1
+else
+    # Create a new 2GB swap file
+    sudo swapoff -a # Turn off existing swap file
+    sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+
+    # Add swap entry to /etc/fstab
+    echo '/swapfile swap swap defaults 0 0' | sudo tee -a /etc/fstab
+
+    # Verify the swap is active
+    if [ -n "$(sudo swapon --show | awk 'NR>1 {print $1}')" ]; then
+        echo "Swap file successfully created and activated."
+    else
+        echo "Failed to create and activate the swap file."
+    fi
+fi
 # INSTALL PACKAGES AND TERMINAL (USING THE SCRIPT)
 sudo chmod +x $HOME/statarb/scripts/install_packages_cc_instance.sh
 $HOME/startarb/scripts/install_packages_cc_instance.sh
