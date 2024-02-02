@@ -88,8 +88,6 @@ install_dependencies() {
 }
 
 # Main 
-sudo chmod +x $HOME/statarb/scripts/install_terminal_ubuntu.sh
-$HOME/statarb/scripts/install_terminal_ubuntu.sh
 install_dependencies
 # Generate and display SSH key for postgres
 #generate_and_cat_ssh_key "postgres"
@@ -132,8 +130,11 @@ REMOTE_KEY=$(ssh ${SSH_USER_POSTGRES}@${TIMESCALEDB_IP} "cat ~/.ssh/id_rsa.pub")
 # On the local machine, append the key to authorized_keys
 echo "$REMOTE_KEY" >> $HOME/.ssh/authorized_keys
 chmod 600 $HOME/.ssh/authorized_keys
-
 sudo su - ubuntu
+# INSTALL ZSH
+# check first if oh my zsh installed and powerlevel10k installed before running the script
+sudo chmod +x $HOME/statarb/scripts/install_terminal_ubuntu.sh
+$HOME/statarb/scripts/install_terminal_ubuntu.sh
 
 
 

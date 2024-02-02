@@ -23,8 +23,33 @@ chmod +x $HOME/terminal-profile/install_terminal_ubuntu.sh
 chmod +x $HOME/terminal-profile/install_profile_ubuntu.sh
 
 # Run the scripts
-cd $HOME/terminal-profile
-$HOME/terminal-profile/install_powerline_ubuntu.sh
-$HOME/terminal-profile/install_terminal_ubuntu.sh
-$HOME/terminal-profile/install_profile_ubuntu.sh
-cd
+
+# Check if Oh My Zsh is installed
+if [ -d "$HOME/.oh-my-zsh" ]; then
+    echo "Oh My Zsh is already installed."
+else
+    echo "Installing Oh My Zsh..."
+    cd $HOME/terminal-profile
+    $HOME/terminal-profile/install_powerline_ubuntu.sh
+    $HOME/terminal-profile/install_terminal_ubuntu.sh
+fi
+
+# Check if Powerlevel10k is installed
+if [ -d "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k" ]; then
+    echo "Powerlevel10k theme is already installed."
+else
+    echo "Installing Powerlevel10k theme..."
+    cd $HOME/terminal-profile
+    $HOME/terminal-profile/install_profile_ubuntu.sh
+fi
+
+# Set Zsh as the default shell
+if [ "$SHELL" != "$(which zsh)" ]; then
+    echo "Changing the default shell to Zsh..."
+    chsh -s $(which zsh)
+    echo "Shell changed to Zsh. Please log out and log back in to apply the changes."
+else
+    echo "Zsh is already the default shell."
+fi
+
+
