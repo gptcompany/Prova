@@ -36,13 +36,30 @@ else
 fi
 # DISABLE REMOVE VOLUME ON TERMINATION
 InstanceId=$(aws ec2 describe-instances --filters "Name=key-name,Values=$INSTANCE_NAME" --query "Reservations[].Instances[].[InstanceId]" --output text)
-# Assuming there's only one instance ID returned above, otherwise this approach needs adjustment for multiple IDs
-DeviceName=$(aws ec2 describe-instances --instance-ids $InstanceId --query 'Reservations[].Instances[].BlockDeviceMappings[].DeviceName' --output text)
-aws ec2 modify-instance-attribute --instance-id $InstanceId --block-device-mappings "[{\"DeviceName\": \"$DeviceName\",\"Ebs\":{\"DeleteOnTermination\":false}}]"
+
+if [ -z "$InstanceId" ]; then
+    echo "No instances found with key-name: $INSTANCE_NAME"
+    exit 1
+fi
+
+for id in $InstanceId; do
+    echo "Modifying instance: $id"
+    BlockDevices=$(aws ec2 describe-instances --instance-ids $id --query 'Reservations[].Instances[].BlockDeviceMappings[].DeviceName' --output text)
+
+    for device in $BlockDevices; do
+        echo "Setting DeleteOnTermination to false for $device on $id"
+        ModifyResult=$(aws ec2 modify-instance-attribute --instance-id $id --block-device-mappings "[{\"DeviceName\":\"$device\",\"Ebs\":{\"DeleteOnTermination\":false}}]")
+
+        if [ $? -eq 0 ]; then
+            echo "Successfully modified $device on $id"
+        else
+            echo "Failed to modify $device on $id"
+        fi
+    done
+done
+
 # DISABLE UFW
 sudo ufw disable
-# CLONE STATARB
-git clone https://github.com/gptcompany/statarb.git
 # Check if the statarb folder exists and update or clone the repo
 if [ -d "$HOME/statarb" ]; then
     cd $HOME/statarb
@@ -76,7 +93,7 @@ else
 fi
 # INSTALL PACKAGES AND TERMINAL (USING THE SCRIPT)
 sudo chmod +x $HOME/statarb/scripts/install_packages_cc_instance.sh
-$HOME/startarb/scripts/install_packages_cc_instance.sh
+$HOME/statarb/scripts/install_packages_cc_instance.sh
 
 # function to copy from s3 the config files after confirmation of the user
 echo "This will recover standby settings from S3. Do you want to continue? (y/n)"
@@ -84,7 +101,7 @@ read -r confirmation
 
 if [[ $confirmation == "y" || $confirmation == "Y" ]]; then
     sudo chmod +x $HOME/statarb/scripts/recover_standby_settings.sh
-    $HOME/startarb/scripts/recover_standby_settings.sh
+    $HOME/statarb/scripts/recover_standby_settings.sh
 else
     echo "Recovery settings process aborted."
 fi
