@@ -54,7 +54,8 @@ cat <<EOF > $HOME/statarb/scripts/configure_timescaledb.yml
     - name: Ensure TimescaleDB can accept connections
       ansible.builtin.lineinfile:
         path: "{{ pg_data_dir.stdout_lines[0] }}/pg_hba.conf"  # Adjusted to use stdout_lines for cleaner output handling
-        line: "host replication all {{ ansible_default_ipv4.address }}/32 trust"
+        line: "host all all {{ ansible_default_ipv4.address }}/32 trust"
+        line: "local all postgres trust"
         state: present
       notify: reload postgresql
       when: pg_data_dir is succeeded  # Ensures this task runs only if the previous task succeeded

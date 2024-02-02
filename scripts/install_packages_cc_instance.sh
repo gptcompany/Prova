@@ -89,6 +89,7 @@ install_dependencies() {
                 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
                 unzip -o awscliv2.zip
                 sudo ./aws/install --update
+                sudo rm awscliv2.zip
             else
                 echo "AWS CLI is up to date."
             fi
@@ -98,6 +99,7 @@ install_dependencies() {
             curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
             unzip -o awscliv2.zip
             sudo ./aws/install
+            sudo rm awscliv2.zip
         fi
 
         # Check if AWS is configured
@@ -148,6 +150,8 @@ generate_and_cat_ssh_key "ubuntu"
 echo "copy the ssh key in sudo nano ~/.ssh/authorized_keys or sudo vi ~/.ssh/authorized_keys on the machine you want SSH into (main and standby for all users you want connect (ubuntu, ec2-user, postgres))"
 echo "use sudo su - postgres, cd /var/lib/postgresql/.ssh , mkdir -p ./.ssh (if doesn't exist), chmod 700 ./.ssh, echo "" >> authorized_keys , chmod 600 ./authorized_keys"
 echo "use sudo su - barman, mkdir -p ~/.ssh , chmod 700 ~/.ssh , echo "" >> ~/.ssh/authorized_keys , chmod 600 ~/.ssh/authorized_keys "
+echo "On the target servers, configure passwordless sudo for the postgres user for commands that require root privileges."
+echo "run sudo visudo and add: postgres ALL=(ALL) NOPASSWD: ALL  or barman ALL=(ALL) NOPASSWD: ALL"
 # wait for user to confirm that authorized_key are saved before continuing with the script
 read -p "Press Enter once the SSH key is saved in authorized_keys and tried to ssh into users..."
 read -p "Press Enter once again..."
@@ -164,6 +168,8 @@ if [ $? -ne 0 ]; then
     echo "SSH connection failed. Please check your settings."
     read -p "Press Enter once the SSH key is saved in authorized_keys..."
 fi
+echo "ssh ${SSH_USER_POSTGRES}@${STANDBY_IP} add to .pgpass run: sudo nano ~/.pgpass     $LOCAL_IP:5432:postgres:*:password (insert password)   sudo chmod 600 ~/.pgpass"
+echo "ssh ${SSH_USER_POSTGRES}@${TIMESCALEDB_IP} add to .pgpass run: sudo nano ~/.pgpass     $LOCAL_IP:5432:postgres:*:password (insert password)   sudo chmod 600 ~/.pgpass"
 sudo chmod +x $HOME/statarb/scripts/set_cc_ansible.sh 
 $HOME/statarb/scripts/set_cc_ansible.sh  ${TIMESCALEDB_IP} ${STANDBY_IP} ${SSH_USER_POSTGRES}
 sudo su - barman
