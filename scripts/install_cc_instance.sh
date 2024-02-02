@@ -35,25 +35,37 @@ else
     aws configure
 fi
 # DISABLE REMOVE VOLUME ON TERMINATION
-InstanceId=$(aws ec2 describe-instances --filters "Name=key-name,Values=$INSTANCE_NAME" --query "Reservations[].Instances[].[InstanceId]" --output text)
+# Retrieve Instance IDs based on a specific tag value
+InstanceIds=$(aws ec2 describe-instances \
+    --filters "Name=tag:Name,Values=$INSTANCE_NAME" \
+    --query "Reservations[*].Instances[*].InstanceId" \
+    --output text)
 
-if [ -z "$InstanceId" ]; then
-    echo "No instances found with key-name: $INSTANCE_NAME"
-    exit 1
+if [ -z "$InstanceIds" ]; then
+    echo "No instances found with the Name tag value: $INSTANCE_NAME"
 fi
 
-for id in $InstanceId; do
-    echo "Modifying instance: $id"
-    BlockDevices=$(aws ec2 describe-instances --instance-ids $id --query 'Reservations[].Instances[].BlockDeviceMappings[].DeviceName' --output text)
-
-    for device in $BlockDevices; do
-        echo "Setting DeleteOnTermination to false for $device on $id"
-        ModifyResult=$(aws ec2 modify-instance-attribute --instance-id $id --block-device-mappings "[{\"DeviceName\":\"$device\",\"Ebs\":{\"DeleteOnTermination\":false}}]")
-
+# Iterate over each Instance ID
+for InstanceId in $InstanceIds; do
+    echo "Processing instance: $InstanceId"
+    
+    # Retrieve Block Device Mappings for the current Instance ID
+    BlockDeviceMappings=$(aws ec2 describe-instances --instance-ids $InstanceId \
+        --query "Reservations[].Instances[].BlockDeviceMappings[].DeviceName" \
+        --output text)
+    
+    # Iterate over each Block Device Mapping
+    for DeviceName in $BlockDeviceMappings; do
+        echo "Setting DeleteOnTermination to false for $DeviceName on $InstanceId"
+        
+        # Modify DeleteOnTermination attribute
+        aws ec2 modify-instance-attribute --instance-id $InstanceId \
+            --block-device-mappings "[{\"DeviceName\": \"$DeviceName\", \"Ebs\": {\"DeleteOnTermination\": false}}]"
+        
         if [ $? -eq 0 ]; then
-            echo "Successfully modified $device on $id"
+            echo "Successfully modified $DeviceName on $InstanceId"
         else
-            echo "Failed to modify $device on $id"
+            echo "Failed to modify $DeviceName on $InstanceId"
         fi
     done
 done
