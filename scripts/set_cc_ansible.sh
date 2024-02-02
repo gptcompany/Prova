@@ -67,4 +67,4 @@ EOF
 echo "Playbook file created at: $HOME/statarb/scripts/configure_timescaledb.yml"
 
 # Execute the Ansible playbook
-ansible-playbook -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_timescaledb.yml
+ansible-playbook -vvv -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_timescaledb.yml
