@@ -63,6 +63,15 @@ cat <<EOF > $HOME/statarb/scripts/configure_timescaledb.yml
 
 EOF
 
+# Create an Ansible configuration file dynamically
+cat <<EOF > $HOME/statarb/scripts/ansible_cc.cfg
+[defaults]
+remote_tmp = /tmp/.ansible/\${USER}/tmp
+EOF
+
+# Adjust playbook execution to use the new ansible.cfg
+export ANSIBLE_CONFIG=$HOME/statarb/scripts/ansible_cc.cfg
+
 # Echo the path of configure_timescaledb.yml for debugging
 echo "Playbook file created at: $HOME/statarb/scripts/configure_timescaledb.yml"
 
