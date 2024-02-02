@@ -1,7 +1,7 @@
 #!/bin/bash
 # AWS settings
-S3_BUCKET="s3://timescaledbinstance"
-$INSTANCE_NAME="clustercontrol"
+S3_BUCKET="s3://standbyinstance"
+
 # Check if AWS CLI is installed and its version
 if aws --version &>/dev/null; then
     echo "AWS CLI is already installed."
@@ -30,11 +30,6 @@ else
     echo "AWS is not configured."
     sudo aws configure
 fi
-# DISABLE REMOVE VOLUME ON TERMINATION
-InstanceId=$(aws ec2 describe-instances --filters "Name=key-name,Values=$INSTANCE_NAME" --query "Reservations[].Instances[].[InstanceId]" --output text)
-# Assuming there's only one instance ID returned above, otherwise this approach needs adjustment for multiple IDs
-DeviceName=$(aws ec2 describe-instances --instance-ids $InstanceId --query 'Reservations[].Instances[].BlockDeviceMappings[].DeviceName' --output text)
-aws ec2 modify-instance-attribute --instance-id $InstanceId --block-device-mappings "[{\"DeviceName\": \"$DeviceName\",\"Ebs\":{\"DeleteOnTermination\":false}}]"
 # DISABLE UFW
 sudo ufw disable
 # CLONE STATARB
@@ -54,9 +49,11 @@ sudo mkswap /swapfile
 sudo swapon /swapfile
 echo '/swapfile swap swap defaults 0 0' | sudo tee -a /etc/fstab
 sudo swapon --show
+
+###########TODO###########################################################
 # INSTALL PACKAGES AND TERMINAL (USING THE SCRIPT)
-sudo chmod +x $HOME/startarb/scripts/install_packages_cc_instance.sh
-$HOME/startarb/scripts/install_packages_cc_instance.sh
+sudo chmod +x $HOME/startarb/scripts/install_packages_standby_instance.sh
+$HOME/startarb/scripts/install_packages_standby_instance.sh
 
 # function to copy from s3 the config files after confirmation of the user
 echo "This will recover standby settings from S3. Do you want to continue? (y/n)"
@@ -68,6 +65,7 @@ if [[ $confirmation == "y" || $confirmation == "Y" ]]; then
 else
     echo "Recovery settings process aborted."
 fi
+
 
 
 

@@ -23,6 +23,8 @@ chmod +x $HOME/terminal-profile/install_terminal_ubuntu.sh
 chmod +x $HOME/terminal-profile/install_profile_ubuntu.sh
 
 # Run the scripts
+cd $HOME/terminal-profile
 $HOME/terminal-profile/install_powerline_ubuntu.sh
 $HOME/terminal-profile/install_terminal_ubuntu.sh
 $HOME/terminal-profile/install_profile_ubuntu.sh
+cd

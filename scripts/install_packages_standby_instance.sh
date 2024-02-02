@@ -1,6 +1,7 @@
 #!/bin/bash
 TIMESCALEDB_IP="57.181.106.64"
 STANDBY_IP="timescaledb.mywire.org"
+CLUSTER_CONTROL_IP="43.207.147.235"
 # User to SSH into TimescaleDB server
 SSH_USER_POSTGRES="postgres"
 # Command to get the IP of the current server
@@ -67,21 +68,7 @@ install_dependencies() {
             sudo aws configure
         fi
         sudo apt-get update && sudo apt-get upgrade -y
-        sudo apt-get install build-essential libpq-dev python3-dev curl wget rsync software-properties-common postgresql postgresql-contrib -y
-        #install cluster controll by several nines and all his dependancies
-        cd
-        curl -L https://severalnines.com/downloads/cmon/install-cc -o install-cc
-        chmod +x install-cc
-        sudo ./install-cc
-        # INSTALL BARMAN
-        sudo apt-get install barman -y
-        # Check if barman user exists, and create if it does not
-        if id "barman" &>/dev/null; then
-            echo "Barman user already exists"
-        else
-            sudo adduser --system --group --home /home/barman barman
-            echo "Barman user created"
-        fi
+        sudo apt-get install build-essential libpq-dev python3-dev curl wget rsync software-properties-common postgresql-contrib -y
     else
         echo "Package manager not supported. Install the packages manually."
     fi
@@ -92,9 +79,9 @@ sudo chmod +x $HOME/statarb/scripts/install_terminal_ubuntu.sh
 $HOME/statarb/scripts/install_terminal_ubuntu.sh
 install_dependencies
 # Generate and display SSH key for postgres
-#generate_and_cat_ssh_key "postgres"
+generate_and_cat_ssh_key "postgres"
 # Generate and display SSH key for barman
-generate_and_cat_ssh_key "barman"
+#generate_and_cat_ssh_key "barman"
 # Generate and display SSH key for barman
 generate_and_cat_ssh_key "ubuntu"
 echo "copy the ssh key in sudo nano ~/.ssh/authorized_keys or sudo vi ~/.ssh/authorized_keys on the machine you want SSH into (main and standby for all users you want connect (ubuntu, ec2-user, postgres))"
@@ -102,37 +89,17 @@ echo "copy the ssh key in sudo nano ~/.ssh/authorized_keys or sudo vi ~/.ssh/aut
 read -p "Press Enter once the SSH key is saved in authorized_keys..."
 read -p "Press Enter once again..."
 # Test SSH connection
-echo "Testing SSH connection to $TIMESCALEDB_IP..."
-ssh -o BatchMode=yes -o ConnectTimeout=5 ${SSH_USER_POSTGRES}@${TIMESCALEDB_IP} "echo 'SSH connection successful'"
+echo "Testing SSH connection to $CLUSTER_CONTROL_IP..."
+ssh -o BatchMode=yes -o ConnectTimeout=5 barman@${CLUSTER_CONTROL_IP} "echo 'SSH connection successful'"
 if [ $? -ne 0 ]; then
     echo "SSH connection failed. Please check your settings."
     read -p "Press Enter once the SSH key is saved in authorized_keys..."
 fi
-# SSH command to append to pg_hba.conf
-SSH_COMMAND="grep -q -F 'host all all ${LOCAL_IP}/32 trust' /etc/postgresql/15/main/pg_hba.conf || echo 'host all all ${LOCAL_IP}/32 trust' | sudo tee -a /etc/postgresql/15/main/pg_hba.conf"
-ssh ${SSH_USER_POSTGRES}@${TIMESCALEDB_IP} "${SSH_COMMAND}"
 
-echo "Testing SSH connection to $STANDBY_IP..."
-ssh -o BatchMode=yes -o ConnectTimeout=5 ${SSH_USER_POSTGRES}@${STANDBY_IP} "echo 'SSH connection successful'"
-if [ $? -ne 0 ]; then
-    echo "SSH connection failed. Please check your settings."
-    read -p "Press Enter once the SSH key is saved in authorized_keys..."
-fi
-# SSH command to append to pg_hba.conf
-SSH_COMMAND="grep -q -F 'host all all ${LOCAL_IP}/32 trust' /etc/postgresql/15/main/pg_hba.conf || echo 'host all all ${LOCAL_IP}/32 trust' | sudo tee -a /etc/postgresql/15/main/pg_hba.conf"
-ssh ${SSH_USER_POSTGRES}@${STANDBY_IP} "${SSH_COMMAND}"
-
-sudo su - barman
-mkdir -p $HOME/.ssh
-chmod 700 $HOME/.ssh
-REMOTE_KEY=$(ssh ${SSH_USER_POSTGRES}@${STANDBY_IP} "cat ~/.ssh/id_rsa.pub")
+REMOTE_KEY=$(ssh barman@${CLUSTER_CONTROL_IP} "cat ~/.ssh/id_rsa.pub")
 # On the local machine, append the key to authorized_keys
 echo "$REMOTE_KEY" >> ~/.ssh/authorized_keys
-REMOTE_KEY=$(ssh ${SSH_USER_POSTGRES}@${TIMESCALEDB_IP} "cat ~/.ssh/id_rsa.pub")
-# On the local machine, append the key to authorized_keys
-echo "$REMOTE_KEY" >> $HOME/.ssh/authorized_keys
 chmod 600 $HOME/.ssh/authorized_keys
-
 sudo su - ubuntu
 
 
