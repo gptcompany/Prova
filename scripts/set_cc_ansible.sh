@@ -40,26 +40,32 @@ cat <<EOF > $HOME/statarb/scripts/configure_timescaledb.yml
 ---
 - name: Configure TimescaleDB Servers
   hosts: timescaledb_servers
-  become: yes
+  become: yes  # This elevates privilege for the entire playbook; adjust as necessary for your environment
+
   tasks:
     - name: Get PostgreSQL data directory
-      ansible.builtin.shell: |
-        psql -t -A -c "SHOW data_directory;"  # Assumes the `postgres` user can run `psql` without password
+      ansible.builtin.command: psql -U postgres -tA -c "SHOW data_directory;"
+      become: yes  # Ensure this task is executed with elevated privileges
+      become_user: postgres  # Specifies the user to become; uses 'sudo' under the hood
       register: pg_data_dir
       changed_when: false
+      ignore_errors: true  # Optionally ignore errors if command execution is not crucial
 
     - name: Ensure TimescaleDB can accept connections
       ansible.builtin.lineinfile:
-        path: "{{ pg_data_dir.stdout }}/pg_hba.conf"
+        path: "{{ pg_data_dir.stdout_lines[0] }}/pg_hba.conf"  # Adjusted to use stdout_lines for cleaner output handling
         line: "host replication all {{ ansible_default_ipv4.address }}/32 trust"
         state: present
       notify: reload postgresql
+      when: pg_data_dir is succeeded  # Ensures this task runs only if the previous task succeeded
 
   handlers:
     - name: reload postgresql
       ansible.builtin.service:
         name: postgresql
         state: reloaded
+      become: yes  # Privilege escalation may be required to restart the service
+
 
 EOF
 
