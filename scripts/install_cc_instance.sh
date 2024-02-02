@@ -1,7 +1,7 @@
 #!/bin/bash
 # AWS settings
 S3_BUCKET="s3://timescaledbinstance"
-$INSTANCE_NAME="clustercontrol"
+INSTANCE_NAME="clustercontrol"
 # Check if AWS CLI is installed and its version
 if aws --version &>/dev/null; then
     echo "AWS CLI is already installed."
@@ -20,10 +20,12 @@ if aws --version &>/dev/null; then
     fi
 else
     echo "AWS CLI is not installed. Installing now..."
-    # Commands to install AWS CLI
+    # Commands to upgrade AWS CLI
+    sudo apt-get install unzip -y
     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
     unzip -o awscliv2.zip
-    sudo ./aws/install
+    sudo ./aws/install --update
+    sudo rm awscliv2.zip
 fi
 # Check if AWS is configured
 if aws configure list; then
@@ -54,7 +56,6 @@ existing_swapfile=$(sudo swapon --show | awk 'NR>1 {print $1}')
 
 if [ -n "$existing_swapfile" ]; then
     echo "An existing swap file $existing_swapfile is already active."
-    exit 1
 else
     # Create a new 2GB swap file
     sudo swapoff -a # Turn off existing swap file
