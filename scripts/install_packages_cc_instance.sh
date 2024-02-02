@@ -3,6 +3,7 @@ TIMESCALEDB_IP="57.181.106.64"
 STANDBY_IP="timescaledb.mywire.org"
 # User to SSH into TimescaleDB server
 SSH_USER_POSTGRES="postgres"
+export TIMESCALEDB_IP STANDBY_IP SSH_USER_POSTGRES
 # Identify the key binary or service to check for ClusterControl's presence.
 CLUSTERCONTROL_BINARY="/usr/bin/cmon"
 CLUSTERCONTROL_SERVICE="cmon" # Adjust the service name based on your setup.
@@ -145,11 +146,13 @@ generate_and_cat_ssh_key "barman"
 # Generate and display SSH key for barman
 generate_and_cat_ssh_key "ubuntu"
 echo "copy the ssh key in sudo nano ~/.ssh/authorized_keys or sudo vi ~/.ssh/authorized_keys on the machine you want SSH into (main and standby for all users you want connect (ubuntu, ec2-user, postgres))"
+echo "use sudo su - postgres, cd /var/lib/postgresql/.ssh , mkdir -p ./.ssh (if doesn't exist), chmod 700 ./.ssh, echo "" >> authorized_keys , chmod 600 ./authorized_keys"
+echo "use sudo su - barman, mkdir -p ~/.ssh , chmod 700 ~/.ssh , echo "" >> ~/.ssh/authorized_keys , chmod 600 ~/.ssh/authorized_keys "
 # wait for user to confirm that authorized_key are saved before continuing with the script
-read -p "Press Enter once the SSH key is saved in authorized_keys..."
+read -p "Press Enter once the SSH key is saved in authorized_keys and tried to ssh into users..."
 read -p "Press Enter once again..."
 # Test SSH connection
-echo "Testing SSH connection to $TIMESCALEDB_IP..."
+echo "Testing SSH connection to ${SSH_USER_POSTGRES}@${TIMESCALEDB_IP}..."
 ssh -o BatchMode=yes -o ConnectTimeout=5 ${SSH_USER_POSTGRES}@${TIMESCALEDB_IP} "echo 'SSH connection successful'"
 if [ $? -ne 0 ]; then
     echo "SSH connection failed. Please check your settings."
@@ -159,7 +162,7 @@ fi
 SSH_COMMAND="grep -q -F 'host all all ${LOCAL_IP}/32 trust' /etc/postgresql/15/main/pg_hba.conf || echo 'host all all ${LOCAL_IP}/32 trust' | sudo tee -a /etc/postgresql/15/main/pg_hba.conf"
 ssh ${SSH_USER_POSTGRES}@${TIMESCALEDB_IP} "${SSH_COMMAND}"
 
-echo "Testing SSH connection to $STANDBY_IP..."
+echo "Testing SSH connection to ${SSH_USER_POSTGRES}@${STANDBY_IP}..."
 ssh -o BatchMode=yes -o ConnectTimeout=5 ${SSH_USER_POSTGRES}@${STANDBY_IP} "echo 'SSH connection successful'"
 if [ $? -ne 0 ]; then
     echo "SSH connection failed. Please check your settings."

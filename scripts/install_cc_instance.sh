@@ -105,7 +105,7 @@ else
         echo "Failed to create and activate the swap file."
     fi
 fi
-# INSTALL PACKAGES AND TERMINAL (USING THE SCRIPT)
+# INSTALL PACKAGES AND TERMINAL (USING THE SCRIPT WILL CHECK IF ALREADY INSTALLED)
 sudo chmod +x $HOME/statarb/scripts/install_packages_cc_instance.sh
 $HOME/statarb/scripts/install_packages_cc_instance.sh
 
