@@ -162,7 +162,7 @@ cat <<EOF > $HOME/statarb/scripts/configure_ssh_all.yml
   tasks:
     - name: Check if SSH key exists for custom user
       ansible.builtin.stat:
-        path: "{{ hostvars[inventory_hostname].custom_home }}/ssh/id_rsa.pub"
+        path: "{{ hostvars[inventory_hostname].custom_home }}/.ssh/id_rsa.pub"
       register: ssh_key_check
       become: yes
       become_user: "{{ hostvars[inventory_hostname].custom_user }}"
