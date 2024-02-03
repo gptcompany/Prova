@@ -152,10 +152,82 @@ cat <<EOF > $HOME/statarb/scripts/configure_sshd.yml
 EOF
 # Echo the path of configure_sshd.yml for debugging
 echo "Playbook file created at: $HOME/statarb/scripts/configure_sshd.yml"
+
+# Create the Ansible playbook file dynamically
+cat <<EOF > $HOME/statarb/scripts/configure_ssh_all.yml
+---
+- name: Setup SSH Keys and Access
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Check if SSH key exists for custom user
+      ansible.builtin.stat:
+        path: "{{ hostvars[inventory_hostname].custom_home }}/ssh/id_rsa.pub"
+      register: ssh_key_check
+      become: yes
+      become_user: "{{ hostvars[inventory_hostname].custom_user }}"
+
+    - name: Generate SSH key for custom user
+      ansible.builtin.user:
+        name: "{{ hostvars[inventory_hostname].custom_user }}"
+        generate_ssh_key: yes
+        ssh_key_bits: 2048
+        home: "{{ hostvars[inventory_hostname].custom_home }}"
+      when: ssh_key_check.stat.exists == false
+      become: yes
+
+    - name: Fetch the public key from custom user
+      ansible.builtin.fetch:
+        src: "{{ hostvars[inventory_hostname].custom_home }}/.ssh/id_rsa.pub"
+        dest: "./keys/{{ inventory_hostname }}_ssh_key.pub"
+        flat: yes
+      become: yes
+      become_user: "{{ hostvars[inventory_hostname].custom_user }}"
+      when: ssh_key_check.stat.exists == true or ansible_check_mode
+
+    - name: Ensure .ssh directory exists for custom user
+      ansible.builtin.file:
+        path: "{{ hostvars[inventory_hostname].custom_home }}/.ssh"
+        state: directory
+        mode: '0700'
+        owner: "{{ hostvars[inventory_hostname].custom_user }}"
+        group: "{{ hostvars[inventory_hostname].custom_user }}"
+      become: yes
+
+    - name: Set up SSH authorized_keys for the custom user
+      ansible.builtin.authorized_key:
+        user: "{{ item.custom_user }}"
+        key: "{{ lookup('file', './keys/' + item.host + '_ssh_key.pub') }}"
+        manage_dir: no
+      loop: "{{ query('inventory_hostnames', 'all') }}"
+      loop_control:
+        loop_var: item
+      when: item != inventory_hostname
+      become: yes
+      vars:
+        item:
+          host: "{{ inventory_hostname }}"
+          custom_user: "{{ hostvars[inventory_hostname].custom_user }}"
+
+EOF
+# Echo the path of configure_sshd.yml for debugging
+echo "Playbook file created at: $HOME/statarb/scripts/configure_ssh_all.yml"
+
+
+# Create keys directory if it doesn't exist
+KEYS_DIR="$HOME/statarb/scripts/keys"
+if [ ! -d "$KEYS_DIR" ]; then
+    echo "Creating $KEYS_DIR directory for SSH keys..."
+    mkdir -p "$KEYS_DIR"
+fi
+
+# Proceed to execute Ansible playbooks
+echo "Executing Ansible playbooks..."
 # Execute the Ansible playbook for sshd
 ansible-playbook -vvv -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_sshd.yml
 
-
+# Execute the Ansible playbook for ssh
+ansible-playbook -vvv -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_ssh_all.yml
 
 
 # Execute the Ansible playbook for pg_hba
