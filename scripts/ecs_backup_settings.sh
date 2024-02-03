@@ -19,13 +19,13 @@ DATE=$(date +%F)
 
 # Files and Directories to Backup
 declare -a PATHS_TO_BACKUP=(
-    '/config_cf.yaml'
-    '/etc/barman.conf'
-    '/home/barman/.ssh'
+    '/home/ec2-user/config_cf.yaml'
     '/home/ec2-user/.ssh'
-    '/home/postgres/.ssh'
     '/etc/ssh/sshd_config'
-    '/etc/ssh/sshd_config'
+    '/home/ec2-user/.zshrc'
+    '/home/ec2-user/.p10k.zsh'
+    '/home/ec2-user/.zprofile'
+
 )
 
 # Function to Upload a File or Directory to S3

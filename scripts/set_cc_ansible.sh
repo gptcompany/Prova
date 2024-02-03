@@ -135,6 +135,13 @@ cat <<EOF > $HOME/statarb/scripts/configure_sshd.yml
       # Add more settings here as required
 
   tasks:
+    - name: Backup SSHD configuration
+        ansible.builtin.copy:
+          src: /etc/ssh/sshd_config
+          dest: /etc/ssh/sshd_config.bak
+        register: backup_result
+        ignore_errors: yes  # Ignore errors if backup already exists
+
     - name: Ensure SSHD settings are configured
       ansible.builtin.lineinfile:
         path: "{{ sshd_config_path }}"
@@ -149,7 +156,20 @@ cat <<EOF > $HOME/statarb/scripts/configure_sshd.yml
       ansible.builtin.service:
         name: sshd
         state: reloaded
+
+    - name: Restore SSHD configuration (on failure)
+      ansible.builtin.copy:
+        src: /etc/ssh/sshd_config.bak
+        dest: /etc/ssh/sshd_config
+      when: backup_result.failed
 EOF
+
+##################################################TODO:
+# Implement a fail-safe mechanism within the Ansible playbook.
+
+#     You can use Ansible's built-in conditional statements to check if the SSH configuration changes are successful.
+#     If the changes are not successful, you can use Ansible to revert the SSHD configuration to its previous state.
+
 # Echo the path of configure_sshd.yml for debugging
 echo "Playbook file created at: $HOME/statarb/scripts/configure_sshd.yml"
 
@@ -210,6 +230,22 @@ cat <<EOF > $HOME/statarb/scripts/configure_ssh_all.yml
           custom_user: "{{ hostvars[inventory_hostname].custom_user }}"
 
 EOF
+###########################################TODO:
+# user barman from CLUSTERCONTROL_IP to ssh into postgres user in TIMESCALEDB_IP
+# user barman from CLUSTERCONTROL_IP to ssh into postgres user in STANDBY_IP
+# user postgres from STANDBY_IP to ssh into barman user in CLUSTERCONTROL_IP
+# user postgres from TIMESCALEDB_IP to ssh into barman user in CLUSTERCONTROL_IP
+# user ubuntu from TIMESCALEDB_IP to ssh into ubuntu user in STANDBY_IP, CLUSTERCONTROL_IP
+# user ubuntu from STANDBY_IP to ssh into ubuntu user in TIMESCALEDB_IP, CLUSTERCONTROL_IP
+# user ubuntu from CLUSTERCONTROL_IP to ssh into ubuntu in TIMESCALEDB_IP, STANDBY_IP
+# user ec2-user from ECS_INSTANCE_IP to ssh into ubuntu in TIMESCALEDB_IP, CLUSTERCONTROL_IP, STANDBY_IP
+# users ubuntu from TIMESCALEDB_IP, CLUSTERCONTROL_IP, STANDBY_IP to ssh into ec2-user ECS_INSTANCE_IP
+
+# STANDBY_IP
+# TIMESCALEDB_IP
+# CLUSTERCONTROL_IP
+# ECS_INSTANCE_IP
+
 # Echo the path of configure_sshd.yml for debugging
 echo "Playbook file created at: $HOME/statarb/scripts/configure_ssh_all.yml"
 
@@ -220,11 +256,39 @@ if [ ! -d "$KEYS_DIR" ]; then
     echo "Creating $KEYS_DIR directory for SSH keys..."
     mkdir -p "$KEYS_DIR"
 fi
+# Backup sshd_config before making changes
+SSHD_CONFIG="/etc/ssh/sshd_config"
+SSHD_CONFIG_BACKUP="/etc/ssh/sshd_config.backup.$(date +%F-%H-%M-%S)"
+if [ -f "$SSHD_CONFIG" ]; then
+    echo "Backing up SSHD configuration to $SSHD_CONFIG_BACKUP"
+    sudo cp $SSHD_CONFIG $SSHD_CONFIG_BACKUP
+else
+    echo "SSHD configuration file not found."
+    exit 1
+fi
+# Set LogLevel to DEBUG3 for detailed SSHD logs
+sudo sed -i 's/^#LogLevel INFO/LogLevel DEBUG3/' $SSHD_CONFIG
+# Ensure SSHD is reloaded to apply temporary log level change
+sudo systemctl reload sshd
 
 # Proceed to execute Ansible playbooks
 echo "Executing Ansible playbooks..."
 # Execute the Ansible playbook for sshd
 ansible-playbook -vv -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_sshd.yml -e 'ansible_ssh_common_args="-o StrictHostKeyChecking=no"'
+# Implement a fail-safe mechanism: Wait for user confirmation to keep changes
+echo "Please confirm SSH configuration works by typing 'confirm':"
+read -t 300 confirmation  # Wait for 5 minutes
+if [ "$confirmation" != "confirm" ]; then
+    echo "Confirmation not received, reverting SSHD configuration..."
+    sudo mv $SSHD_CONFIG_BACKUP $SSHD_CONFIG
+    sudo systemctl reload sshd
+    echo "SSHD configuration reverted."
+else
+    echo "Confirmation received, changes kept."
+    # Optionally revert LogLevel to INFO after confirmation
+    sudo sed -i 's/^LogLevel DEBUG3/#LogLevel INFO/' $SSHD_CONFIG
+    sudo systemctl reload sshd
+fi
 
 # Execute the Ansible playbook for ssh
 ansible-playbook -vv -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_ssh_all.yml -e 'ansible_ssh_common_args="-o StrictHostKeyChecking=no"'
