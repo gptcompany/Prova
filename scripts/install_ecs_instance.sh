@@ -39,7 +39,6 @@ else
     aws configure
 fi
 
-# DISABLE REMOVE VOLUME ON TERMINATION
 # Retrieve Instance IDs based on a specific tag value
 InstanceIds=$(aws ec2 describe-instances \
     --filters "Name=tag:Name,Values=$INSTANCE_NAME" \
@@ -55,26 +54,36 @@ for InstanceId in $InstanceIds; do
     echo "Processing instance: $InstanceId"
     
     # Retrieve Block Device Mappings for the current Instance ID
-    BlockDeviceMappings=$(aws ec2 describe-instances --instance-ids $InstanceId \
-        --query "Reservations[].Instances[].BlockDeviceMappings[].DeviceName" \
-        --output text)
-    
+    BlockDeviceMappings=$(aws ec2 describe-instance-attribute --instance-id $InstanceId \
+        --attribute blockDeviceMapping --query "BlockDeviceMappings" \
+        --output json)
+
     # Iterate over each Block Device Mapping
-    for DeviceName in $BlockDeviceMappings; do
-        echo "Setting DeleteOnTermination to false for $DeviceName on $InstanceId"
+    for Device in $(echo "$BlockDeviceMappings" | grep -oP '"DeviceName":.*?[^\\]",'| sed 's/"DeviceName": "//' | sed 's/",//'); do
+        DeviceName=$(echo "$Device")
         
-        # Modify DeleteOnTermination attribute
-        aws ec2 modify-instance-attribute --instance-id $InstanceId \
-            --block-device-mappings "[{\"DeviceName\": \"$DeviceName\", \"Ebs\": {\"DeleteOnTermination\": false}}]"
+        # Check if DeleteOnTermination is already set to false
+        DeleteOnTermination=$(aws ec2 describe-instance-attribute --instance-id $InstanceId \
+            --attribute blockDeviceMapping --query "BlockDeviceMappings[?DeviceName=='$DeviceName'].Ebs.DeleteOnTermination" \
+            --output text)
         
-        if [ $? -eq 0 ]; then
-            echo "Successfully modified $DeviceName on $InstanceId"
+        if [ "$DeleteOnTermination" == "False" ]; then
+            echo "DeleteOnTermination is already set to false for $DeviceName on $InstanceId"
         else
-            echo "Failed to modify $DeviceName on $InstanceId"
+            echo "Setting DeleteOnTermination to false for $DeviceName on $InstanceId"
+            
+            # Modify DeleteOnTermination attribute
+            aws ec2 modify-instance-attribute --instance-id $InstanceId \
+                --block-device-mappings "[{\"DeviceName\": \"$DeviceName\", \"Ebs\": {\"DeleteOnTermination\": false}}]"
+            
+            if [ $? -eq 0 ]; then
+                echo "Successfully modified $DeviceName on $InstanceId"
+            else
+                echo "Failed to modify $DeviceName on $InstanceId"
+            fi
         fi
     done
 done
-
 # DISABLE UFW
 sudo ufw disable
 # Check if the statarb folder exists and update or clone the repo
@@ -114,7 +123,7 @@ fi
 sudo chmod +x $HOME/statarb/scripts/install_packages_ecs_instance.sh
 $HOME/statarb/scripts/install_packages_ecs_instance.sh
 
-function to copy from s3 the config files after confirmation of the user
+#function to copy from s3 the config files after confirmation of the user
 echo "This will recover standby settings from S3. Do you want to continue? (y/n)"
 read -r confirmation
 

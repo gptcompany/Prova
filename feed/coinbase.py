@@ -12,6 +12,7 @@ import asyncio
 import logging
 from Custom_Coinbase import CustomCoinbase
 import sys
+import os
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
 async def trade(t, receipt_timestamp):
@@ -36,7 +37,12 @@ async def aio_task():
         await asyncio.sleep(1)
 def main():
     
-    path_to_config = '/config_cf.yaml'
+    # Safely get the home directory, with a fallback if HOME is not set
+    home_directory = os.environ.get('HOME', '')
+    if not home_directory:
+        logger.error('The HOME environment variable is not set.')
+    path_to_config = os.path.join(home_directory, 'config_cf.yaml')
+    #logger.info(f'Using config at {path_to_config}')
     fh = FeedHandler(config=path_to_config)
     #symbols = fh.config.config['cb_symbols']
     symbols = ['BTC-USDT','ETH-BTC']

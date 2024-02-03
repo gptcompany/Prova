@@ -9,6 +9,7 @@ from decimal import Decimal
 import asyncio
 import logging
 import sys
+import os
 from datetime import datetime, timezone
 from redis import asyncio as aioredis
 from Custom_Redis import CustomBookRedis, CustomTradeRedis, CustomBookStream, CustomLiquidationsRedis, CustomOpenInterestRedis, CustomFundingRedis
@@ -86,7 +87,12 @@ custom_columns_liquidations= {
 }
 def main():
     logger.info('Starting binance feed')
-    path_to_config = '/config_cf.yaml'
+    # Safely get the home directory, with a fallback if HOME is not set
+    home_directory = os.environ.get('HOME', '')
+    if not home_directory:
+        logger.error('The HOME environment variable is not set.')
+    path_to_config = os.path.join(home_directory, 'config_cf.yaml')
+    #logger.info(f'Using config at {path_to_config}')
     snapshot_interval = 10000
     ttl=3600
     try:

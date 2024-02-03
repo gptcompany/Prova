@@ -19,6 +19,7 @@ DATE=$(date +%F)
 
 # Files and Directories to Backup
 declare -a PATHS_TO_BACKUP=(
+    '/config_cf.yaml'
     '/etc/barman.conf'
     '/home/barman/.ssh'
     '/home/ec2-user/.ssh'

@@ -43,10 +43,29 @@ else
     $HOME/terminal-profile/install_profile_linux.sh
 fi
 
+
+# Set Zsh as the default shell
+current_user=$(whoami)
 # Set Zsh as the default shell
 if [ "$SHELL" != "$(which zsh)" ]; then
-    echo "Changing the default shell to Zsh..."
-    chsh -s $(which zsh)
+
+    # Attempt to change the default shell using chsh
+    if command -v chsh &>/dev/null; then
+        sudo chsh -s $(which zsh) "$current_user"
+        if [ $? -eq 0 ]; then
+            echo "Shell changed to Zsh using chsh."
+        else
+            echo "chsh command failed, falling back to usermod..."
+            sudo usermod -s $(which zsh) "$current_user"
+            echo "Shell changed to Zsh using usermod."
+        fi
+    else
+        echo "chsh command not found. Falling back to usermod..."
+        sudo usermod -s $(which zsh) "$current_user"
+        echo "Shell changed to Zsh using usermod."
+    fi
+
+    echo "Zsh setup and configuration completed."
     echo "Shell changed to Zsh. Please log out and log back in to apply the changes."
 else
     echo "Zsh is already the default shell."
