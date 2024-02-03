@@ -114,16 +114,16 @@ fi
 sudo chmod +x $HOME/statarb/scripts/install_packages_ecs_instance.sh
 $HOME/statarb/scripts/install_packages_ecs_instance.sh
 
-# function to copy from s3 the config files after confirmation of the user
-# echo "This will recover standby settings from S3. Do you want to continue? (y/n)"
-# read -r confirmation
+function to copy from s3 the config files after confirmation of the user
+echo "This will recover standby settings from S3. Do you want to continue? (y/n)"
+read -r confirmation
 
-# if [[ $confirmation == "y" || $confirmation == "Y" ]]; then
-#     sudo chmod +x $HOME/statarb/scripts/recover_standby_settings.sh
-#     $HOME/statarb/scripts/recover_standby_settings.sh
-# else
-#     echo "Recovery settings process aborted."
-# fi
+if [[ $confirmation == "y" || $confirmation == "Y" ]]; then
+    sudo chmod +x $HOME/statarb/scripts/recover_ecs_settings.sh 
+    $HOME/statarb/scripts/recover_ecs_settings.sh "$S3_BUCKET"
+else
+    echo "Recovery settings process aborted."
+fi
 
 
 
