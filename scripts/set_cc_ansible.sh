@@ -224,13 +224,13 @@ fi
 # Proceed to execute Ansible playbooks
 echo "Executing Ansible playbooks..."
 # Execute the Ansible playbook for sshd
-ansible-playbook -vvv -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_sshd.yml
+ansible-playbook -vv -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_sshd.yml
 
 # Execute the Ansible playbook for ssh
-ansible-playbook -vvv -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_ssh_all.yml
+ansible-playbook -vv -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_ssh_all.yml
 
 
 # Execute the Ansible playbook for pg_hba
-ansible-playbook -vvv -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_timescaledb.yml
+ansible-playbook -vv -i $HOME/statarb/scripts/hosts.ini $HOME/statarb/scripts/configure_timescaledb.yml
 
 
