@@ -125,14 +125,17 @@ cat <<EOF > $HOME/statarb/scripts/configure_sshd.yml
       - { regex: "^ListenAddress ", line: "ListenAddress 0.0.0.0" }
       - { regex: "^PubkeyAuthentication ", line: "PubkeyAuthentication yes" }
       - { regex: "^PasswordAuthentication ", line: "PasswordAuthentication no" }
-      - { regex: "^PermitEmptyPasswords ", line: "PermitEmptyPasswords yes" }
       - { regex: "^ClientAliveInterval ", line: "ClientAliveInterval 60" }
       - { regex: "^ClientAliveCountMax ", line: "ClientAliveCountMax 120" }
-      - { regex: "^UsePAM ", line: "UsePAM yes" }
       - { regex: "^X11Forwarding ", line: "X11Forwarding yes" }
       - { regex: "^PrintMotd ", line: "PrintMotd no" }
-      - { regex: "^Subsystem sftp", line: "Subsystem       sftp    /usr/libexec/openssh/sftp-server" }
-      # Add more settings here as required
+      - { regex: "^AcceptEnv ", line: "AcceptEnv LANG LC_*" }
+      - { regex: "^Subsystem sftp", line: "Subsystem       sftp    /usr/lib/openssh/sftp-server" }
+      - { regex: "^KbdInteractiveAuthentication ", line: "KbdInteractiveAuthentication no" }
+      - { regex: "^UsePAM ", line: "UsePAM yes" }
+      - { regex: "^AuthorizedKeysFile ", line: "AuthorizedKeysFile      .ssh/authorized_keys .ssh/authorized_keys2" }
+      - { regex: "^AllowAgentForwarding ", line: "AllowAgentForwarding yes" }
+
 
   tasks:
     - name: Backup SSHD configuration

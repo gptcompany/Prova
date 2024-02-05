@@ -110,7 +110,9 @@ install_dependencies() {
             sudo aws configure
         fi
         sudo apt-get update && sudo apt-get upgrade -y
-        sudo apt-get install build-essential libpq-dev python3-dev curl wget rsync software-properties-common postgresql postgresql-contrib -y
+        sudo apt-get install build-essential libpq-dev python3-dev curl wget rsync software-properties-common postgresql postgresql-contrib npm -y
+        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt-get install -y nodejs
+        sudo npm install n8n -g
         # INSTALL BARMAN
         sudo apt-get install barman -y
         # Check if barman user exists, and create if it does not
