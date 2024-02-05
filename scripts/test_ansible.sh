@@ -101,10 +101,15 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Check if SSH public key exists for ubuntu user
-      stat:
-        path: "/home/ubuntu/.ssh/id_rsa.pub"
-      register: ssh_pub_key
+    - name: Setup SSH Key for ubuntu User Locally
+      hosts: localhost
+      gather_facts: no
+      tasks:
+        - name: Check if SSH public key exists for ubuntu user
+          stat:
+            path: "{{ lookup('env', 'HOME') }}/.ssh/id_rsa.pub"
+          register: ssh_pub_key
+
 
     - name: Generate SSH key for ubuntu user if not exists
       user:
@@ -143,8 +148,9 @@ cat <<EOF > $HOME/timescaledb_inventory.yml
 all:
   vars:
     ansible_user: ubuntu
-    ansible_ssh_private_key_file: "{{ ansible_env.HOME }}/retrieved_key.pem"
+    ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') }}/retrieved_key.pem"
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
   children:
     timescaledb_servers:
       hosts:
