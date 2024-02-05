@@ -94,36 +94,34 @@ cat <<EOF > $HOME/configure_barman_on_cc.yml
         - 'ubuntu ALL=(ALL) NOPASSWD: ALL'
 EOF
 
-# Generate Ansible playbook for sudoers
+# Create the playbook to modify sudoers
 cat <<EOF > $HOME/modify_sudoers.yml
 ---
 - name: Update sudoers for ubuntu and postgres users
   hosts: all
   gather_facts: no
   become: yes
-  
   tasks:
     - name: Ensure ubuntu user can run all commands without a password
-      ansible.builtin.lineinfile:
+      lineinfile:
         path: /etc/sudoers.d/ubuntu
         line: 'ubuntu ALL=(ALL) NOPASSWD: ALL'
         create: yes
         mode: '0440'
         validate: '/usr/sbin/visudo -cf %s'
-
     - name: Ensure postgres user has necessary sudo privileges
-      ansible.builtin.lineinfile:
+      lineinfile:
         path: /etc/sudoers.d/postgres
-        line: 'postgres ALL=(ALL) NOPASSWD: ALL'  # Adjust as needed for security
+        line: 'postgres ALL=(ALL) NOPASSWD: ALL'
         create: yes
         mode: '0440'
         validate: '/usr/sbin/visudo -cf %s'
-
 EOF
-# Generate Ansible playbook for SSH setup
+
+# Create the playbook for SSH setup
 cat <<EOF > $HOME/configure_ssh_from_cc.yml
 ---
-- name: Setup SSH Key for ubuntu User Locally
+- name: Setup SSH Key for ubuntu User Locally and Authorize on Servers
   hosts: localhost
   gather_facts: no
   tasks:
@@ -131,33 +129,12 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       stat:
         path: "{{ lookup('env', 'HOME') }}/.ssh/id_rsa.pub"
       register: ssh_pub_key
-
     - name: Generate SSH key for ubuntu user if not exists
       user:
         name: ubuntu
         generate_ssh_key: yes
         ssh_key_file: "{{ lookup('env', 'HOME') }}/.ssh/id_rsa"
       when: ssh_pub_key.stat.exists == false
-
-- name: Setup SSH Access for ubuntu User on TimescaleDB Servers
-  hosts: timescaledb_servers
-  gather_facts: no
-  vars:
-    ansible_user: ubuntu
-    ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/retrieved_key.pem"
-    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
-  tasks:
-    - name: Fetch the public key of ubuntu user
-      slurp:
-        src: "{{ lookup('env','HOME') }}/.ssh/id_rsa.pub"
-      register: ubuntu_ssh_pub_key
-      delegate_to: localhost
-
-    - name: Ensure ubuntu user can SSH into each server without a password
-      authorized_key:
-        user: ubuntu
-        state: present
-        key: "{{ ubuntu_ssh_pub_key.content | b64decode }}"
 
 - name: Authorize Barman's SSH Key for Postgres User on Remote Servers
   hosts: timescaledb_servers
@@ -173,32 +150,13 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       delegate_to: "localhost"
       become: true
       become_user: "barman"
-  # tasks:
-  #   - name: Fetch Barman's public SSH key
-  #     slurp:
-  #       src: "/home/barman/.ssh/id_rsa.pub"
-  #     register: barman_ssh_pub_key
-  #     delegate_to: localhost
-  #     become: true
-  #     become_user: barman
-
     - name: "Ensure Postgres user can SSH into each server without a password"
       shell: "echo '{{ barman_ssh_pub_key.stdout }}' >> ~postgres/.ssh/authorized_keys"
       become: true
       become_user: "postgres"
-
-    # - name: Ensure Postgres user can SSH into each server without a password
-    #   authorized_key:
-    #     user: postgres
-    #     state: present
-    #     key: "{{ barman_ssh_pub_key.content | b64decode }}"
-    #   become: true  # You might need to adjust this depending on the permissions of the ansible user
-
 EOF
 
-echo "Playbooks created: configure_barman_on_cc.yml and configure_ssh_from_cc.yml"
-
-# Generate Ansible inventory
+# Generate the Ansible inventory
 cat <<EOF > $HOME/timescaledb_inventory.yml
 ---
 all:
@@ -206,16 +164,16 @@ all:
     ansible_user: ubuntu
     ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') }}/retrieved_key.pem"
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
-
   children:
     timescaledb_servers:
       hosts:
         $STANDBY_PUBLIC_IP: {}
         $TIMESCALEDB_PRIVATE_IP: {}
 EOF
-echo "Proceed with running Ansible playbooks as needed."
 
+echo "Playbooks created. Proceed with running Ansible playbooks as needed."
 
+# Execute playbooks
 ansible-playbook $HOME/configure_barman_on_cc.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
