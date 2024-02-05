@@ -39,26 +39,29 @@ cat <<EOF > $HOME/configure_barman_on_cc.yml
     timescaledb_vpc_ip: "$TIMESCALEDB_VPC_IP"
 
   tasks:
-    - name: Ensure barman is installed
-      block:
-        - name: Check if barman user exists
-          command: id barman
-          register: barman_user
-          ignore_errors: yes
+    - name: Check if barman user exists
+      command: id barman
+      register: barman_user
+      ignore_errors: yes
 
-        - name: Install barman
-          apt:
-            name: barman
-            state: present
-          when: barman_user.rc != 0
+    - name: Install barman
+      apt:
+        name: barman
+        state: present
+      when: barman_user.rc != 0
 
-        - name: Ensure barman user exists
-          user:
-            name: barman
-            system: yes
-            create_home: yes
-          when: barman_user.rc != 0
-          
+    - name: Ensure barman user exists
+      user:
+        name: barman
+        system: yes
+        create_home: yes
+      when: barman_user.rc != 0
+
+    - name: Check for existing SSH public key for barman user
+      stat:
+        path: "/home/barman/.ssh/id_rsa.pub"
+      register: ssh_key_stat
+
     - name: Ensure .ssh directory exists for barman user
       file:
         path: "/home/barman/.ssh"
@@ -66,19 +69,14 @@ cat <<EOF > $HOME/configure_barman_on_cc.yml
         owner: barman
         group: barman
         mode: '0700'
-      when: not ssh_key_stat.stat.exists
-
-    - name: Check for existing SSH public key for barman user
-      stat:
-        path: "/home/barman/.ssh/id_rsa.pub"
-      register: ssh_key_stat
+      when: barman_user.rc != 0
 
     - name: Generate SSH key for barman user if not exists
       user:
         name: barman
         generate_ssh_key: yes
         ssh_key_file: "/home/barman/.ssh/id_rsa"
-      when: ssh_key_stat.stat.exists == false
+      when: ssh_key_stat.stat.exists == false and barman_user.rc != 0
 
     - name: Ensure barman and ubuntu have no password in sudoers
       lineinfile:
