@@ -133,6 +133,28 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         state: present
         key: "{{ ubuntu_ssh_pub_key.content | b64decode }}"
 
+- name: Authorize Barman's SSH Key for Postgres User on Remote Servers
+  hosts: timescaledb_servers
+  gather_facts: no
+  vars:
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/retrieved_key.pem"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+  tasks:
+    - name: Fetch Barman's public SSH key
+      slurp:
+        src: "/home/barman/.ssh/id_rsa.pub"
+      register: barman_ssh_pub_key
+      delegate_to: localhost
+      become: true
+      become_user: barman
+
+    - name: Ensure Postgres user can SSH into each server without a password
+      authorized_key:
+        user: postgres
+        state: present
+        key: "{{ barman_ssh_pub_key.content | b64decode }}"
+      become: true  # You might need to adjust this depending on the permissions of the ansible user
 
 EOF
 
