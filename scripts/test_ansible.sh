@@ -50,36 +50,35 @@ cat <<EOF > $HOME/configure_barman_on_cc.yml
           apt:
             name: barman
             state: present
-          when: barman_user is failed
+          when: barman_user.rc != 0
 
         - name: Ensure barman user exists
           user:
             name: barman
             system: yes
             create_home: yes
-          when: barman_user is failed
+          when: barman_user.rc != 0
 
     - name: Check for existing SSH public key for barman user
-      ansible.builtin.command: sudo -u barman stat /home/barman/.ssh/id_rsa.pub
+      stat:
+        path: "/home/barman/.ssh/id_rsa.pub"
       register: ssh_key_stat
-      ignore_errors: yes
-      check_mode: false
 
     - name: Generate SSH key for barman user if not exists
       user:
         name: barman
         generate_ssh_key: yes
         ssh_key_file: "/home/barman/.ssh/id_rsa"
-      when: not ssh_key_stat.stat.exists
-      become: true
-      become_user: barman
+      when: ssh_key_stat.stat.exists == false
 
-    - name: Ensure barman and ubuntu has no password in sudoers
+    - name: Ensure barman and ubuntu have no password in sudoers
       lineinfile:
         path: /etc/sudoers
-        line: 'barman ALL=(ALL) NOPASSWD: ALL'
-        line: 'ubuntu ALL=(ALL) NOPASSWD: ALL'
+        line: "{{ item }}"
         validate: '/usr/sbin/visudo -cf %s'
+      loop:
+        - 'barman ALL=(ALL) NOPASSWD: ALL'
+        - 'ubuntu ALL=(ALL) NOPASSWD: ALL'
 EOF
 
 # Generate Ansible playbook for SSH setup
@@ -97,24 +96,18 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       stat:
         path: "/home/ubuntu/.ssh/id_rsa.pub"
       register: ssh_pub_key
-      become: true
-      become_user: ubuntu
 
     - name: Generate SSH key for ubuntu user if not exists
       user:
         name: ubuntu
         generate_ssh_key: yes
         ssh_key_file: "/home/ubuntu/.ssh/id_rsa"
-      when: not ssh_pub_key.stat.exists
-      become: true
-      become_user: ubuntu
+      when: ssh_pub_key.stat.exists == false
 
     - name: Fetch the public key
       slurp:
         src: "/home/ubuntu/.ssh/id_rsa.pub"
       register: ubuntu_ssh_pub_key
-      become: true
-      become_user: ubuntu
 
     - name: Ensure ubuntu user can SSH into TIMESCALEDB_VPC_IP
       authorized_key:
@@ -129,7 +122,6 @@ EOF
 
 echo "Playbooks created: configure_barman_on_cc.yml and configure_ssh_from_cc.yml"
 echo "Proceed with running Ansible playbooks as needed."
-
 
 ansible-playbook $HOME/configure_barman_on_cc.yml
 ansible-playbook $HOME/configure_ssh_from_cc.yml
