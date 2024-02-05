@@ -60,11 +60,10 @@ cat <<EOF > $HOME/configure_barman_on_cc.yml
           when: barman_user is failed
 
     - name: Check for existing SSH public key for barman user
-      stat:
-        path: "/home/barman/.ssh/id_rsa.pub"
+      ansible.builtin.command: sudo -u barman stat /home/barman/.ssh/id_rsa.pub
       register: ssh_key_stat
-      become: true
-      become_user: barman
+      ignore_errors: yes
+      check_mode: false
 
     - name: Generate SSH key for barman user if not exists
       user:
@@ -75,10 +74,11 @@ cat <<EOF > $HOME/configure_barman_on_cc.yml
       become: true
       become_user: barman
 
-    - name: Ensure barman has no password in sudoers
+    - name: Ensure barman and ubuntu has no password in sudoers
       lineinfile:
         path: /etc/sudoers
         line: 'barman ALL=(ALL) NOPASSWD: ALL'
+        line: 'ubuntu ALL=(ALL) NOPASSWD: ALL'
         validate: '/usr/sbin/visudo -cf %s'
 EOF
 
