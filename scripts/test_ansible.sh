@@ -94,6 +94,32 @@ cat <<EOF > $HOME/configure_barman_on_cc.yml
         - 'ubuntu ALL=(ALL) NOPASSWD: ALL'
 EOF
 
+# Generate Ansible playbook for sudoers
+cat <<EOF > $HOME/modify_sudoers.yml
+---
+- name: Update sudoers for ubuntu and postgres users
+  hosts: all
+  gather_facts: no
+  become: yes
+  
+  tasks:
+    - name: Ensure ubuntu user can run all commands without a password
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers.d/ubuntu
+        line: 'ubuntu ALL=(ALL) NOPASSWD: ALL'
+        create: yes
+        mode: '0440'
+        validate: '/usr/sbin/visudo -cf %s'
+
+    - name: Ensure postgres user has necessary sudo privileges
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers.d/postgres
+        line: 'postgres ALL=(ALL) NOPASSWD: ALL'  # Adjust as needed for security
+        create: yes
+        mode: '0440'
+        validate: '/usr/sbin/visudo -cf %s'
+
+EOF
 # Generate Ansible playbook for SSH setup
 cat <<EOF > $HOME/configure_ssh_from_cc.yml
 ---
@@ -179,4 +205,5 @@ echo "Proceed with running Ansible playbooks as needed."
 
 
 ansible-playbook $HOME/configure_barman_on_cc.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
