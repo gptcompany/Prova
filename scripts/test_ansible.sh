@@ -58,6 +58,15 @@ cat <<EOF > $HOME/configure_barman_on_cc.yml
             system: yes
             create_home: yes
           when: barman_user.rc != 0
+          
+    - name: Ensure .ssh directory exists for barman user
+      file:
+        path: "/home/barman/.ssh"
+        state: directory
+        owner: barman
+        group: barman
+        mode: '0700'
+      when: not ssh_key_stat.stat.exists
 
     - name: Check for existing SSH public key for barman user
       stat:
