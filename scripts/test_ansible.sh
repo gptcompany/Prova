@@ -101,21 +101,16 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Setup SSH Key for ubuntu User Locally
-      hosts: localhost
-      gather_facts: no
-      tasks:
-        - name: Check if SSH public key exists for ubuntu user
-          stat:
-            path: "{{ lookup('env', 'HOME') }}/.ssh/id_rsa.pub"
-          register: ssh_pub_key
-
+    - name: Check if SSH public key exists for ubuntu user
+      stat:
+        path: "{{ lookup('env', 'HOME') }}/.ssh/id_rsa.pub"
+      register: ssh_pub_key
 
     - name: Generate SSH key for ubuntu user if not exists
       user:
         name: ubuntu
         generate_ssh_key: yes
-        ssh_key_file: "/home/ubuntu/.ssh/id_rsa"
+        ssh_key_file: "{{ lookup('env', 'HOME') }}/.ssh/id_rsa"
       when: ssh_pub_key.stat.exists == false
 
 - name: Setup SSH Access for ubuntu User on TimescaleDB Servers
@@ -137,6 +132,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         user: ubuntu
         state: present
         key: "{{ ubuntu_ssh_pub_key.content | b64decode }}"
+
 
 EOF
 
