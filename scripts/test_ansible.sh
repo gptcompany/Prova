@@ -29,7 +29,7 @@ else
     exit 1
 fi
 
-# Create the Ansible playbook for configuring barman
+# Generate Ansible playbook for configuring barman
 cat <<EOF > $HOME/configure_barman_on_cc.yml
 ---
 - name: Setup Barman for TimescaleDB Backup
@@ -39,23 +39,25 @@ cat <<EOF > $HOME/configure_barman_on_cc.yml
     timescaledb_vpc_ip: "$TIMESCALEDB_VPC_IP"
 
   tasks:
-    - name: Check if barman user exists
-      command: id barman
-      register: barman_user
-      ignore_errors: yes
+    - name: Ensure barman is installed
+      block:
+        - name: Check if barman user exists
+          command: id barman
+          register: barman_user
+          ignore_errors: yes
 
-    - name: Install barman
-      apt:
-        name: barman
-        state: present
-      when: barman_user is failed
+        - name: Install barman
+          apt:
+            name: barman
+            state: present
+          when: barman_user is failed
 
-    - name: Ensure barman user exists
-      user:
-        name: barman
-        system: yes
-        create_home: yes
-      when: barman_user is failed
+        - name: Ensure barman user exists
+          user:
+            name: barman
+            system: yes
+            create_home: yes
+          when: barman_user is failed
 
     - name: Check for existing SSH public key for barman user
       stat:
@@ -80,7 +82,7 @@ cat <<EOF > $HOME/configure_barman_on_cc.yml
         validate: '/usr/sbin/visudo -cf %s'
 EOF
 
-# Create the Ansible playbook for SSH setup
+# Generate Ansible playbook for SSH setup
 cat <<EOF > $HOME/configure_ssh_from_cc.yml
 ---
 - name: Setup SSH Access for ubuntu User
@@ -88,7 +90,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
   become: yes
   vars:
     timescaledb_vpc_ip: "$TIMESCALEDB_VPC_IP"
-    ansible_ssh_private_key_file: "$HOME/retrieved_key.pem"
+    retrieved_key_path: "$HOME/retrieved_key.pem"
 
   tasks:
     - name: Check if SSH public key exists for ubuntu user
@@ -122,10 +124,8 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       delegate_to: "{{ timescaledb_vpc_ip }}"
       vars:
         ansible_user: ubuntu
-        ansible_ssh_private_key_file: "{{ ansible_ssh_private_key_file }}"
+        ansible_ssh_private_key_file: "{{ retrieved_key_path }}"
 EOF
 
 echo "Playbooks created: configure_barman_on_cc.yml and configure_ssh_from_cc.yml"
 echo "Proceed with running Ansible playbooks as needed."
-ansible-playbook -vv $HOME/configure_barman_on_cc.yml
-ansible-playbook -vv $HOME/configure_ssh_from_cc.yml
