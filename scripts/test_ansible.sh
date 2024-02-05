@@ -129,3 +129,7 @@ EOF
 
 echo "Playbooks created: configure_barman_on_cc.yml and configure_ssh_from_cc.yml"
 echo "Proceed with running Ansible playbooks as needed."
+
+
+ansible-playbook $HOME/configure_barman_on_cc.yml
+ansible-playbook $HOME/configure_ssh_from_cc.yml
