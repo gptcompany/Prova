@@ -261,11 +261,11 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       ignore_errors: yes
 
     - name: Ensure postgres user exists
-          user:
-            name: postgres
-            system: yes
-            create_home: no
-          when: postgres_user.rc != 0
+      user:
+        name: postgres
+        system: yes
+        create_home: no
+      when: postgres_user.rc != 0
 
     - name: Check for existing SSH public key for postgres user
       stat:
