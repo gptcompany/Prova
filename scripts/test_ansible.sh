@@ -359,23 +359,48 @@ echo "Playbooks created. Proceed with running Ansible playbooks as needed."
 # Generate the Ansible playbook
 cat <<EOF > $HOME/check_ssh.yml
 ---
-- name: Check SSH connectivity from TimescaleDB to ClusterControl for postgres user
+- name: Check SSH connectivity within VPC for TimescaleDB to ClusterControl
   hosts: timescaledb_servers
   vars:
-    clustercontrol_private_ip: $TIMESCALEDB_PRIVATE_IP
+    clustercontrol_private_ip: "172.31.32.75"
   tasks:
-    - name: Check SSH connectivity to ClusterControl as barman
+    - name: Check SSH connectivity to ClusterControl as barman (internal)
       command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no barman@{{ clustercontrol_private_ip }} echo 'SSH to ClusterControl as barman successful'
+      when: "'172.31.' in inventory_hostname"
       delegate_to: "{{ inventory_hostname }}"
       become: true
       become_user: postgres
       ignore_errors: true
-      register: ssh_check
-    - name: Show SSH check result
+      register: ssh_check_internal
+    - name: Show SSH check result (internal)
       debug:
-        var: ssh_check.stdout_lines
+        var: ssh_check_internal.stdout_lines
+      when: "'172.31.' in inventory_hostname"
 
-- name: Check SSH connectivity from ClusterControl to TimescaleDB for barman user
+    - name: Inform about external SSH check skip
+      debug:
+        msg: "Skipping SSH check for {{ inventory_hostname }} to ClusterControl internal IP, as it's expected to be inaccessible from external networks."
+      when: "'172.31.' not in inventory_hostname"
+
+
+- name: Check SSH connectivity over Internet for Standby to ClusterControl
+  hosts: timescaledb_servers
+  vars:
+    clustercontrol_public_ip: "43.207.147.235" # Assuming this is the variable's correct value
+  tasks:
+    - name: Check SSH connectivity to ClusterControl as barman (external)
+      command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no barman@{{ clustercontrol_public_ip }} echo 'SSH to ClusterControl as barman successful'
+      when: inventory_hostname == "timescaledb.mywire.org"
+      delegate_to: "{{ inventory_hostname }}"
+      become: true
+      become_user: postgres
+      ignore_errors: true
+      register: ssh_check_external
+    - name: Show SSH check result (external)
+      debug:
+        var: ssh_check_external.stdout_lines
+
+- name: Check SSH connectivity from user barman in ClusterControl to TimescaleDB servers as postgres users
   hosts: localhost
   vars:
     timescaledb_servers:
