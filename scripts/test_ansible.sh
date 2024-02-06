@@ -227,9 +227,9 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       set_fact:
         barman_ssh_key: "{{ barman_ssh_key_slurped['content'] | b64decode }}"
 
-    - name: Debug barman_ssh_key
-      debug:
-        var: barman_ssh_key
+    # - name: Debug barman_ssh_key
+    #   debug:
+    #     var: barman_ssh_key
 
 - name: Debug - Show barman_ssh_key
   hosts: localhost
@@ -238,6 +238,13 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
     - name: Debug barman_ssh_key
       debug:
         var: barman_ssh_key
+
+- name: Use variable on other hosts DEBUG
+  hosts: timescaledb_servers
+  tasks:
+    - name: Use barman_ssh_key
+      debug:
+        msg: "Using SSH Key: {{ hostvars['localhost']['barman_ssh_key'] }}"
 
 - name: Authorize Barman's SSH Key for Postgres User on Remote Servers
   hosts: timescaledb_servers
@@ -250,7 +257,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
     - name: "Ensure Postgres user can SSH into each server without a password"
       authorized_key:
         user: postgres
-        key: "{{ barman_ssh_key }}"
+        key: "{{ hostvars['localhost']['barman_ssh_key'] }}" #"{{ barman_ssh_key }}"
         state: present
 
 
