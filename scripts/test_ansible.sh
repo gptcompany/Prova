@@ -199,10 +199,21 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       ansible.builtin.command:
         cmd: setfacl -m u:ubuntu:r /var/lib/barman/.ssh/id_rsa.pub
 
-    - name: Check read /var/lib/barman/.ssh/id_rsa.pub
-      ansible.builtin.command:
-        cmd: sudo -u ubuntu test -r /var/lib/barman/.ssh/id_rsa.pub && echo "ubuntu can read the file" || echo "ubuntu cannot read the file"
+- name: Check read /var/lib/barman/.ssh/id_rsa.pub
+  hosts: localhost
+  gather_facts: no
+  ansible.builtin.shell:
+    cmd: test -r /var/lib/barman/.ssh/id_rsa.pub && echo "ubuntu can read the file" || echo "ubuntu cannot read the file"
+  become: yes
+  become_user: ubuntu
+  register: check_read
+  ignore_errors: true
 
+- name: Show read test result
+  hosts: localhost
+  gather_facts: no
+  debug:
+    var: check_read.stdout
 
 - name: Slurp Barman's SSH public key and decode
   hosts: localhost
@@ -220,7 +231,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
     - name: Debug barman_ssh_key
       debug:
         var: barman_ssh_key
-        
+
 - name: Debug - Show barman_ssh_key
   hosts: localhost
   gather_facts: no
