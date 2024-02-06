@@ -172,11 +172,17 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Get Barman's SSH public key
-      shell: cat /home/barman/.ssh/id_rsa.pub
-      register: barman_ssh_key
-      ignore_errors: no
-      changed_when: false
+    - name: Slurp Barman's SSH public key
+      ansible.builtin.slurp:
+        src: /home/barman/.ssh/id_rsa.pub
+      register: barman_ssh_key_slurped
+      become: yes
+      become_user: barman
+
+    - name: Decode and store Barman's SSH public key
+      set_fact:
+        barman_ssh_key: "{{ barman_ssh_key_slurped['content'] | b64decode }}"
+
 
 - name: Authorize Barman's SSH Key for Postgres User on Remote Servers
   hosts: timescaledb_servers
