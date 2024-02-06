@@ -169,15 +169,15 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         key: "{{ ubuntu_ssh_pub_key.content | b64decode }}"
 
 - name: Ensure SSH public key is readable by all
-  ansible.builtin.file:
-    path: /home/barman/.ssh/id_rsa.pub
+  file:
+    path: /var/lib/barman/.ssh/id_rsa.pub
     mode: '0644'
   become: yes
   become_user: root
 
 - name: Slurp Barman's SSH public key
   ansible.builtin.slurp:
-    src: /home/barman/.ssh/id_rsa.pub
+    src: "{{ lookup('env','HOME') }}/.ssh/id_rsa.pub
   register: barman_ssh_key_slurped
 
 - name: Decode and store Barman's SSH public key
