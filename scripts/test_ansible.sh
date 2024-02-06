@@ -177,7 +177,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
 
 - name: Slurp Barman's SSH public key
   ansible.builtin.slurp:
-    src: "{{ lookup('env','HOME') }}/.ssh/id_rsa.pub
+    src: "{{ lookup('env','HOME') }}"/.ssh/id_rsa.pub
   register: barman_ssh_key_slurped
 
 - name: Decode and store Barman's SSH public key
