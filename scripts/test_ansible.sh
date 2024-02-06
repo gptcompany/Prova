@@ -201,19 +201,18 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
 
 - name: Check read /var/lib/barman/.ssh/id_rsa.pub
   hosts: localhost
-  gather_facts: no
-  ansible.builtin.shell:
-    cmd: test -r /var/lib/barman/.ssh/id_rsa.pub && echo "ubuntu can read the file" || echo "ubuntu cannot read the file"
-  become: yes
+  become: true
   become_user: ubuntu
-  register: check_read
-  ignore_errors: true
+  tasks:
+    - name: Test read access to Barman's SSH public key
+      ansible.builtin.shell:
+        cmd: test -r /var/lib/barman/.ssh/id_rsa.pub && echo "ubuntu can read the file" || echo "ubuntu cannot read the file"
+      register: read_test_result
+      ignore_errors: true
 
-- name: Show read test result
-  hosts: localhost
-  gather_facts: no
-  debug:
-    var: check_read.stdout
+    - name: Show test result
+      ansible.builtin.debug:
+        var: read_test_result.stdout
 
 - name: Slurp Barman's SSH public key and decode
   hosts: localhost
