@@ -286,7 +286,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         name: postgres
         generate_ssh_key: yes
         ssh_key_file: "/var/lib/postgresql/.ssh/id_rsa"
-      when: ssh_key_postgres.stat.exists == false and postgres_user.rc != 0
+      when: ssh_key_postgres.stat.exists == false
 
 - name: Ensure SSH public key and related directories are properly accessible on TimescaleDB servers
   hosts: timescaledb_servers
@@ -356,8 +356,47 @@ EOF
 
 echo "Playbooks created. Proceed with running Ansible playbooks as needed."
 
+# Generate the Ansible playbook
+cat <<EOF > $HOME/check_ssh.yml
+---
+- name: Check SSH connectivity from TimescaleDB to ClusterControl for postgres user
+  hosts: timescaledb_servers
+  vars:
+    clustercontrol_private_ip: $TIMESCALEDB_PRIVATE_IP
+  tasks:
+    - name: Check SSH connectivity to ClusterControl as barman
+      command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no barman@{{ clustercontrol_private_ip }} echo 'SSH to ClusterControl as barman successful'
+      delegate_to: "{{ inventory_hostname }}"
+      become: true
+      become_user: postgres
+      ignore_errors: true
+      register: ssh_check
+    - name: Show SSH check result
+      debug:
+        var: ssh_check.stdout_lines
+
+- name: Check SSH connectivity from ClusterControl to TimescaleDB for barman user
+  hosts: localhost
+  vars:
+    timescaledb_servers:
+      - $TIMESCALEDB_PRIVATE_IP
+      - $STANDBY_PUBLIC_IP
+  tasks:
+    - name: Check SSH connectivity to TimescaleDB as postgres
+      command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no postgres@{{ item }} echo 'SSH to TimescaleDB as postgres successful'
+      loop: "{{ timescaledb_servers }}"
+      become: true
+      become_user: barman
+      ignore_errors: true
+      register: ssh_check
+    - name: Show SSH check result
+      debug:
+        msg: "{{ item.item }}: {{ item.stdout }}"
+      loop: "{{ ssh_check.results }}"
+EOF
 # Execute playbooks
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
 ansible-playbook $HOME/configure_barman_on_cc.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
