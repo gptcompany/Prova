@@ -179,14 +179,19 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         mode: '0644'
 
 
-- name: Slurp Barman's SSH public key
-  ansible.builtin.slurp:
-    src: "{{ lookup('env','HOME') }}/.ssh/id_rsa.pub"
-  register: barman_ssh_key_slurped
+- name: Slurp Barman's SSH public key and decode
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Slurp Barman's SSH public key
+      ansible.builtin.slurp:
+        src: /var/lib/barman/.ssh/id_rsa.pub
+      register: barman_ssh_key_slurped
 
-- name: Decode and store Barman's SSH public key
-  set_fact:
-    barman_ssh_key: "{{ barman_ssh_key_slurped['content'] | b64decode }}"
+    - name: Decode and store Barman's SSH public key
+      set_fact:
+        barman_ssh_key: "{{ barman_ssh_key_slurped['content'] | b64decode }}"
+
 
 
 - name: Authorize Barman's SSH Key for Postgres User on Remote Servers
