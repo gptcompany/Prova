@@ -54,6 +54,17 @@ ecs_instance ansible_host=$ECS_INSTANCE_IP ansible_user=ec2-user ansible_ssh_pri
 clustercontrol_instance ansible_host=$CLUSTERCONTROL_IP ansible_user=ubuntu ansible_ssh_private_key_file=$HOME/retrieved_key.pem custom_user=barman custom_home=/home/barman
 EOF
 
+cat <<EOF > $HOME/statarb/scripts/vpc_hosts.ini
+[timescaledb_servers_vpc]
+timescaledb_primary ansible_host=$TIMESCALEDB_IP ansible_user=ubuntu ansible_ssh_private_key_file=$HOME/retrieved_key.pem custom_home=/var/lib/postgresql custom_user=$SSH_USER_POSTGRES
+timescaledb_standby ansible_host=$STANDBY_IP ansible_user=ubuntu ansible_ssh_private_key_file=$HOME/retrieved_key.pem custom_home=/var/lib/postgresql custom_user=$SSH_USER_POSTGRES
+
+[ecs_vpc]
+ecs_instance ansible_host=$ECS_INSTANCE_IP ansible_user=ec2-user ansible_ssh_private_key_file=$HOME/retrieved_key.pem custom_user=postgres custom_home=/var/lib/postgresql
+
+[clustercontrol_vpc]
+clustercontrol_instance ansible_host=$CLUSTERCONTROL_IP ansible_user=ubuntu ansible_ssh_private_key_file=$HOME/retrieved_key.pem custom_user=barman custom_home=/home/barman
+EOF
 # Echo the path of hosts.ini for debugging
 echo "Inventory file created at: $HOME/statarb/scripts/hosts.ini"
 
@@ -234,13 +245,16 @@ cat <<EOF > $HOME/statarb/scripts/configure_ssh_all.yml
 
 EOF
 ###########################################TODO:
-# user barman from CLUSTERCONTROL_IP to ssh into postgres user in TIMESCALEDB_IP
-# user barman from CLUSTERCONTROL_IP to ssh into postgres user in STANDBY_IP
+
+# user barman from CLUSTERCONTROL_IP to ssh into postgres user in STANDBY_PUBLIC_IP, TIMESCALEDB_PRIVATE_IP ????????????
+
 # user postgres from STANDBY_IP to ssh into barman user in CLUSTERCONTROL_IP
 # user postgres from TIMESCALEDB_IP to ssh into barman user in CLUSTERCONTROL_IP
 # user ubuntu from TIMESCALEDB_IP to ssh into ubuntu user in STANDBY_IP, CLUSTERCONTROL_IP
 # user ubuntu from STANDBY_IP to ssh into ubuntu user in TIMESCALEDB_IP, CLUSTERCONTROL_IP
-# user ubuntu from CLUSTERCONTROL_IP to ssh into ubuntu in TIMESCALEDB_IP, STANDBY_IP
+
+# user ubuntu from CLUSTERCONTROL_IP to ssh into ubuntu in TIMESCALEDB_PRIVATE_IP, STANDBY_PUBLIC_IP      OK********************
+
 # user ec2-user from ECS_INSTANCE_IP to ssh into ubuntu in TIMESCALEDB_IP, CLUSTERCONTROL_IP, STANDBY_IP
 # users ubuntu from TIMESCALEDB_IP, CLUSTERCONTROL_IP, STANDBY_IP to ssh into ec2-user ECS_INSTANCE_IP
 

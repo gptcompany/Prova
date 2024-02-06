@@ -281,7 +281,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         mode: '0644'
       when: postgres_user.rc != 0
 
-    - name: Generate SSH key for postgres user if not exists
+    - name: Generate SSH key for postgres user if not exists #############################WHY IS SKIPPED!????????????
       user:
         name: postgres
         generate_ssh_key: yes
