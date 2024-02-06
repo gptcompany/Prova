@@ -217,10 +217,17 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       set_fact:
         barman_ssh_key: "{{ barman_ssh_key_slurped['content'] | b64decode }}"
 
-- name: Debug barman_ssh_key
-  debug:
-    var: barman_ssh_key
-
+    - name: Debug barman_ssh_key
+      debug:
+        var: barman_ssh_key
+        
+- name: Debug - Show barman_ssh_key
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Debug barman_ssh_key
+      debug:
+        var: barman_ssh_key
 
 - name: Authorize Barman's SSH Key for Postgres User on Remote Servers
   hosts: timescaledb_servers
