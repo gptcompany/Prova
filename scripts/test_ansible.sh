@@ -168,7 +168,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         state: present
         key: "{{ ubuntu_ssh_pub_key.content | b64decode }}"
 
--- name: Ensure SSH public key is readable by all
+- name: Ensure SSH public key is readable by all
   hosts: localhost
   gather_facts: no
   become: yes
