@@ -144,16 +144,16 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
     ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/retrieved_key.pem"
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
   tasks:
-    - name: "Fetch Barman's public SSH key"
-      command: "cat /home/barman/.ssh/id_rsa.pub"
+    - name: "Fetch Barman's public SSH key directly using a shell command"
+      ansible.builtin.shell: "sudo -u barman cat /home/barman/.ssh/id_rsa.pub"
       register: barman_ssh_pub_key
-      delegate_to: "localhost"
-      become: true
-      become_user: "barman"
+      changed_when: false
+
     - name: "Ensure Postgres user can SSH into each server without a password"
-      shell: "echo '{{ barman_ssh_pub_key.stdout }}' >> ~postgres/.ssh/authorized_keys"
-      become: true
-      become_user: "postgres"
+      ansible.builtin.shell: |
+        sudo -u postgres bash -c "echo '{{ barman_ssh_pub_key.stdout }}' >> /var/lib/postgresql/.ssh/authorized_keys"
+      changed_when: false
+
 EOF
 
 # Generate the Ansible inventory
