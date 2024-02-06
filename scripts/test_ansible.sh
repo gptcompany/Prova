@@ -80,28 +80,28 @@ cat <<EOF > $HOME/configure_barman_on_cc.yml
       user:
         name: barman
         system: yes
-        create_home: yes
+        create_home: no
       when: barman_user.rc != 0
 
     - name: Check for existing SSH public key for barman user
       stat:
-        path: "/home/barman/.ssh/id_rsa.pub"
+        path: "/var/lib/barman/.ssh/id_rsa.pub"
       register: ssh_key_stat
 
     - name: Ensure .ssh directory exists for barman user
       file:
-        path: "/home/barman/.ssh"
+        path: "/var/lib/barman/.ssh"
         state: directory
         owner: barman
         group: barman
-        mode: '0700'
+        mode: '0644'
       when: barman_user.rc != 0
 
     - name: Generate SSH key for barman user if not exists
       user:
         name: barman
         generate_ssh_key: yes
-        ssh_key_file: "/home/barman/.ssh/id_rsa"
+        ssh_key_file: "/var/lib/barman/.ssh/id_rsa"
       when: ssh_key_stat.stat.exists == false and barman_user.rc != 0
 
     - name: Ensure barman and ubuntu have no password in sudoers
@@ -237,20 +237,88 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
     #   debug:
     #     var: barman_ssh_key
 
-- name: Debug - Show barman_ssh_key
-  hosts: localhost
-  gather_facts: no
-  tasks:
-    - name: Debug barman_ssh_key
-      debug:
-        var: barman_ssh_key
+# - name: Debug - Show barman_ssh_key
+#   hosts: localhost
+#   gather_facts: no
+#   tasks:
+#     - name: Debug barman_ssh_key
+#       debug:
+#         var: barman_ssh_key
 
-- name: Use variable on other hosts DEBUG
+# - name: Use variable on other hosts DEBUG
+#   hosts: timescaledb_servers
+#   tasks:
+#     - name: Use barman_ssh_key
+#       debug:
+#         msg: "Using SSH Key: {{ hostvars['localhost']['barman_ssh_key'] }}"
+- name: Setup postgres on timescaledb servers
   hosts: timescaledb_servers
+  become: yes
   tasks:
-    - name: Use barman_ssh_key
+    - name: Check if postgres user exists
+      command: id postgres
+      register: postgres_user
+      ignore_errors: yes
+
+    - name: Ensure postgres user exists
+          user:
+            name: postgres
+            system: yes
+            create_home: no
+          when: postgres_user.rc != 0
+
+    - name: Check for existing SSH public key for postgres user
+      stat:
+        path: "/var/lib/postgresql/.ssh/id_rsa.pub"
+      register: ssh_key_stat
+
+    - name: Ensure .ssh directory exists for barman user
+      file:
+        path: "/var/lib/postgresql/.ssh"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0644'
+      when: postgres_user.rc != 0
+
+    - name: Generate SSH key for barman user if not exists
+      user:
+        name: postgres
+        generate_ssh_key: yes
+        ssh_key_file: "/var/lib/postgresql/.ssh/id_rsa"
+      when: ssh_key_stat.stat.exists == false and postgres_user.rc != 0
+
+- name: Ensure SSH public key and related directories are properly accessible on TimescaleDB servers
+  hosts: timescaledb_servers
+  gather_facts: no
+  become: yes
+  become_user: root
+  tasks:
+    - name: Set file permissions for id_rsa.pub for postgres user
+      file:
+        path: /var/lib/postgresql/.ssh/id_rsa.pub
+        mode: '0644'
+
+    - name: Set ACL for ubuntu user on /var/lib/postgresql
+      ansible.builtin.command:
+        cmd: setfacl -m u:ubuntu:rx /var/lib/postgresql
+
+    - name: Set ACL for ubuntu user on /var/lib/postgresql/.ssh
+      ansible.builtin.command:
+        cmd: setfacl -m u:ubuntu:rx /var/lib/postgresql/.ssh
+
+    - name: Set ACL for ubuntu user on /var/lib/postgresql/.ssh/id_rsa.pub
+      ansible.builtin.command:
+        cmd: setfacl -m u:ubuntu:r /var/lib/postgresql/.ssh/id_rsa.pub
+
+    - name: Verify /var/lib/postgresql/.ssh/id_rsa.pub permissions
+      ansible.builtin.command:
+        cmd: getfacl /var/lib/postgresql/.ssh/id_rsa.pub
+      register: acl_check
+
+    - name: Show ACL settings for /var/lib/postgresql/.ssh/id_rsa.pub
       debug:
-        msg: "Using SSH Key: {{ hostvars['localhost']['barman_ssh_key'] }}"
+        msg: "{{ acl_check.stdout }}"
 
 - name: Authorize Barman's SSH Key for Postgres User on Remote Servers
   hosts: timescaledb_servers
