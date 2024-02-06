@@ -168,27 +168,28 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         state: present
         key: "{{ ubuntu_ssh_pub_key.content | b64decode }}"
 
-- name: Fetch Barman's SSH Key and Store in Variable
-  hosts: localhost
-  gather_facts: no
-  tasks:
-    - name: Slurp Barman's SSH public key
-      ansible.builtin.slurp:
-        src: /home/barman/.ssh/id_rsa.pub
-      register: barman_ssh_key_slurped
-      become: yes
-      become_user: barman
+- name: Ensure SSH public key is readable by all
+  ansible.builtin.file:
+    path: /home/barman/.ssh/id_rsa.pub
+    mode: '0644'
+  become: yes
+  become_user: root
 
-    - name: Decode and store Barman's SSH public key
-      set_fact:
-        barman_ssh_key: "{{ barman_ssh_key_slurped['content'] | b64decode }}"
+- name: Slurp Barman's SSH public key
+  ansible.builtin.slurp:
+    src: /home/barman/.ssh/id_rsa.pub
+  register: barman_ssh_key_slurped
+
+- name: Decode and store Barman's SSH public key
+  set_fact:
+    barman_ssh_key: "{{ barman_ssh_key_slurped['content'] | b64decode }
 
 
 - name: Authorize Barman's SSH Key for Postgres User on Remote Servers
   hosts: timescaledb_servers
   gather_facts: no
   vars:
-    ansible_user: ubuntu
+    ansible_user: postgres
     ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/retrieved_key.pem"
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
   tasks:
