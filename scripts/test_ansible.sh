@@ -199,6 +199,11 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       ansible.builtin.command:
         cmd: setfacl -m u:ubuntu:r /var/lib/barman/.ssh/id_rsa.pub
 
+    - name: Check read /var/lib/barman/.ssh/id_rsa.pub
+      ansible.builtin.command:
+        cmd: sudo -u ubuntu test -r /var/lib/barman/.ssh/id_rsa.pub && echo "ubuntu can read the file" || echo "ubuntu cannot read the file"
+
+
 - name: Slurp Barman's SSH public key and decode
   hosts: localhost
   gather_facts: no
@@ -212,6 +217,9 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       set_fact:
         barman_ssh_key: "{{ barman_ssh_key_slurped['content'] | b64decode }}"
 
+- name: Debug barman_ssh_key
+  debug:
+    var: barman_ssh_key
 
 
 - name: Authorize Barman's SSH Key for Postgres User on Remote Servers
