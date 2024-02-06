@@ -182,7 +182,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
 
 - name: Decode and store Barman's SSH public key
   set_fact:
-    barman_ssh_key: "{{ barman_ssh_key_slurped['content'] | b64decode }"
+    barman_ssh_key: "{{ barman_ssh_key_slurped['content'] | b64decode }}"
 
 
 - name: Authorize Barman's SSH Key for Postgres User on Remote Servers
