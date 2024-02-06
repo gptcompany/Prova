@@ -196,8 +196,9 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
     - name: "Ensure Postgres user can SSH into each server without a password"
       authorized_key:
         user: postgres
-        key: "{{ hostvars['localhost']['barman_ssh_key']['stdout'] }}"
+        key: "{{ barman_ssh_key }}"
         state: present
+
 
 EOF
 
