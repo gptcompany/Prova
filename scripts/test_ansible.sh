@@ -168,22 +168,34 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         state: present
         key: "{{ ubuntu_ssh_pub_key.content | b64decode }}"
 
-- name: Ensure SSH public key is readable by all
+-- name: Ensure SSH public key is readable by all
   hosts: localhost
   gather_facts: no
   become: yes
   become_user: root
   tasks:
-    - file:
+    - name: Set file permissions for id_rsa.pub
+      file:
         path: /var/lib/barman/.ssh/id_rsa.pub
         mode: '0644'
+    
+    - name: Set ACL for ubuntu user on /var/lib/barman
+      ansible.builtin.command:
+        cmd: setfacl -m u:ubuntu:rx /var/lib/barman
 
+    - name: Set ACL for ubuntu user on /var/lib/barman/.ssh
+      ansible.builtin.command:
+        cmd: setfacl -m u:ubuntu:rx /var/lib/barman/.ssh
+
+    - name: Set ACL for ubuntu user on /var/lib/barman/.ssh/id_rsa.pub
+      ansible.builtin.command:
+        cmd: setfacl -m u:ubuntu:r /var/lib/barman/.ssh/id_rsa.pub
 
 - name: Slurp Barman's SSH public key and decode
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Slurp Barman's SSH public key
+    - name: Slurp Barman's SSH public key ##########################################################
       ansible.builtin.slurp:
         src: /var/lib/barman/.ssh/id_rsa.pub
       register: barman_ssh_key_slurped
