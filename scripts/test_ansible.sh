@@ -189,7 +189,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
   hosts: timescaledb_servers
   gather_facts: no
   vars:
-    ansible_user: postgres
+    ansible_user: ubuntu
     ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/retrieved_key.pem"
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
   tasks:
