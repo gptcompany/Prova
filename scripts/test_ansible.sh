@@ -270,9 +270,9 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
     - name: Check for existing SSH public key for postgres user
       stat:
         path: "/var/lib/postgresql/.ssh/id_rsa.pub"
-      register: ssh_key_stat
+      register: ssh_key_postgres
 
-    - name: Ensure .ssh directory exists for barman user
+    - name: Ensure .ssh directory exists for postgres user
       file:
         path: "/var/lib/postgresql/.ssh"
         state: directory
@@ -281,12 +281,12 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         mode: '0644'
       when: postgres_user.rc != 0
 
-    - name: Generate SSH key for barman user if not exists
+    - name: Generate SSH key for postgres user if not exists
       user:
         name: postgres
         generate_ssh_key: yes
         ssh_key_file: "/var/lib/postgresql/.ssh/id_rsa"
-      when: ssh_key_stat.stat.exists == false and postgres_user.rc != 0
+      when: ssh_key_postgres.stat.exists == false and postgres_user.rc != 0
 
 - name: Ensure SSH public key and related directories are properly accessible on TimescaleDB servers
   hosts: timescaledb_servers
