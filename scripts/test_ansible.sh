@@ -148,6 +148,36 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         ssh_key_file: "{{ lookup('env', 'HOME') }}/.ssh/id_rsa"
       when: ssh_pub_key.stat.exists == false
 
+- name: Setup SSH Access for ubuntu User on TimescaleDB Servers
+  hosts: timescaledb_servers
+  gather_facts: no
+  vars:
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/retrieved_key.pem"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+  tasks:
+    - name: Fetch the public key of ubuntu user
+      slurp:
+        src: "{{ lookup('env','HOME') }}/.ssh/id_rsa.pub"
+      register: ubuntu_ssh_pub_key
+      delegate_to: localhost
+
+    - name: Ensure ubuntu user can SSH into each server without a password
+      authorized_key:
+        user: ubuntu
+        state: present
+        key: "{{ ubuntu_ssh_pub_key.content | b64decode }}"
+
+- name: Fetch Barman's SSH Key and Store in Variable
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Get Barman's SSH public key
+      shell: cat /home/barman/.ssh/id_rsa.pub
+      register: barman_ssh_key
+      ignore_errors: no
+      changed_when: false
+
 - name: Authorize Barman's SSH Key for Postgres User on Remote Servers
   hosts: timescaledb_servers
   gather_facts: no
@@ -156,15 +186,11 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
     ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/retrieved_key.pem"
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
   tasks:
-    - name: "Fetch Barman's public SSH key directly using a shell command"
-      ansible.builtin.shell: "sudo -u barman cat /home/barman/.ssh/id_rsa.pub"
-      register: barman_ssh_pub_key
-      changed_when: false
-
     - name: "Ensure Postgres user can SSH into each server without a password"
-      ansible.builtin.shell: |
-        sudo -u postgres bash -c "echo '{{ barman_ssh_pub_key.stdout }}' >> /var/lib/postgresql/.ssh/authorized_keys"
-      changed_when: false
+      authorized_key:
+        user: postgres
+        key: "{{ hostvars['localhost']['barman_ssh_key']['stdout'] }}"
+        state: present
 
 EOF
 
