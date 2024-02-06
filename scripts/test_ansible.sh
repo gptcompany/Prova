@@ -34,6 +34,18 @@ else
     echo "AWS CLI not found. Please install AWS CLI and configure it."
     exit 1
 fi
+# Generate Ansible playbook for installing acl
+cat <<EOF > $HOME/install_acl.yml
+---
+- name: Install ACL on target machines
+  hosts: all
+  become: yes
+  tasks:
+    - name: Ensure ACL is installed
+      apt:
+        name: acl
+        state: present
+EOF
 
 # Generate Ansible playbook for configuring barman
 cat <<EOF > $HOME/configure_barman_on_cc.yml
@@ -174,6 +186,7 @@ EOF
 echo "Playbooks created. Proceed with running Ansible playbooks as needed."
 
 # Execute playbooks
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
 ansible-playbook $HOME/configure_barman_on_cc.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
