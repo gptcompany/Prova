@@ -199,6 +199,12 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       ansible.builtin.command:
         cmd: setfacl -m u:ubuntu:r /var/lib/barman/.ssh/id_rsa.pub
 
+    - name: Verify /var/lib/barman/.ssh/id_rsa.pub
+      ansible.builtin.command:
+        cmd: getfacl /var/lib/barman/.ssh/id_rsa.pub
+
+
+
 - name: Check read /var/lib/barman/.ssh/id_rsa.pub
   hosts: localhost
   become: true
@@ -259,6 +265,8 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         user: postgres
         key: "{{ hostvars['localhost']['barman_ssh_key'] }}" #"{{ barman_ssh_key }}"
         state: present
+      become: yes
+      become_user: postgres
 
 
 EOF
