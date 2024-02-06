@@ -37,6 +37,14 @@ fi
 # Generate Ansible playbook for installing acl
 cat <<EOF > $HOME/install_acl.yml
 ---
+- name: Install ACL on local machine
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: Ensure ACL is installed
+      apt:
+        name: acl
+        state: present
 - name: Install ACL on target machines
   hosts: all
   become: yes
