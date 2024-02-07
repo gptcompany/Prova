@@ -368,38 +368,38 @@ cat <<EOF > $HOME/timescaledb_inventory.yml
 all:
   vars:
     ansible_user: ubuntu
-    ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') }}/retrieved_key.pem"
+    ansible_ssh_private_key_file: "\${HOME}/retrieved_key.pem"  # This will work because it's in a shell script
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
   children:
     timescaledb_servers:
       hosts:
         timescaledb_private_server:
-          ansible_host: "{{ TIMESCALEDB_PRIVATE_IP }}"
+          ansible_host: "$TIMESCALEDB_PRIVATE_IP"  # Direct shell variable substitution
           role: internal
         timescaledb_public_server:
-          ansible_host: "{{ TIMESCALEDB_PUBLIC_IP }}"
+          ansible_host: "$TIMESCALEDB_PUBLIC_IP"  # Direct shell variable substitution
           role: external
         standby_server:
-          ansible_host: "{{ STANDBY_PUBLIC_IP }}"
+          ansible_host: "$STANDBY_PUBLIC_IP"  # Direct shell variable substitution
           role: external
     clustercontrol:
       hosts:
         clustercontrol_private_server:
-          ansible_host: "{{ CLUSTERCONTROL_PRIVATE_IP }}"
+          ansible_host: "$CLUSTERCONTROL_PRIVATE_IP"  # Direct shell variable substitution
           role: internal
         clustercontrol_public_server:
-          ansible_host: "{{ CLUSTERCONTROL_PUBLIC_IP }}"
+          ansible_host: "$CLUSTERCONTROL_PUBLIC_IP"  # Direct shell variable substitution
           role: external
     ecs:
       hosts:
         ecs_private_server:
-          ansible_host: "{{ ECS_INSTANCE_PRIVATE_IP }}"
+          ansible_host: "$ECS_INSTANCE_PRIVATE_IP"  # Direct shell variable substitution
           role: internal
         ecs_public_server:
-          ansible_host: "{{ ECS_INSTANCE_PUBLIC_IP }}"
+          ansible_host: "$ECS_INSTANCE_PUBLIC_IP"  # Direct shell variable substitution
           role: external
-
 EOF
+
 
     
         
