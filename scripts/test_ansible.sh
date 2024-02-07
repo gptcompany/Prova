@@ -136,6 +136,14 @@ cat <<EOF > $HOME/modify_sudoers.yml
         create: yes
         mode: '0440'
         validate: '/usr/sbin/visudo -cf %s'
+
+    - name: Ensure barman user has necessary sudo privileges
+      lineinfile:
+        path: /etc/sudoers.d/barman
+        line: 'barman ALL=(ALL) NOPASSWD: ALL'
+        create: yes
+        mode: '0440'
+        validate: '/usr/sbin/visudo -cf %s'
 EOF
 
 # Create the playbook for SSH setup
@@ -149,6 +157,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       stat:
         path: "{{ lookup('env', 'HOME') }}/.ssh/id_rsa.pub"
       register: ssh_pub_key
+
     - name: Generate SSH key for ubuntu user if not exists
       user:
         name: ubuntu
@@ -165,16 +174,18 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
   tasks:
     - name: Fetch the public key of ubuntu user
-      slurp:
+      ansible.builtin.slurp:
         src: "{{ lookup('env','HOME') }}/.ssh/id_rsa.pub"
       register: ubuntu_ssh_pub_key
       delegate_to: localhost
 
     - name: Ensure ubuntu user can SSH into each server without a password
-      authorized_key:
-        user: ubuntu
+      ansible.builtin.authorized_key:
+        user: "{{ item }}"
         state: present
         key: "{{ ubuntu_ssh_pub_key.content | b64decode }}"
+      loop: "{{ query('inventory_hostnames', 'all') }}"
+      when: hostvars[item].role == 'internal' or hostvars[item].role == 'external'
 
 - name: Ensure SSH public key is readable by all
   hosts: localhost
@@ -183,48 +194,32 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
   become_user: root
   tasks:
     - name: Set file permissions for id_rsa.pub
-      file:
+      ansible.builtin.file:
         path: /var/lib/barman/.ssh/id_rsa.pub
         mode: '0644'
-    
-    - name: Set ACL for ubuntu user on /var/lib/barman
-      ansible.builtin.command:
-        cmd: setfacl -m u:ubuntu:rx /var/lib/barman
 
-    - name: Set ACL for ubuntu user on /var/lib/barman/.ssh
+    - name: Set ACL for ubuntu user on specific directories
       ansible.builtin.command:
-        cmd: setfacl -m u:ubuntu:rx /var/lib/barman/.ssh
-
-    - name: Set ACL for ubuntu user on /var/lib/barman/.ssh/id_rsa.pub
-      ansible.builtin.command:
-        cmd: setfacl -m u:ubuntu:r /var/lib/barman/.ssh/id_rsa.pub
+        cmd: "setfacl -m u:ubuntu:rx {{ item }}"
+      loop:
+        - /var/lib/barman
+        - /var/lib/barman/.ssh
+        - /var/lib/barman/.ssh/id_rsa.pub
 
     - name: Verify /var/lib/barman/.ssh/id_rsa.pub
       ansible.builtin.command:
-        cmd: getfacl /var/lib/barman/.ssh/id_rsa.pub
+        cmd: "getfacl /var/lib/barman/.ssh/id_rsa.pub"
+      register: acl_check
 
-
-
-- name: Check read /var/lib/barman/.ssh/id_rsa.pub
-  hosts: localhost
-  become: true
-  become_user: ubuntu
-  tasks:
-    - name: Test read access to Barman's SSH public key
-      ansible.builtin.shell:
-        cmd: test -r /var/lib/barman/.ssh/id_rsa.pub && echo "ubuntu can read the file" || echo "ubuntu cannot read the file"
-      register: read_test_result
-      ignore_errors: true
-
-    - name: Show test result
+    - name: Show ACL settings for /var/lib/barman/.ssh/id_rsa.pub
       ansible.builtin.debug:
-        var: read_test_result.stdout
+        msg: "{{ acl_check.stdout }}"
 
 - name: Slurp Barman's SSH public key and decode
   hosts: localhost
   gather_facts: no
   tasks:
-    - name: Slurp Barman's SSH public key ##########################################################
+    - name: Slurp Barman's SSH public key 
       ansible.builtin.slurp:
         src: /var/lib/barman/.ssh/id_rsa.pub
       register: barman_ssh_key_slurped
@@ -253,7 +248,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
 #         msg: "Using SSH Key: {{ hostvars['localhost']['barman_ssh_key'] }}"
 
 
-- name: Setup postgres on timescaledb servers
+- name: Setup user postgres on timescaledb servers
   hosts: timescaledb_servers
   become: yes
   tasks:
@@ -378,9 +373,36 @@ all:
   children:
     timescaledb_servers:
       hosts:
-        $STANDBY_PUBLIC_IP: {}
-        $TIMESCALEDB_PRIVATE_IP: {}
+        timescaledb_private_server:
+          ansible_host: $TIMESCALEDB_PRIVATE_IP
+          role: internal # This is an example variable to categorize the host
+        timescaledb_public_server:
+          ansible_host: $TIMESCALEDB_PUBLIC_IP
+          role: external # This is an example variable to categorize the host
+        standby_server:
+          ansible_host: $STANDBY_PUBLIC_IP
+          role: external
+        
+    clustercontrol:
+      hosts:
+        clustercontrol_private_server:
+          ansible_host: $CLUSTERCONTROL_PRIVATE_IP
+          role: internal
+        clustercontrol_public_server:
+          ansible_host: $CLUSTERCONTROL_PUBLIC_IP
+          role: external
+    ecs:
+      hosts:
+        ecs_private_server:
+          ansible_host: $ECS_INSTANCE_PRIVATE_IP
+            role: internal
+        ecs_public_server:
+          ansible_host: $ECS_INSTANCE_PUBLIC_IP
+            role: external
 EOF
+
+    
+        
 
 echo "Playbooks created. Proceed with running Ansible playbooks as needed."
 
@@ -390,7 +412,7 @@ cat <<EOF > $HOME/check_ssh.yml
 - name: Check SSH connectivity within VPC for TimescaleDB to ClusterControl
   hosts: timescaledb_servers
   vars:
-    clustercontrol_private_ip: "172.31.32.75"
+    clustercontrol_private_ip: $CLUSTERCONTROL_PRIVATE_IP
   tasks:
     - name: Check SSH connectivity to ClusterControl as barman (internal)
       command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no barman@{{ clustercontrol_private_ip }} echo 'SSH to ClusterControl as barman successful'
@@ -414,7 +436,7 @@ cat <<EOF > $HOME/check_ssh.yml
 - name: Check SSH connectivity over Internet for Standby to ClusterControl
   hosts: timescaledb_servers
   vars:
-    clustercontrol_public_ip: "43.207.147.235" # Assuming this is the variable's correct value
+    clustercontrol_public_ip: $CLUSTERCONTROL_PUBLIC_IP
   tasks:
     - name: Check SSH connectivity to ClusterControl as barman (external)
       command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no barman@{{ clustercontrol_public_ip }} echo 'SSH to ClusterControl as barman successful'
@@ -427,6 +449,7 @@ cat <<EOF > $HOME/check_ssh.yml
     - name: Show SSH check result (external)
       debug:
         var: ssh_check_external.stdout_lines
+      when: ssh_check_external is defined and ssh_check_external.stdout_lines is defined
 
 - name: Check SSH connectivity from user barman in ClusterControl to TimescaleDB servers as postgres users
   hosts: localhost
@@ -460,7 +483,7 @@ export ANSIBLE_CONFIG=$HOME/ansible_cc.cfg
 echo "Ansible configuration file created at: $HOME/ansible_cc.cfg"
 # Ensure the temporary directory exists on localhost
 mkdir -p /tmp/ansible/tmp
-chmod 1777 /tmp/ansible/tmp
+chmod 777 /tmp/ansible/tmp
 
 # Playbook to ensure the temporary directory exists on remote hosts
 cat <<EOF > $HOME/ensure_remote_tmp.yml
@@ -473,7 +496,7 @@ cat <<EOF > $HOME/ensure_remote_tmp.yml
       file:
         path: "/tmp/ansible/tmp"
         state: directory
-        mode: '1777'
+        mode: '777'
 EOF
 
 # Execute the playbook
