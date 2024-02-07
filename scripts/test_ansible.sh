@@ -188,11 +188,10 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
 
     - name: Ensure ubuntu user can SSH into each server without a password
       ansible.builtin.authorized_key:
-        user: "{{ item }}"
+        user: "{{ ansible_user }}"
         state: present
         key: "{{ ubuntu_ssh_pub_key.content | b64decode }}"
-      loop: "{{ query('inventory_hostnames', 'all') }}"
-      when: hostvars[item].role == 'internal' or hostvars[item].role == 'external'
+
 
 - name: Ensure SSH public key is readable by all
   hosts: localhost
