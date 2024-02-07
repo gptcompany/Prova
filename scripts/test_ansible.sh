@@ -251,6 +251,8 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
 #     - name: Use barman_ssh_key
 #       debug:
 #         msg: "Using SSH Key: {{ hostvars['localhost']['barman_ssh_key'] }}"
+
+
 - name: Setup postgres on timescaledb servers
   hosts: timescaledb_servers
   become: yes
@@ -281,7 +283,7 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         mode: '0644'
       when: postgres_user.rc != 0
 
-    - name: Generate SSH key for postgres user if not exists #############################WHY IS SKIPPED!????????????
+    - name: Generate SSH key for postgres user if not exists 
       user:
         name: postgres
         generate_ssh_key: yes
@@ -335,6 +337,32 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         state: present
       become: yes
       become_user: postgres
+
+- name: Gather the public SSH key of the postgres user
+  hosts: timescaledb_servers
+  become: yes
+  become_user: postgres
+  tasks:
+    - name: Slurp the public SSH key of the postgres user
+      slurp:
+        src: "/var/lib/postgresql/.ssh/id_rsa.pub"
+      register: postgres_pub_key
+
+    - name: Register the public key as a variable
+      set_fact:
+        postgres_public_key: "{{ postgres_pub_key['content'] | b64decode }}"
+
+- name: Authorize postgres public key on barman user's account
+  hosts: localhost # Or the specific host where the barman user is located
+  become: yes
+  become_user: barman # Make sure this matches the user under which barman runs
+  tasks:
+    - name: Authorize SSH key for postgres user
+      authorized_key:
+        user: barman
+        key: "{{ hostvars[item]['postgres_public_key'] }}"
+        state: present
+      loop: "{{ groups['timescaledb_servers'] }}"
 
 
 EOF
@@ -419,9 +447,20 @@ cat <<EOF > $HOME/check_ssh.yml
         msg: "{{ item.item }}: {{ item.stdout }}"
       loop: "{{ ssh_check.results }}"
 EOF
+
+# Create an Ansible configuration file dynamically
+cat <<EOF > $HOME/ansible_cc.cfg
+[defaults]
+remote_tmp = /tmp/.ansible/\${USER}/tmp
+EOF
+
+# Adjust playbook execution to use the new ansible.cfg
+export ANSIBLE_CONFIG=$HOME/ansible_cc.cfg
+
+echo "Ansible configuration file created at: $HOME/statarb/scripts/ansible_cc.cfg"
 # Execute playbooks
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
-ansible-playbook $HOME/configure_barman_on_cc.yml
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
+#ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
+#ansible-playbook $HOME/configure_barman_on_cc.yml
+#ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
+ansible-playbook -vv -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
