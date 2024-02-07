@@ -448,16 +448,36 @@ cat <<EOF > $HOME/check_ssh.yml
       loop: "{{ ssh_check.results }}"
 EOF
 
-# Create an Ansible configuration file dynamically
+# Create an Ansible configuration file with a fixed temporary directory
 cat <<EOF > $HOME/ansible_cc.cfg
 [defaults]
-remote_tmp = /tmp/.ansible/\${USER}/tmp
+remote_tmp = /tmp/ansible/tmp
 EOF
 
-# Adjust playbook execution to use the new ansible.cfg
+# Export ANSIBLE_CONFIG to use the newly created configuration file
 export ANSIBLE_CONFIG=$HOME/ansible_cc.cfg
 
-echo "Ansible configuration file created at: $HOME/statarb/scripts/ansible_cc.cfg"
+echo "Ansible configuration file created at: $HOME/ansible_cc.cfg"
+# Ensure the temporary directory exists on localhost
+mkdir -p /tmp/ansible/tmp
+chmod 1777 /tmp/ansible/tmp
+
+# Playbook to ensure the temporary directory exists on remote hosts
+cat <<EOF > $HOME/ensure_remote_tmp.yml
+---
+- name: Ensure Ansible temporary directory exists on all hosts
+  hosts: all
+  become: yes
+  tasks:
+    - name: Create Ansible temporary directory
+      file:
+        path: "/tmp/ansible/tmp"
+        state: directory
+        mode: '1777'
+EOF
+
+# Execute the playbook
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 # Execute playbooks
 #ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
 #ansible-playbook $HOME/configure_barman_on_cc.yml
