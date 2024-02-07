@@ -104,52 +104,59 @@ cat <<EOF > $HOME/configure_barman_on_cc.yml
         ssh_key_file: "/var/lib/barman/.ssh/id_rsa"
       when: ssh_key_stat.stat.exists == false and barman_user.rc != 0
 
-    - name: Ensure barman and ubuntu have no password in sudoers
-      lineinfile:
-        path: /etc/sudoers
-        line: "{{ item }}"
-        validate: '/usr/sbin/visudo -cf %s'
-      loop:
-        - 'barman ALL=(ALL) NOPASSWD: ALL'
-        - 'ubuntu ALL=(ALL) NOPASSWD: ALL'
 EOF
 
-# Create the playbook to modify sudoers
+# Create the playbook to modify sudoers based on the users on the host
 cat <<EOF > $HOME/modify_sudoers.yml
 ---
-- name: Update sudoers for ubuntu and postgres users
+- name: Update sudoers for specific users based on their roles
   hosts: all
   gather_facts: no
   become: yes
   tasks:
-    - name: Ensure ubuntu user can run all commands without a password
+    - name: Ensure ubuntu user can run all commands without a password on applicable hosts
       lineinfile:
         path: /etc/sudoers.d/ubuntu
         line: 'ubuntu ALL=(ALL) NOPASSWD: ALL'
         create: yes
         mode: '0440'
         validate: '/usr/sbin/visudo -cf %s'
-    - name: Ensure postgres user has necessary sudo privileges
+      when: "'ubuntu' in ansible_user or 'clustercontrol' in group_names or 'timescaledb_servers' in group_names"
+
+    - name: Ensure postgres user has necessary sudo privileges on TimescaleDB servers
       lineinfile:
         path: /etc/sudoers.d/postgres
         line: 'postgres ALL=(ALL) NOPASSWD: ALL'
         create: yes
         mode: '0440'
         validate: '/usr/sbin/visudo -cf %s'
+      when: "'timescaledb_servers' in group_names"
 
-    - name: Ensure barman user has necessary sudo privileges
+    - name: Ensure barman user has necessary sudo privileges on ClusterControl servers
       lineinfile:
         path: /etc/sudoers.d/barman
         line: 'barman ALL=(ALL) NOPASSWD: ALL'
         create: yes
         mode: '0440'
         validate: '/usr/sbin/visudo -cf %s'
+      when: "'clustercontrol' in group_names"
+
+    - name: Ensure ec2-user can run all commands without a password on ECS instances
+      lineinfile:
+        path: /etc/sudoers.d/ec2-user
+        line: 'ec2-user ALL=(ALL) NOPASSWD: ALL'
+        create: yes
+        mode: '0440'
+        validate: '/usr/sbin/visudo -cf %s'
+      when: "'ecs' in group_names"
+
 EOF
+
 
 # Create the playbook for SSH setup
 cat <<EOF > $HOME/configure_ssh_from_cc.yml
 ---
-- name: Setup SSH Key for ubuntu User Locally and Authorize on Servers
+- name: Setup SSH Key for ubuntu User Locally
   hosts: localhost
   gather_facts: no
   tasks:
@@ -228,26 +235,6 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
       set_fact:
         barman_ssh_key: "{{ barman_ssh_key_slurped['content'] | b64decode }}"
 
-    # - name: Debug barman_ssh_key
-    #   debug:
-    #     var: barman_ssh_key
-
-# - name: Debug - Show barman_ssh_key
-#   hosts: localhost
-#   gather_facts: no
-#   tasks:
-#     - name: Debug barman_ssh_key
-#       debug:
-#         var: barman_ssh_key
-
-# - name: Use variable on other hosts DEBUG
-#   hosts: timescaledb_servers
-#   tasks:
-#     - name: Use barman_ssh_key
-#       debug:
-#         msg: "Using SSH Key: {{ hostvars['localhost']['barman_ssh_key'] }}"
-
-
 - name: Setup user postgres on timescaledb servers
   hosts: timescaledb_servers
   become: yes
@@ -285,36 +272,32 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
         ssh_key_file: "/var/lib/postgresql/.ssh/id_rsa"
       when: ssh_key_postgres.stat.exists == false
 
-- name: Ensure SSH public key and related directories are properly accessible on TimescaleDB servers
+- name: Ensure SSH public key is readable by all
   hosts: timescaledb_servers
   gather_facts: no
   become: yes
   become_user: root
   tasks:
-    - name: Set file permissions for id_rsa.pub for postgres user
-      file:
+    - name: Set file permissions for id_rsa.pub
+      ansible.builtin.file:
         path: /var/lib/postgresql/.ssh/id_rsa.pub
         mode: '0644'
 
-    - name: Set ACL for ubuntu user on /var/lib/postgresql
+    - name: Set ACL for ubuntu user on specific directories
       ansible.builtin.command:
-        cmd: setfacl -m u:ubuntu:rx /var/lib/postgresql
+        cmd: "setfacl -m u:ubuntu:rx {{ item }}"
+      loop:
+        - /var/lib/postgresql
+        - /var/lib/postgresql/.ssh
+        - /var/lib/postgresql/.ssh/id_rsa.pub
 
-    - name: Set ACL for ubuntu user on /var/lib/postgresql/.ssh
+    - name: Verify /var/lib/postgresql/.ssh/id_rsa.pub
       ansible.builtin.command:
-        cmd: setfacl -m u:ubuntu:rx /var/lib/postgresql/.ssh
-
-    - name: Set ACL for ubuntu user on /var/lib/postgresql/.ssh/id_rsa.pub
-      ansible.builtin.command:
-        cmd: setfacl -m u:ubuntu:r /var/lib/postgresql/.ssh/id_rsa.pub
-
-    - name: Verify /var/lib/postgresql/.ssh/id_rsa.pub permissions
-      ansible.builtin.command:
-        cmd: getfacl /var/lib/postgresql/.ssh/id_rsa.pub
+        cmd: "getfacl /var/lib/postgresql/.ssh/id_rsa.pub"
       register: acl_check
 
     - name: Show ACL settings for /var/lib/postgresql/.ssh/id_rsa.pub
-      debug:
+      ansible.builtin.debug:
         msg: "{{ acl_check.stdout }}"
 
 - name: Authorize Barman's SSH Key for Postgres User on Remote Servers
@@ -361,6 +344,44 @@ cat <<EOF > $HOME/configure_ssh_from_cc.yml
 
 
 EOF
+# Generate the Ansible plybook for ecs
+cat <<EOF > $HOME/ecs_instance.yml
+---
+- name: Setup SSH Access for ubuntu User on ECS Servers
+  hosts: ecs
+  gather_facts: no
+  tasks:
+    - name: Fetch the public key of ubuntu user
+      ansible.builtin.slurp:
+        src: "{{ lookup('env','HOME') }}/.ssh/id_rsa.pub"
+      register: ubuntu_ssh_pub_key
+      delegate_to: localhost
+
+    - name: Ensure ubuntu user can SSH into ECS servers without a password
+      ansible.builtin.authorized_key:
+        user: ec2-user
+        state: present
+        key: "{{ ubuntu_ssh_pub_key.content | b64decode }}"
+      when: "'ecs' in group_names"
+- name: Collect and authorize ECS public keys on localhost
+  hosts: ecs
+  gather_facts: no
+  tasks:
+    - name: Slurp the public SSH key of ec2-user from ECS
+      slurp:
+        src: "/home/ec2-user/.ssh/id_rsa.pub"
+      register: ecs_public_key
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Authorize ECS's public key on localhost for ubuntu user
+      ansible.builtin.lineinfile:
+        path: "{{ lookup('env','HOME') }}/.ssh/authorized_keys"
+        line: "{{ ecs_public_key.content | b64decode }}"
+        state: present
+      delegate_to: localhost
+      when: ecs_public_key.content is defined
+      become: false  # Assuming the Ansible user can write to their own .ssh directory without sudo
+EOF
 
 # Generate the Ansible inventory
 cat <<EOF > $HOME/timescaledb_inventory.yml
@@ -370,6 +391,7 @@ all:
     ansible_user: ubuntu
     ansible_ssh_private_key_file: "\${HOME}/retrieved_key.pem"  # This will work because it's in a shell script
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+    ansible_python_interpreter: /usr/bin/python3
   children:
     timescaledb_servers:
       hosts:
@@ -394,9 +416,11 @@ all:
       hosts:
         ecs_private_server:
           ansible_host: "$ECS_INSTANCE_PRIVATE_IP"  # Direct shell variable substitution
+          ansible_user: ec2-user  # Specify the user for ECS instances
           role: internal
         ecs_public_server:
           ansible_host: "$ECS_INSTANCE_PUBLIC_IP"  # Direct shell variable substitution
+          ansible_user: ec2-user  # Specify the user for ECS instances
           role: external
 EOF
 
@@ -412,11 +436,11 @@ cat <<EOF > $HOME/check_ssh.yml
 - name: Check SSH connectivity within VPC for TimescaleDB to ClusterControl
   hosts: timescaledb_servers
   vars:
-    clustercontrol_private_ip: $CLUSTERCONTROL_PRIVATE_IP
+    clustercontrol_private_ip: "{{ hostvars['clustercontrol_private_server'].ansible_host }}"
   tasks:
     - name: Check SSH connectivity to ClusterControl as barman (internal)
       command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no barman@{{ clustercontrol_private_ip }} echo 'SSH to ClusterControl as barman successful'
-      when: "'172.31.' in inventory_hostname"
+      when: "'internal' in role"
       delegate_to: "{{ inventory_hostname }}"
       become: true
       become_user: postgres
@@ -425,22 +449,20 @@ cat <<EOF > $HOME/check_ssh.yml
     - name: Show SSH check result (internal)
       debug:
         var: ssh_check_internal.stdout_lines
-      when: "'172.31.' in inventory_hostname"
+      when: ssh_check_internal is defined and ssh_check_internal.stdout_lines is defined
 
     - name: Inform about external SSH check skip
       debug:
         msg: "Skipping SSH check for {{ inventory_hostname }} to ClusterControl internal IP, as it's expected to be inaccessible from external networks."
-      when: "'172.31.' not in inventory_hostname"
-
+      when: "'external' in role"
 
 - name: Check SSH connectivity over Internet for Standby to ClusterControl
-  hosts: timescaledb_servers
+  hosts: standby_server
   vars:
-    clustercontrol_public_ip: $CLUSTERCONTROL_PUBLIC_IP
+    clustercontrol_public_ip: "{{ hostvars['clustercontrol_public_server'].ansible_host }}"
   tasks:
     - name: Check SSH connectivity to ClusterControl as barman (external)
       command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no barman@{{ clustercontrol_public_ip }} echo 'SSH to ClusterControl as barman successful'
-      when: inventory_hostname == "timescaledb.mywire.org"
       delegate_to: "{{ inventory_hostname }}"
       become: true
       become_user: postgres
@@ -454,12 +476,10 @@ cat <<EOF > $HOME/check_ssh.yml
 - name: Check SSH connectivity from user barman in ClusterControl to TimescaleDB servers as postgres users
   hosts: localhost
   vars:
-    timescaledb_servers:
-      - $TIMESCALEDB_PRIVATE_IP
-      - $STANDBY_PUBLIC_IP
+    timescaledb_servers: "{{ groups['timescaledb_servers'] }}"
   tasks:
     - name: Check SSH connectivity to TimescaleDB as postgres
-      command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no postgres@{{ item }} echo 'SSH to TimescaleDB as postgres successful'
+      command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no postgres@{{ hostvars[item].ansible_host }} echo 'SSH to TimescaleDB as postgres successful'
       loop: "{{ timescaledb_servers }}"
       become: true
       become_user: barman
@@ -469,6 +489,38 @@ cat <<EOF > $HOME/check_ssh.yml
       debug:
         msg: "{{ item.item }}: {{ item.stdout }}"
       loop: "{{ ssh_check.results }}"
+      when: ssh_check.results is defined
+
+- name: Check SSH connectivity from user ubuntu to ec2-user in ecs hosts
+  hosts: ecs
+  gather_facts: no
+  tasks:
+    - name: Check SSH connectivity to ECS as ec2-user
+      command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no ec2-user@{{ ansible_host }} echo 'SSH to ECS as ec2-user successful'
+      delegate_to: localhost
+      ignore_errors: true
+      register: ssh_check_ecs
+    - name: Show SSH check result to ECS
+      debug:
+        msg: "SSH connectivity to {{ inventory_hostname }} as ec2-user: {{ ssh_check_ecs.stdout }}"
+      when: ssh_check_ecs is defined and ssh_check_ecs.stdout is defined
+
+- name: Check SSH connectivity from ec2-user in ecs hosts to user ubuntu on localhost
+  hosts: ecs
+  gather_facts: no
+  vars:
+    clustercontrol_servers: "{{ groups['clustercontrol'] }}"
+  tasks:
+    - name: Check SSH connectivity to localhost as ubuntu
+      command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no ubuntu@{{ clustercontrol_servers }} echo 'SSH to localhost as ubuntu successful'
+      delegate_to: "{{ inventory_hostname }}"
+      ignore_errors: true
+      register: ssh_check_localhost
+    - name: Show SSH check result to localhost
+      debug:
+        msg: "SSH connectivity from {{ inventory_hostname }} as ec2-user to localhost: {{ ssh_check_localhost.stdout }}"
+      when: ssh_check_localhost is defined and ssh_check_localhost.stdout is defined
+
 EOF
 
 # Create an Ansible configuration file with a fixed temporary directory
@@ -506,4 +558,23 @@ ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 #ansible-playbook $HOME/configure_barman_on_cc.yml
 #ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
-ansible-playbook -vv -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
+ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
+ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
+
+
+
+
+# - name: Debug - Show barman_ssh_key
+#   hosts: localhost
+#   gather_facts: no
+#   tasks:
+#     - name: Debug barman_ssh_key
+#       debug:
+#         var: barman_ssh_key
+
+# - name: Use variable on other hosts DEBUG
+#   hosts: timescaledb_servers
+#   tasks:
+#     - name: Use barman_ssh_key
+#       debug:
+#         msg: "Using SSH Key: {{ hostvars['localhost']['barman_ssh_key'] }}"
