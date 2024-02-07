@@ -374,31 +374,31 @@ all:
     timescaledb_servers:
       hosts:
         timescaledb_private_server:
-          ansible_host: $TIMESCALEDB_PRIVATE_IP
-          role: internal # This is an example variable to categorize the host
+          ansible_host: "{{ TIMESCALEDB_PRIVATE_IP }}"
+          role: internal
         timescaledb_public_server:
-          ansible_host: $TIMESCALEDB_PUBLIC_IP
-          role: external # This is an example variable to categorize the host
-        standby_server:
-          ansible_host: $STANDBY_PUBLIC_IP
+          ansible_host: "{{ TIMESCALEDB_PUBLIC_IP }}"
           role: external
-        
+        standby_server:
+          ansible_host: "{{ STANDBY_PUBLIC_IP }}"
+          role: external
     clustercontrol:
       hosts:
         clustercontrol_private_server:
-          ansible_host: $CLUSTERCONTROL_PRIVATE_IP
+          ansible_host: "{{ CLUSTERCONTROL_PRIVATE_IP }}"
           role: internal
         clustercontrol_public_server:
-          ansible_host: $CLUSTERCONTROL_PUBLIC_IP
+          ansible_host: "{{ CLUSTERCONTROL_PUBLIC_IP }}"
           role: external
     ecs:
       hosts:
         ecs_private_server:
-          ansible_host: $ECS_INSTANCE_PRIVATE_IP
-            role: internal
+          ansible_host: "{{ ECS_INSTANCE_PRIVATE_IP }}"
+          role: internal
         ecs_public_server:
-          ansible_host: $ECS_INSTANCE_PUBLIC_IP
-            role: external
+          ansible_host: "{{ ECS_INSTANCE_PUBLIC_IP }}"
+          role: external
+
 EOF
 
     
