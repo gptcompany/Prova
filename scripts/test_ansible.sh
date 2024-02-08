@@ -715,6 +715,15 @@ cat <<EOF > $HOME/configure_pgpass.yml
     - name: Get localhost IP address
       ansible.builtin.shell: "hostname -I | awk '{print $1}'"
       register: localhost_ip
+      
+    - name: Ensure /var/lib/postgresql directory is writable by postgres
+      ansible.builtin.file:
+        path: /var/lib/postgresql
+        owner: postgres
+        group: postgres
+        mode: '0755'
+      become: yes
+      become_user: root
 
     - name: Ensure .pgpass file exists for setting permissions
       ansible.builtin.file:
