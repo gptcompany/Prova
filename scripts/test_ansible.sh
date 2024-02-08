@@ -463,7 +463,7 @@ cat <<EOF > $HOME/check_ssh.yml
   vars:
     clustercontrol_private_ip: "{{ hostvars['clustercontrol_private_server'].ansible_host }}"
   tasks:
-    - name: Check SSH connectivity from timescaledb_servers to ClusterControl as barman (internal)
+    - name: Check SSH connectivity from timescaledb_servers postgres users to ClusterControl as barman user (internal) IMPORTANT**
       command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no barman@{{ clustercontrol_private_ip }} echo 'SSH to ClusterControl as barman successful'
       when: >
         'internal' in role or inventory_hostname == 'standby_server'
@@ -603,31 +603,28 @@ cat <<EOF > $HOME/install_packages.yml
             name: nodejs
             state: latest
 
+    - name: Check if n8n is installed
+      command: n8n --version
+      register: n8n_version_result
+      ignore_errors: true
+
     - name: Install n8n if not already installed
-      command: npm install n8n -g
-      args:
-        warn: false
-      environment:
-        PATH: "{{ ansible_env.PATH }}:/usr/bin"
-      register: n8n_installation
-      ignore_errors: yes
-      changed_when: "'added' in n8n_installation.stdout"
-
-
-
-    - name: Check for ClusterControl binary and install if not present
       block:
-        - name: Check for ClusterControl binary
-          ansible.builtin.stat:
-            path: /usr/bin/cmon
-          register: cmon_binary
+        - name: Install n8n globally using npm
+          ansible.builtin.shell: sudo npm install n8n -g
+      when: n8n_version_result.rc != 0
+
+    - name: Check if ClusterControl is installed
+      command: cmon --version
+      register: cmon_version_result
+      ignore_errors: true
 
         - name: Download and install ClusterControl if not present
           ansible.builtin.shell: |
             curl -L https://severalnines.com/downloads/cmon/install-cc -o install-cc
             chmod +x install-cc
             ./install-cc
-          when: not cmon_binary.stat.exists
+          when: cmon_version_result.rc != 0
 EOF
 # Create the Ansible playbook file dynamically
 cat <<EOF > $HOME/configure_sshd.yml
@@ -744,7 +741,7 @@ ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
-ansible-playbook $HOME/install_packages.yml
+ansible-playbook -v $HOME/install_packages.yml
 
 
 
