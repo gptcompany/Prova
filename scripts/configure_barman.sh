@@ -2,11 +2,10 @@
 #!/bin/bash
 cat <<EOF > $HOME/configure_barman.yml
 ---
-- name: Configure Barman on localhost
+- name: Configure Barman on localhost with ACL for barman user
   hosts: localhost
   connection: local
   become: yes
-  become_user: barman
   gather_facts: no
   vars:
     barman_conf_path: /etc/barman.conf
@@ -32,14 +31,20 @@ cat <<EOF > $HOME/configure_barman.yml
       ansible.builtin.file:
         path: "{{ barman_conf_path }}"
         state: touch
-      become: yes  # Use sudo to ensure file operations have the necessary permissions
 
     - name: Configure Barman settings
       ansible.builtin.blockinfile:
         path: "{{ barman_conf_path }}"
         block: "{{ barman_settings }}"
         marker: "# {mark} ANSIBLE MANAGED BLOCK"
-      become: yes  # Use sudo for file modification
+
+    - name: Set ACL for barman user on barman.conf
+      ansible.posix.acl:
+        path: "{{ barman_conf_path }}"
+        entity: barman
+        etype: user
+        permissions: rw
+        state: present
 
     - name: Verify Barman configuration
       ansible.builtin.command:
