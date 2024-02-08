@@ -828,7 +828,7 @@ sudo usermod -aG ubuntu barman
 # sudo apt install ansible -y
 # ansible-galaxy collection install community.aws --force
 # ansible-galaxy collection install amazon.aws --force
-
+# ansible-galaxy collection install ansible.posix --force
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 # ansible-playbook $HOME/configure_barman_on_cc.yml
