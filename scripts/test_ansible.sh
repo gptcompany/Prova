@@ -27,7 +27,7 @@ fi
 # Fetch secret from AWS Systems Manager (SSM) Parameter Store
 if command -v aws > /dev/null; then
     echo "Fetching SSH key from AWS Systems Manager Parameter Store..."
-    aws ssm get-parameter --name $AWS_SECRET_ID --with-decryption --query 'Parameter.Value' --output text | base64 --decode > $HOME/retrieved_key.pem
+    aws ssm get-parameter --name $AWS_SECRET_ID --with-decryption --query 'Parameter.Value' --output text > $HOME/retrieved_key.pem
     chmod 600 $HOME/retrieved_key.pem
 else
     echo "AWS CLI not found. Please install AWS CLI and configure it."
