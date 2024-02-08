@@ -15,8 +15,8 @@ cat <<EOF > $HOME/configure_barman.yml
       configuration_files_directory = /etc/barman.d
       reuse_backup = link
       minimum_redundancy = 1
-      barman_home = /home/barman
-      log_file = /home/barman/barman.log
+      barman_home = /var/lib/barman
+      log_file = /var/lib/barman/barman.log
       log_level = INFO
       compression = pigz
       parallel_jobs = 3
