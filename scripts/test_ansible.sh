@@ -376,10 +376,10 @@ cat <<EOF > $HOME/ecs_instance.yml
         src: "/home/ec2-user/.ssh/id_rsa.pub"
       register: ec2_user_ssh_pub_key
       delegate_to: "{{ inventory_hostname }}"
-
-    - name: Print the public key
-      debug:
-        msg: "{{ ec2_user_ssh_pub_key.content | b64decode }}"
+    ##########################################USE FOR DEBUG#########################################
+    # - name: Print the public key
+    #   debug:
+    #     msg: "{{ ec2_user_ssh_pub_key.content | b64decode }}"
 
 - name: Setup SSH Access for ubuntu User on ECS Servers
   hosts: ecs
@@ -574,12 +574,11 @@ cat <<EOF > $HOME/configure_sshd.yml
       - { regex: "^X11Forwarding ", line: "X11Forwarding yes" }
       - { regex: "^PrintMotd ", line: "PrintMotd no" }
       - { regex: "^AcceptEnv ", line: "AcceptEnv LANG LC_*" }
-      - { regex: "^Subsystem sftp", line: "Subsystem       sftp    /usr/lib/openssh/sftp-server" }
       - { regex: "^KbdInteractiveAuthentication ", line: "KbdInteractiveAuthentication no" }
       - { regex: "^UsePAM ", line: "UsePAM yes" }
       - { regex: "^AuthorizedKeysFile ", line: "AuthorizedKeysFile      .ssh/authorized_keys .ssh/authorized_keys2" }
       - { regex: "^AllowAgentForwarding ", line: "AllowAgentForwarding yes" }
-
+      # Exclude the Subsystem sftp line to avoid duplication
 
   tasks:
     - name: Backup SSHD configuration
@@ -587,7 +586,6 @@ cat <<EOF > $HOME/configure_sshd.yml
         src: "{{ sshd_config_path }}"
         dest: "{{ sshd_config_path }}.bak"
       register: backup_result
-      ignore_errors: yes
 
     - name: Ensure SSHD settings are configured
       ansible.builtin.lineinfile:
@@ -598,10 +596,19 @@ cat <<EOF > $HOME/configure_sshd.yml
       loop: "{{ sshd_settings }}"
       notify: check sshd config
 
+    - name: Restore SSHD configuration if sshd test fails
+      ansible.builtin.copy:
+        src: "{{ sshd_config_path }}.bak"
+        dest: "{{ sshd_config_path }}"
+      when: sshd_test.failed
+      # This needs to be a direct task, not a handler
+
   handlers:
     - name: check sshd config
       ansible.builtin.command:
         cmd: sshd -t
+      register: sshd_test
+      failed_when: sshd_test.rc != 0
       notify: 
         - reload sshd
 
@@ -609,14 +616,9 @@ cat <<EOF > $HOME/configure_sshd.yml
       ansible.builtin.service:
         name: sshd
         state: reloaded
-
-    - name: Restore SSHD configuration (on failure)
-      ansible.builtin.copy:
-        src: "{{ sshd_config_path }}.bak"
-        dest: "{{ sshd_config_path }}"
-      when: backup_result.failed
-      # This handler needs to be explicitly triggered by a task in case of failure.
+      when: sshd_test.rc == 0
 EOF
+
 # Create an Ansible configuration file with a fixed temporary directory
 cat <<EOF > $HOME/ansible_cc.cfg
 [defaults]
