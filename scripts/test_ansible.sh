@@ -9,14 +9,14 @@
 # Assign arguments to variables
 TIMESCALEDB_PRIVATE_IP="172.31.35.73"
 TIMESCALEDB_PUBLIC_IP="57.181.106.64"
-CLUSTERCONTROL_PRIVATE_IP="172.31.32.75"
-CLUSTERCONTROL_PUBLIC_IP=$(curl -s ifconfig.me)
 STANDBY_PUBLIC_IP="timescaledb.mywire.org"
 ECS_INSTANCE_PRIVATE_IP="172.31.38.68"
 ECS_INSTANCE_PUBLIC_IP="52.193.34.34"
 AWS_SECRET_ID="sshkeypem"
 TIMESCALEDBPASSWORD="timescaledbpassword"
 AWS_REGION="ap-northeast-1"
+CLUSTERCONTROL_PRIVATE_IP=$(hostname -I | awk '{print $1}')
+CLUSTERCONTROL_PUBLIC_IP=$(curl -s ifconfig.me)
 # Check if Ansible is installed, install if not
 if ! command -v ansible > /dev/null; then
     echo "Ansible not found. Installing Ansible..."
@@ -603,11 +603,12 @@ cat <<EOF > $HOME/install_packages.yml
           ansible.builtin.apt:
             name: nodejs
             state: latest
+      when: node_version.rc != 0
 
     - name: Check if n8n is installed
       command: n8n --version
       register: n8n_version_result
-      ignore_errors: true
+      ignore_errors: yes
 
     - name: Install n8n if not already installed
       block:
@@ -618,14 +619,15 @@ cat <<EOF > $HOME/install_packages.yml
     - name: Check if ClusterControl is installed
       command: cmon --version
       register: cmon_version_result
-      ignore_errors: true
+      ignore_errors: yes
 
-        - name: Download and install ClusterControl if not present
-          ansible.builtin.shell: |
-            curl -L https://severalnines.com/downloads/cmon/install-cc -o install-cc
-            chmod +x install-cc
-            ./install-cc
-          when: cmon_version_result.rc != 0
+    - name: Download and install ClusterControl if not present
+      ansible.builtin.shell: |
+        curl -L https://severalnines.com/downloads/cmon/install-cc -o install-cc
+        chmod +x install-cc
+        ./install-cc
+      when: cmon_version_result.rc != 0
+
 EOF
 # Create the Ansible playbook file dynamically
 cat <<EOF > $HOME/configure_sshd.yml
@@ -837,6 +839,7 @@ EOF
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
+ansible-galaxy collection install community.aws
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
 ansible-playbook -v $HOME/install_packages.yml
 ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml
