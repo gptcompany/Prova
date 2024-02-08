@@ -14,7 +14,7 @@ CLUSTERCONTROL_PUBLIC_IP="43.207.147.235"
 STANDBY_PUBLIC_IP="timescaledb.mywire.org"
 ECS_INSTANCE_PRIVATE_IP="172.31.38.68"
 ECS_INSTANCE_PUBLIC_IP="52.193.34.34"
-AWS_SECRET_ID="ultimaec2key"
+AWS_SECRET_ID="sshkeypem"
 
 # Check if Ansible is installed, install if not
 if ! command -v ansible > /dev/null; then
@@ -24,16 +24,25 @@ if ! command -v ansible > /dev/null; then
 else
     echo "Ansible is already installed."
 fi
-
-# Fetch secret from AWS Secrets Manager
+# Fetch secret from AWS Systems Manager (SSM) Parameter Store
 if command -v aws > /dev/null; then
-    echo "Fetching SSH key from AWS Secrets Manager..."
-    aws secretsmanager get-secret-value --secret-id $AWS_SECRET_ID --query 'SecretString' --output text | base64 --decode > $HOME/retrieved_key.pem
+    echo "Fetching SSH key from AWS Systems Manager Parameter Store..."
+    aws ssm get-parameter --name $AWS_SECRET_ID --with-decryption --query 'Parameter.Value' --output text | base64 --decode > $HOME/retrieved_key.pem
     chmod 600 $HOME/retrieved_key.pem
 else
     echo "AWS CLI not found. Please install AWS CLI and configure it."
     exit 1
 fi
+
+# # Fetch secret from AWS Secrets Manager
+# if command -v aws > /dev/null; then
+#     echo "Fetching SSH key from AWS Secrets Manager..."
+#     aws secretsmanager get-secret-value --secret-id $AWS_SECRET_ID --query 'SecretString' --output text | base64 --decode > $HOME/retrieved_key.pem
+#     chmod 600 $HOME/retrieved_key.pem
+# else
+#     echo "AWS CLI not found. Please install AWS CLI and configure it."
+#     exit 1
+# fi
 # Generate Ansible playbook for installing acl
 cat <<EOF > $HOME/install_acl.yml
 ---
@@ -547,7 +556,67 @@ cat <<EOF > $HOME/check_ssh.yml
     #   when: ssh_check_localhost is defined and ssh_check_localhost.stdout is defined
 
 EOF
+# Create the Ansible playbook file dynamically
+cat <<EOF > $HOME/configure_sshd.yml
+---
+- name: Configure SSHD Settings
+  hosts: all
+  become: yes
+  vars:
+    sshd_config_path: /etc/ssh/sshd_config
+    sshd_settings:
+      - { regex: "^Port ", line: "Port 22" }
+      - { regex: "^ListenAddress ", line: "ListenAddress 0.0.0.0" }
+      - { regex: "^PubkeyAuthentication ", line: "PubkeyAuthentication yes" }
+      - { regex: "^PasswordAuthentication ", line: "PasswordAuthentication no" }
+      - { regex: "^ClientAliveInterval ", line: "ClientAliveInterval 60" }
+      - { regex: "^ClientAliveCountMax ", line: "ClientAliveCountMax 120" }
+      - { regex: "^X11Forwarding ", line: "X11Forwarding yes" }
+      - { regex: "^PrintMotd ", line: "PrintMotd no" }
+      - { regex: "^AcceptEnv ", line: "AcceptEnv LANG LC_*" }
+      - { regex: "^Subsystem sftp", line: "Subsystem       sftp    /usr/lib/openssh/sftp-server" }
+      - { regex: "^KbdInteractiveAuthentication ", line: "KbdInteractiveAuthentication no" }
+      - { regex: "^UsePAM ", line: "UsePAM yes" }
+      - { regex: "^AuthorizedKeysFile ", line: "AuthorizedKeysFile      .ssh/authorized_keys .ssh/authorized_keys2" }
+      - { regex: "^AllowAgentForwarding ", line: "AllowAgentForwarding yes" }
 
+
+  tasks:
+    - name: Backup SSHD configuration
+      ansible.builtin.copy:
+        src: "{{ sshd_config_path }}"
+        dest: "{{ sshd_config_path }}.bak"
+      register: backup_result
+      ignore_errors: yes
+
+    - name: Ensure SSHD settings are configured
+      ansible.builtin.lineinfile:
+        path: "{{ sshd_config_path }}"
+        regexp: "{{ item.regex }}"
+        line: "{{ item.line }}"
+        state: present
+      loop: "{{ sshd_settings }}"
+      notify: check sshd config
+
+  handlers:
+    - name: check sshd config
+      ansible.builtin.command:
+        cmd: sshd -t
+      notify: 
+        - reload sshd
+
+    - name: reload sshd
+      ansible.builtin.service:
+        name: sshd
+        state: reloaded
+
+    - name: Restore SSHD configuration (on failure)
+      ansible.builtin.copy:
+        src: "{{ sshd_config_path }}.bak"
+        dest: "{{ sshd_config_path }}"
+      when: backup_result.failed
+      # This handler needs to be explicitly triggered by a task in case of failure.
+EOF
 # Create an Ansible configuration file with a fixed temporary directory
 cat <<EOF > $HOME/ansible_cc.cfg
 [defaults]
@@ -583,6 +652,7 @@ ansible-playbook $HOME/configure_barman_on_cc.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
 
 
