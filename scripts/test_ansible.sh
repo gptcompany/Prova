@@ -582,7 +582,6 @@ cat <<EOF > $HOME/install_packages.yml
           - software-properties-common
           - postgresql
           - postgresql-contrib
-          - npm
         state: present
 
     - name: Check if Node.js is installed
@@ -598,28 +597,22 @@ cat <<EOF > $HOME/install_packages.yml
             dest: /tmp/setup_node.sh
             mode: '0755'
         - name: Execute Node.js setup script
-          ansible.builtin.shell: /tmp/setup_node.sh
+          ansible.builtin.shell: bash /tmp/setup_node.sh
         - name: Install Node.js
           ansible.builtin.apt:
             name: nodejs
-            state: present
-      when: node_version.rc != 0
-
-
-    - name: Check if n8n is installed
-      command: n8n -v
-      register: n8n_version_check
-      ignore_errors: yes
+            state: latest
 
     - name: Install n8n if not already installed
-      block:
-        - name: Install Node.js and npm
-          ansible.builtin.shell: |
-            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-        - name: Install n8n globally using npm
-          ansible.builtin.shell: sudo npm install n8n -g
-      when: n8n_version_check.failed
+      command: npm install n8n -g
+      args:
+        warn: false
+      environment:
+        PATH: "{{ ansible_env.PATH }}:/usr/bin"
+      register: n8n_installation
+      ignore_errors: yes
+      changed_when: "'added' in n8n_installation.stdout"
+
 
 
     - name: Check for ClusterControl binary and install if not present
@@ -661,6 +654,7 @@ cat <<EOF > $HOME/configure_sshd.yml
       # Exclude the Subsystem sftp line to avoid duplication
 
   tasks:
+
     - name: Backup SSHD configuration
       ansible.builtin.copy:
         src: "{{ sshd_config_path }}"
@@ -675,6 +669,21 @@ cat <<EOF > $HOME/configure_sshd.yml
         state: present
       loop: "{{ sshd_settings }}"
       notify: check sshd config
+
+    - name: Remove duplicate Subsystem sftp entries
+      ansible.builtin.lineinfile:
+        path: "{{ sshd_config_path }}"
+        regexp: '^(Subsystem\s+sftp\s+).*'
+        state: absent
+        backrefs: yes
+      register: sftp_removal
+
+    - name: Ensure correct Subsystem sftp configuration
+      ansible.builtin.lineinfile:
+        path: "{{ sshd_config_path }}"
+        line: "Subsystem sftp /usr/lib/openssh/sftp-server"
+        state: present
+      when: sftp_removal.changed
 
     - name: Test SSHD configuration
       ansible.builtin.command:
