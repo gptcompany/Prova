@@ -46,7 +46,7 @@ cat <<EOF > $HOME/install_acl.yml
         name: acl
         state: present
 - name: Install ACL on target machines
-  hosts: all
+  hosts: timescaledb_servers
   become: yes
   tasks:
     - name: Ensure ACL is installed
@@ -456,9 +456,9 @@ cat <<EOF > $HOME/check_ssh.yml
   tasks:
     - name: Check SSH connectivity from timescaledb_servers to ClusterControl as barman (internal)
       command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no barman@{{ clustercontrol_private_ip }} echo 'SSH to ClusterControl as barman successful'
-      when: 
-        - "'internal' in role"
-        - "inventory_hostname == 'standby_server'" 
+      when: >
+        'internal' in role or inventory_hostname == 'standby_server'
+
       delegate_to: "{{ inventory_hostname }}"
       become: true
       become_user: postgres
@@ -551,7 +551,7 @@ EOF
 # Create an Ansible configuration file with a fixed temporary directory
 cat <<EOF > $HOME/ansible_cc.cfg
 [defaults]
-remote_tmp = /tmp/ansible/tmp
+remote_tmp = /var/tmp/ansible-tmp
 EOF
 
 # Export ANSIBLE_CONFIG to use the newly created configuration file
@@ -559,8 +559,8 @@ export ANSIBLE_CONFIG=$HOME/ansible_cc.cfg
 
 echo "Ansible configuration file created at: $HOME/ansible_cc.cfg"
 # Ensure the temporary directory exists on localhost
-mkdir -p /tmp/ansible/tmp
-chmod 777 /tmp/ansible/tmp
+mkdir -p /var/tmp/ansible-tmp
+chmod 777 /var/tmp/ansible-tmp
 
 # Playbook to ensure the temporary directory exists on remote hosts
 cat <<EOF > $HOME/ensure_remote_tmp.yml
@@ -571,20 +571,19 @@ cat <<EOF > $HOME/ensure_remote_tmp.yml
   tasks:
     - name: Create Ansible temporary directory
       file:
-        path: "/tmp/ansible/tmp"
+        path: "/var/tmp/ansible-tmp"
         state: directory
         mode: '777'
 EOF
 
-# Execute the playbook
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 # Execute playbooks
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 ansible-playbook $HOME/configure_barman_on_cc.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
-ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
-ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
 
 
 
