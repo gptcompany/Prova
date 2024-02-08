@@ -556,6 +556,86 @@ cat <<EOF > $HOME/check_ssh.yml
     #   when: ssh_check_localhost is defined and ssh_check_localhost.stdout is defined
 
 EOF
+
+
+cat <<EOF > $HOME/install_packages.yml
+---
+- name: Install required packages and software on localhost
+  hosts: localhost
+  connection: local
+  become: yes
+  tasks:
+    - name: Update and upgrade apt packages
+      ansible.builtin.apt:
+        update_cache: yes
+        upgrade: 'yes'
+
+    - name: Install necessary packages
+      ansible.builtin.apt:
+        name:
+          - build-essential
+          - libpq-dev
+          - python3-dev
+          - curl
+          - wget
+          - rsync
+          - software-properties-common
+          - postgresql
+          - postgresql-contrib
+          - npm
+        state: present
+
+    - name: Check if Node.js is installed
+      command: node -v
+      register: node_version
+      ignore_errors: yes
+
+    - name: Install Node.js if not present
+      block:
+        - name: Download Node.js setup script
+          ansible.builtin.get_url:
+            url: https://deb.nodesource.com/setup_20.x
+            dest: /tmp/setup_node.sh
+            mode: '0755'
+        - name: Execute Node.js setup script
+          ansible.builtin.shell: /tmp/setup_node.sh
+        - name: Install Node.js
+          ansible.builtin.apt:
+            name: nodejs
+            state: present
+      when: node_version.rc != 0
+
+
+    - name: Check if n8n is installed
+      command: n8n -v
+      register: n8n_version_check
+      ignore_errors: yes
+
+    - name: Install n8n if not already installed
+      block:
+        - name: Install Node.js and npm
+          ansible.builtin.shell: |
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+        - name: Install n8n globally using npm
+          ansible.builtin.shell: sudo npm install n8n -g
+      when: n8n_version_check.failed
+
+
+    - name: Check for ClusterControl binary and install if not present
+      block:
+        - name: Check for ClusterControl binary
+          ansible.builtin.stat:
+            path: /usr/bin/cmon
+          register: cmon_binary
+
+        - name: Download and install ClusterControl if not present
+          ansible.builtin.shell: |
+            curl -L https://severalnines.com/downloads/cmon/install-cc -o install-cc
+            chmod +x install-cc
+            ./install-cc
+          when: not cmon_binary.stat.exists
+EOF
 # Create the Ansible playbook file dynamically
 cat <<EOF > $HOME/configure_sshd.yml
 ---
@@ -596,6 +676,13 @@ cat <<EOF > $HOME/configure_sshd.yml
       loop: "{{ sshd_settings }}"
       notify: check sshd config
 
+    - name: Test SSHD configuration
+      ansible.builtin.command:
+        cmd: sshd -t
+      register: sshd_test
+      failed_when: sshd_test.rc != 0
+      ignore_errors: yes
+
     - name: Restore SSHD configuration if sshd test fails
       ansible.builtin.copy:
         src: "{{ sshd_config_path }}.bak"
@@ -604,19 +691,11 @@ cat <<EOF > $HOME/configure_sshd.yml
       # This needs to be a direct task, not a handler
 
   handlers:
-    - name: check sshd config
-      ansible.builtin.command:
-        cmd: sshd -t
-      register: sshd_test
-      failed_when: sshd_test.rc != 0
-      notify: 
-        - reload sshd
-
     - name: reload sshd
       ansible.builtin.service:
         name: sshd
         state: reloaded
-      when: sshd_test.rc == 0
+      when: sshd_test.rc == 0 and not sshd_test.failed
 EOF
 
 # Create an Ansible configuration file with a fixed temporary directory
@@ -656,7 +735,7 @@ ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
-
+ansible-playbook $HOME/install_packages.yml
 
 
 
