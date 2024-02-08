@@ -857,19 +857,19 @@ EOF
 sudo usermod -aG ubuntu barman
 echo "barman sudo priv added!"
 # Execute playbooks
-# sudo apt install ansible -y
-# ansible-galaxy collection install community.aws --force
-# ansible-galaxy collection install amazon.aws --force
-# ansible-galaxy collection install ansible.posix --force
-# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
-# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
-# ansible-playbook $HOME/configure_barman_on_cc.yml
-# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
-# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
-# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
-# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
-# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
-# ansible-playbook $HOME/install_packages.yml  #on localhost
+sudo apt install ansible -y
+ansible-galaxy collection install community.aws --force
+ansible-galaxy collection install amazon.aws --force
+ansible-galaxy collection install ansible.posix --force
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
+ansible-playbook $HOME/configure_barman_on_cc.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
+ansible-playbook $HOME/install_packages.yml  #on localhost
 
 if command -v aws > /dev/null; then
     echo "Fetching TimescaleDB password from AWS Systems Manager Parameter Store..."
@@ -879,6 +879,6 @@ else
     echo "AWS CLI not found. Please install AWS CLI and configure it."
     exit 1
 fi
-ansible-playbook -vv -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml -e "timescaledb_password=${TIMESCALEDBPASSWORD_RETRIEVED}"
-#ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml -e "timescaledb_password=${TIMESCALEDBPASSWORD_RETRIEVED}"
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
 

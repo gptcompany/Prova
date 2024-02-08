@@ -105,9 +105,19 @@ else
         echo "Failed to create and activate the swap file."
     fi
 fi
-# INSTALL PACKAGES AND TERMINAL (USING THE SCRIPT WILL CHECK IF ALREADY INSTALLED)
-sudo chmod +x $HOME/statarb/scripts/install_packages_cc_instance.sh
-$HOME/statarb/scripts/install_packages_cc_instance.sh
+
+echo "*************IT'S IMPORTANT TO SET ALL THE VARIABLEs IN $HOME/statarb/scripts/configure_cc_ansible.sh FILE BEFORE CONTINUING!*****************"
+read -r conf
+if [[ $conf == "y" || $conf == "Y" ]]; then
+    sudo chmod +x $HOME/statarb/scripts/configure_cc_ansible.sh 
+    $HOME/statarb/scripts/configure_cc_ansible.sh
+else
+    echo "Configuration process SSH with Ansible aborted."
+fi
+
+# INSTALL ZSH
+sudo chmod +x $HOME/statarb/scripts/install_terminal_ubuntu.sh
+$HOME/statarb/scripts/install_terminal_ubuntu.sh
 
 # function to copy from s3 the config files after confirmation of the user
 echo "This will recover standby settings from S3. Do you want to continue? (y/n)"
