@@ -807,6 +807,7 @@ echo "Playbook file created at: $HOME/configure_pg_hba_conf_timescaledb_servers.
 cat <<EOF > $HOME/ansible_cc.cfg
 [defaults]
 remote_tmp = /var/tmp/ansible-tmp
+ansible_python_interpreter: /usr/lib/python3
 EOF
 
 # Export ANSIBLE_CONFIG to use the newly created configuration file
@@ -832,9 +833,9 @@ cat <<EOF > $HOME/ensure_remote_tmp.yml
 EOF
 
 # Execute playbooks
-pip install --upgrade ansible
-ansible-galaxy collection install community.aws --force
-ansible-galaxy collection install amazon.aws --force
+# sudo apt install ansible -y
+# ansible-galaxy collection install community.aws --force
+# ansible-galaxy collection install amazon.aws --force
 
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
