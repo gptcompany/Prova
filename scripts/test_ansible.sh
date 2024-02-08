@@ -703,9 +703,6 @@ cat <<EOF > $HOME/configure_pgpass.yml
 - name: Update .pgpass with TimescaleDB password
   hosts: timescaledb_server
   gather_facts: yes
-  vars:
-    aws_region: "{{ lookup('env','AWS_REGION') }}"
-    timescaledb_password: "{{ 'timescaledb_password' }}"  # Make sure to securely obtain your password
   tasks:
     - name: Get information about the postgres user
       ansible.builtin.getent:
@@ -728,6 +725,7 @@ cat <<EOF > $HOME/configure_pgpass.yml
         mode: '0600'  # Set the correct permissions while creating the file
       become: yes
       become_user: postgres  # Run as postgres user
+
 
 EOF
 echo "Playbook file created at: $HOME/configure_pgpass.yml"
@@ -816,14 +814,10 @@ cat <<EOF > $HOME/ensure_remote_tmp.yml
         mode: '777'
 EOF
 
-if command -v aws > /dev/null; then
-    echo "Fetching TimescaleDB password from AWS Systems Manager Parameter Store..."
-    TIMESCALEDBPASSWORD_RETRIEVED=$(aws ssm get-parameter --name "$TIMESCALEDBPASSWORD" --with-decryption --query 'Parameter.Value' --output text)
-else
-    echo "AWS CLI not found. Please install AWS CLI and configure it."
-    exit 1
-fi
+
+
 sudo usermod -aG ubuntu barman
+echo "barman sudo priv added!"
 # Execute playbooks
 # sudo apt install ansible -y
 # ansible-galaxy collection install community.aws --force
@@ -840,6 +834,14 @@ ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
 ansible-playbook $HOME/install_packages.yml  #on localhost
 
+if command -v aws > /dev/null; then
+    echo "Fetching TimescaleDB password from AWS Systems Manager Parameter Store..."
+    TIMESCALEDBPASSWORD_RETRIEVED=$(aws ssm get-parameter --name "$TIMESCALEDBPASSWORD" --with-decryption --query 'Parameter.Value' --output text)
+    
+else
+    echo "AWS CLI not found. Please install AWS CLI and configure it."
+    exit 1
+fi
 ansible-playbook -vv -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml -e "timescaledb_password=${TIMESCALEDBPASSWORD_RETRIEVED}"
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
 
