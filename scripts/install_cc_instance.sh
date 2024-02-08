@@ -114,7 +114,7 @@ echo "This will recover standby settings from S3. Do you want to continue? (y/n)
 read -r confirmation
 
 if [[ $confirmation == "y" || $confirmation == "Y" ]]; then
-    sudo chmod +x $HOME/statarb/scripts/recover_standby_settings.sh
+    sudo chmod +x $HOME/statarb/scripts/recover_cc_settings.sh
     $HOME/statarb/scripts/recover_standby_settings.sh
 else
     echo "Recovery settings process aborted."

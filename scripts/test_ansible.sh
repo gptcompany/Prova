@@ -10,12 +10,13 @@
 TIMESCALEDB_PRIVATE_IP="172.31.35.73"
 TIMESCALEDB_PUBLIC_IP="57.181.106.64"
 CLUSTERCONTROL_PRIVATE_IP="172.31.32.75"
-CLUSTERCONTROL_PUBLIC_IP="43.207.147.235"
+CLUSTERCONTROL_PUBLIC_IP=$(curl -s ifconfig.me)
 STANDBY_PUBLIC_IP="timescaledb.mywire.org"
 ECS_INSTANCE_PRIVATE_IP="172.31.38.68"
 ECS_INSTANCE_PUBLIC_IP="52.193.34.34"
 AWS_SECRET_ID="sshkeypem"
-
+TIMESCALEDBPASSWORD="timescaledbpassword"
+AWS_REGION="ap-northeast-1"
 # Check if Ansible is installed, install if not
 if ! command -v ansible > /dev/null; then
     echo "Ansible not found. Installing Ansible..."
@@ -458,7 +459,7 @@ echo "Playbooks created. Proceed with running Ansible playbooks as needed."
 # Generate the Ansible playbook
 cat <<EOF > $HOME/check_ssh.yml
 ---
-- name: Check SSH connectivity within VPC for TimescaleDB to ClusterControl
+- name: Check SSH connectivity within VPC for Timescaledb server postgres user to ClusterControl barman user
   hosts: timescaledb_servers
   vars:
     clustercontrol_private_ip: "{{ hostvars['clustercontrol_private_server'].ansible_host }}"
@@ -466,7 +467,7 @@ cat <<EOF > $HOME/check_ssh.yml
     - name: Check SSH connectivity from timescaledb_servers postgres users to ClusterControl as barman user (internal) IMPORTANT**
       command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no barman@{{ clustercontrol_private_ip }} echo 'SSH to ClusterControl as barman successful'
       when: >
-        'internal' in role or inventory_hostname == 'standby_server'
+        'internal' in role
 
       delegate_to: "{{ inventory_hostname }}"
       become: true
@@ -474,18 +475,17 @@ cat <<EOF > $HOME/check_ssh.yml
       ignore_errors: true
       register: ssh_check_internal
 
-
-    - name: Show SSH check result (internal)
-      debug:
-        var: ssh_check_internal.stdout_lines
-      when: ssh_check_internal is defined and ssh_check_internal.stdout_lines is defined
-
     - name: Inform about external SSH check skip
       debug:
         msg: "Skipping SSH check for {{ inventory_hostname }} to ClusterControl internal IP, as it's expected to be inaccessible from external networks."
       when: "'external' in role"
+    
+    - name: Show SSH check result (only internal)
+      debug:
+        var: ssh_check_internal.stdout_lines
+      when: ssh_check_internal is defined and ssh_check_internal.stdout_lines is defined
 
-- name: Check SSH connectivity over Internet for Standby to ClusterControl
+- name: Check SSH connectivity over Internet for Standby server postgres user to ClusterControl barman user (external) IMPORTANT**
   hosts: standby_server
   vars:
     clustercontrol_public_ip: "{{ hostvars['clustercontrol_public_server'].ansible_host }}"
@@ -497,7 +497,8 @@ cat <<EOF > $HOME/check_ssh.yml
       become_user: postgres
       ignore_errors: true
       register: ssh_check_external
-    - name: Show SSH check result (external)
+
+    - name: Show SSH check result (only external)
       debug:
         var: ssh_check_external.stdout_lines
       when: ssh_check_external is defined and ssh_check_external.stdout_lines is defined
@@ -704,6 +705,102 @@ cat <<EOF > $HOME/configure_sshd.yml
       when: sshd_test.rc == 0 and not sshd_test.failed
 EOF
 
+# Create the Ansible playbook file dynamically
+cat <<EOF > $HOME/configure_pgpass.yml
+---
+- name: Update .pgpass with TimescaleDB password from AWS SSM
+  hosts: timescaledb_server
+  gather_facts: yes
+  vars:
+    timescaledb_password_ssm_name: "{{ lookup('env','TIMESCALEDBPASSWORD') }}"
+    aws_region: "{{ lookup('env','AWS_REGION') }}"
+  tasks:
+    - name: Fetch TimescaleDB password from AWS SSM
+      community.aws.aws_ssm:
+        name: "{{ timescaledb_password_ssm_name }}"
+        region: "{{ aws_region }}"
+      register: ssm_result
+
+    - name: Set the TimescaleDB password as a fact
+      set_fact:
+        timescaledb_password: "{{ ssm_result.value }}"
+
+    - name: Get localhost IP address
+      ansible.builtin.shell: "hostname -I | awk '{print $1}'"
+      register: localhost_ip
+
+    - name: Ensure .pgpass contains the required line
+      ansible.builtin.lineinfile:
+        path: "~/.pgpass"
+        line: "{{ localhost_ip.stdout }}:5432:postgres:*:{{ timescaledb_password }}"
+        create: yes
+        state: present
+      become: yes  # Use become if needed to write to the file as the user
+
+    - name: Set .pgpass file permissions to 600
+      ansible.builtin.file:
+        path: "~/.pgpass"
+        mode: '0600'
+      become: yes  # Use become if needed to modify file permissions as the user
+
+EOF
+echo "Playbook file created at: $HOME/configure_pgpass.yml"
+
+
+# Create the Ansible playbook file dynamically
+# Create the Ansible playbook with the determined IP
+cat <<EOF > $HOME/configure_pg_hba_conf_timescaledb_servers.yml
+---
+- name: Configure TimescaleDB Servers
+  hosts: timescaledb_servers
+  become: yes  # This elevates privilege for the entire playbook; adjust as necessary for your environment
+
+  vars:
+    additional_access_ip: "${CLUSTERCONTROL_PUBLIC_IP}"
+
+  tasks:
+    - name: Get PostgreSQL config file location
+      ansible.builtin.command: psql -U postgres -tA -c "SHOW config_file;"
+      become: yes
+      become_user: postgres
+      register: pg_config_file
+      changed_when: false
+
+    - name: Set fact for pg_hba.conf directory
+      set_fact:
+        pg_hba_dir: "{{ pg_config_file.stdout | dirname }}"
+
+    - name: Ensure TimescaleDB can accept connections from default IPv4 address
+      ansible.builtin.lineinfile:
+        path: "{{ pg_hba_dir }}/pg_hba.conf"
+        line: "host all all {{ ansible_default_ipv4.address }}/32 trust"
+      notify: reload postgresql
+
+    - name: Ensure TimescaleDB can accept connections from additional IP
+      ansible.builtin.lineinfile:
+        path: "{{ pg_hba_dir }}/pg_hba.conf"
+        line: "host all all {{ additional_access_ip }}/32 trust"
+      notify: reload postgresql
+
+    - name: Ensure local access for PostgreSQL user
+      ansible.builtin.lineinfile:
+        path: "{{ pg_hba_dir }}/pg_hba.conf"
+        line: "local all postgres trust"
+      notify: reload postgresql
+
+  handlers:
+    - name: reload postgresql
+      ansible.builtin.service:
+        name: postgresql
+        state: reloaded
+      become: yes
+
+EOF
+
+
+# Echo the path of configure_timescaledb.yml for debugging
+echo "Playbook file created at: $HOME/configure_pg_hba_conf_timescaledb_servers.yml"
+
 # Create an Ansible configuration file with a fixed temporary directory
 cat <<EOF > $HOME/ansible_cc.cfg
 [defaults]
@@ -733,16 +830,17 @@ cat <<EOF > $HOME/ensure_remote_tmp.yml
 EOF
 
 # Execute playbooks
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
-ansible-playbook $HOME/configure_barman_on_cc.yml
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
+# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
+# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
+# ansible-playbook $HOME/configure_barman_on_cc.yml
+# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
+# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
+# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
+# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
 ansible-playbook -v $HOME/install_packages.yml
-
+ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml
+ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
 
 
 # - name: Debug - Show barman_ssh_key
