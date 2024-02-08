@@ -520,26 +520,31 @@ cat <<EOF > $HOME/check_ssh.yml
       delegate_to: localhost
       ignore_errors: true
       register: ssh_check_ecs
-    - name: Show SSH check result to ECS
-      debug:
-        msg: "SSH connectivity to {{ inventory_hostname }} as ec2-user: {{ ssh_check_ecs.stdout }}"
-      when: ssh_check_ecs is defined and ssh_check_ecs.stdout is defined
+    ################################USE FOR DEBUG#############################################
+    # - name: Show SSH check result to ECS
+    #   debug:
+    #     msg: "SSH connectivity to {{ inventory_hostname }} as ec2-user: {{ ssh_check_ecs.stdout }}"
+    #   when: ssh_check_ecs is defined and ssh_check_ecs.stdout is defined
 
 - name: Check SSH connectivity from ec2-user in ecs hosts to user ubuntu on localhost
   hosts: ecs
   gather_facts: no
-  vars:
-    clustercontrol_servers: "{{ groups['clustercontrol'] }}"
   tasks:
-    - name: Check SSH connectivity to localhost as ubuntu
-      command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no ubuntu@{{ clustercontrol_servers }} echo 'SSH to localhost as ubuntu successful'
+    - name: Check SSH connectivity to ClusterControl private server as ubuntu
+      command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no ubuntu@{{ hostvars['clustercontrol_private_server'].ansible_host }} echo 'SSH to ClusterControl private server as ubuntu successful'
       delegate_to: "{{ inventory_hostname }}"
       ignore_errors: true
-      register: ssh_check_localhost
-    - name: Show SSH check result to localhost
-      debug:
-        msg: "SSH connectivity from {{ inventory_hostname }} as ec2-user to localhost: {{ ssh_check_localhost.stdout }}"
-      when: ssh_check_localhost is defined and ssh_check_localhost.stdout is defined
+
+    - name: Check SSH connectivity to ClusterControl public server as ubuntu
+      command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no ubuntu@{{ hostvars['clustercontrol_public_server'].ansible_host }} echo 'SSH to ClusterControl public server as ubuntu successful'
+      delegate_to: "{{ inventory_hostname }}"
+      ignore_errors: true
+
+    ################################USE FOR DEBUG#############################################
+    # - name: Show SSH check result to localhost
+    #   debug:
+    #     msg: "SSH connectivity from {{ inventory_hostname }} as ec2-user to localhost: {{ ssh_check_localhost.stdout }}"
+    #   when: ssh_check_localhost is defined and ssh_check_localhost.stdout is defined
 
 EOF
 
@@ -574,8 +579,8 @@ EOF
 # Execute the playbook
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 # Execute playbooks
-#ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
-#ansible-playbook $HOME/configure_barman_on_cc.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
+ansible-playbook $HOME/configure_barman_on_cc.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
 ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
