@@ -346,6 +346,32 @@ EOF
 # Generate the Ansible plybook for ecs
 cat <<EOF > $HOME/ecs_instance.yml
 ---
+- name: Ensure SSH Key Pair Exists for ec2-user
+  hosts: ecs
+  become: yes  # Ensure Ansible uses sudo to execute commands
+  become_user: ec2-user  # Switch to ec2-user for these operations
+  tasks:
+    - name: Check if SSH public key exists
+      stat:
+        path: "/home/ec2-user/.ssh/id_rsa.pub"
+      register: ssh_key_pub_ecs
+
+    - name: Generate SSH key pair for ec2-user
+      command: ssh-keygen -t rsa -b 2048 -f /home/ec2-user/.ssh/id_rsa -q -N ""
+      when: ssh_key_pub_ecs.stat.exists == false
+      args:
+        creates: "/home/ec2-user/.ssh/id_rsa.pub"
+
+    - name: Fetch the public SSH key of ec2-user
+      slurp:
+        src: "/home/ec2-user/.ssh/id_rsa.pub"
+      register: ec2_user_ssh_pub_key
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Print the public key
+      debug:
+        msg: "{{ ec2_user_ssh_pub_key.content | b64decode }}"
+
 - name: Setup SSH Access for ubuntu User on ECS Servers
   hosts: ecs
   gather_facts: no
@@ -362,23 +388,14 @@ cat <<EOF > $HOME/ecs_instance.yml
         state: present
         key: "{{ ubuntu_ssh_pub_key.content | b64decode }}"
       when: "'ecs' in group_names"
-- name: Collect and authorize ECS public keys on localhost
-  hosts: ecs
-  gather_facts: no
-  tasks:
-    - name: Slurp the public SSH key of ec2-user from ECS
-      slurp:
-        src: "/home/ec2-user/.ssh/id_rsa.pub"
-      register: ecs_public_key
-      delegate_to: "{{ inventory_hostname }}"
 
     - name: Authorize ECS's public key on localhost for ubuntu user
       ansible.builtin.lineinfile:
         path: "{{ lookup('env','HOME') }}/.ssh/authorized_keys"
-        line: "{{ ecs_public_key.content | b64decode }}"
+        line: "{{ ec2_user_ssh_pub_key.content | b64decode }}"
         state: present
       delegate_to: localhost
-      when: ecs_public_key.content is defined
+      when: ec2_user_ssh_pub_key.content is defined
       become: false  # Assuming the Ansible user can write to their own .ssh directory without sudo
 EOF
 
@@ -437,14 +454,18 @@ cat <<EOF > $HOME/check_ssh.yml
   vars:
     clustercontrol_private_ip: "{{ hostvars['clustercontrol_private_server'].ansible_host }}"
   tasks:
-    - name: Check SSH connectivity to ClusterControl as barman (internal)
+    - name: Check SSH connectivity from timescaledb_servers to ClusterControl as barman (internal)
       command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no barman@{{ clustercontrol_private_ip }} echo 'SSH to ClusterControl as barman successful'
-      when: "'internal' in role"
+      when: 
+        - "'internal' in role"
+        - "inventory_hostname == 'standby_server'" 
       delegate_to: "{{ inventory_hostname }}"
       become: true
       become_user: postgres
       ignore_errors: true
       register: ssh_check_internal
+
+
     - name: Show SSH check result (internal)
       debug:
         var: ssh_check_internal.stdout_lines
@@ -555,7 +576,7 @@ ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 # Execute playbooks
 #ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
 #ansible-playbook $HOME/configure_barman_on_cc.yml
-#ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
 ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
 ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
