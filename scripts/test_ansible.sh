@@ -1,5 +1,5 @@
-#!/bin/bash
 
+#!/bin/bash
 # Check for the correct number of arguments
 # if [ "$#" -ne 1 ]; then
 #     echo "Usage: $0 TIMESCALEDB_PRIVATE_IP"
@@ -35,16 +35,6 @@ else
     exit 1
 fi
 
-# # Fetch secret from AWS Secrets Manager
-# if command -v aws > /dev/null; then
-#     echo "Fetching SSH key from AWS Secrets Manager..."
-#     aws secretsmanager get-secret-value --secret-id $AWS_SECRET_ID --query 'SecretString' --output text | base64 --decode > $HOME/retrieved_key.pem
-#     chmod 600 $HOME/retrieved_key.pem
-# else
-#     echo "AWS CLI not found. Please install AWS CLI and configure it."
-#     exit 1
-# fi
-# Generate Ansible playbook for installing acl
 cat <<EOF > $HOME/install_acl.yml
 ---
 - name: Install ACL on local machine
@@ -503,12 +493,12 @@ cat <<EOF > $HOME/check_ssh.yml
         var: ssh_check_external.stdout_lines
       when: ssh_check_external is defined and ssh_check_external.stdout_lines is defined
 
-- name: Check SSH connectivity from user barman in ClusterControl to TimescaleDB servers as postgres users
+- name: Check SSH connectivity from user barman in ClusterControl to TimescaleDB servers as postgres users IMPORTANT**
   hosts: localhost
   vars:
     timescaledb_servers: "{{ groups['timescaledb_servers'] }}"
   tasks:
-    - name: Check SSH connectivity to TimescaleDB as postgres
+    - name: Check SSH connectivity from barman user on ClusterControl to TimescaleDB servers as postgres user IMPORTANT**
       command: ssh -o BatchMode=yes -o StrictHostKeyChecking=no postgres@{{ hostvars[item].ansible_host }} echo 'SSH to TimescaleDB as postgres successful'
       loop: "{{ timescaledb_servers }}"
       become: true
@@ -710,40 +700,34 @@ EOF
 # Create the Ansible playbook file dynamically
 cat <<EOF > $HOME/configure_pgpass.yml
 ---
-- name: Update .pgpass with TimescaleDB password from AWS SSM
+- name: Update .pgpass with TimescaleDB password
   hosts: timescaledb_server
   gather_facts: yes
   vars:
-    timescaledb_password_ssm_name: "{{ lookup('env','TIMESCALEDBPASSWORD') }}"
     aws_region: "{{ lookup('env','AWS_REGION') }}"
+    timescaledb_password: "{{ 'your_password_here' }}"  # Make sure to securely obtain your password
   tasks:
-    - name: Fetch TimescaleDB password from AWS SSM
-      community.aws.aws_ssm:
-        name: "{{ timescaledb_password_ssm_name }}"
-        region: "{{ aws_region }}"
-      register: ssm_result
-
-    - name: Set the TimescaleDB password as a fact
-      set_fact:
-        timescaledb_password: "{{ ssm_result.value }}"
+    - name: Get information about the postgres user
+      ansible.builtin.getent:
+        database: passwd
+        key: postgres
+      register: postgres_user_info
 
     - name: Get localhost IP address
       ansible.builtin.shell: "hostname -I | awk '{print $1}'"
       register: localhost_ip
+      become: yes
+      become_user: postgres  # Run as postgres user
 
     - name: Ensure .pgpass contains the required line
       ansible.builtin.lineinfile:
-        path: "~/.pgpass"
-        line: "{{ localhost_ip.stdout }}:5432:postgres:*:{{ timescaledb_password }}"
+        path: "{{ postgres_user_info.ansible_facts.getent_passwd['postgres'][4] }}/.pgpass"
+        line: "{{ localhost_ip.stdout }}:5432:*:*:{{ timescaledb_password }}"
         create: yes
         state: present
-      become: yes  # Use become if needed to write to the file as the user
-
-    - name: Set .pgpass file permissions to 600
-      ansible.builtin.file:
-        path: "~/.pgpass"
-        mode: '0600'
-      become: yes  # Use become if needed to modify file permissions as the user
+        mode: '0600'  # Set the correct permissions while creating the file
+      become: yes
+      become_user: postgres  # Run as postgres user
 
 EOF
 echo "Playbook file created at: $HOME/configure_pgpass.yml"
@@ -832,6 +816,14 @@ cat <<EOF > $HOME/ensure_remote_tmp.yml
         mode: '777'
 EOF
 
+if command -v aws > /dev/null; then
+    echo "Fetching TimescaleDB password from AWS Systems Manager Parameter Store..."
+    TIMESCALEDBPASSWORD_RETRIEVED=$(aws ssm get-parameter --name "$TIMESCALEDBPASSWORD" --with-decryption --query 'Parameter.Value' --output text)
+else
+    echo "AWS CLI not found. Please install AWS CLI and configure it."
+    exit 1
+fi
+sudo usermod -aG ubuntu barman
 # Execute playbooks
 # sudo apt install ansible -y
 # ansible-galaxy collection install community.aws --force
@@ -841,12 +833,13 @@ EOF
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 # ansible-playbook $HOME/configure_barman_on_cc.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
-# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
-# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
 
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
+ansible-playbook -vvv -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
 ansible-playbook -v $HOME/install_packages.yml
-ansible-playbook -vvv -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml
-ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
+
+ansible-playbook -vvv -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml -e "timescaledb_password=${TIMESCALEDBPASSWORD_RETRIEVED}"
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
 
