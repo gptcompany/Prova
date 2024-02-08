@@ -753,7 +753,7 @@ echo "Playbook file created at: $HOME/configure_pgpass.yml"
 # Create the Ansible playbook with the determined IP
 cat <<EOF > $HOME/configure_pg_hba_conf_timescaledb_servers.yml
 ---
-- name: Configure TimescaleDB Servers
+- name: Configure pg_hba_conf in TimescaleDB Servers to allow private clustercontrol ip
   hosts: timescaledb_servers
   become: yes  # This elevates privilege for the entire playbook; adjust as necessary for your environment
 
@@ -845,18 +845,3 @@ ansible-playbook -v $HOME/install_packages.yml
 ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml
 ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
 
-
-# - name: Debug - Show barman_ssh_key
-#   hosts: localhost
-#   gather_facts: no
-#   tasks:
-#     - name: Debug barman_ssh_key
-#       debug:
-#         var: barman_ssh_key
-
-# - name: Use variable on other hosts DEBUG
-#   hosts: timescaledb_servers
-#   tasks:
-#     - name: Use barman_ssh_key
-#       debug:
-#         msg: "Using SSH Key: {{ hostvars['localhost']['barman_ssh_key'] }}"
