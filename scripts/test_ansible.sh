@@ -703,6 +703,8 @@ cat <<EOF > $HOME/configure_pgpass.yml
 - name: Update .pgpass with TimescaleDB password
   hosts: timescaledb_servers
   gather_facts: yes
+  become: yes
+  become_user: postgres  # Global escalation to postgres user
   tasks:
     - name: Get information about the postgres user
       ansible.builtin.getent:
@@ -713,8 +715,26 @@ cat <<EOF > $HOME/configure_pgpass.yml
     - name: Get localhost IP address
       ansible.builtin.shell: "hostname -I | awk '{print $1}'"
       register: localhost_ip
+
+    - name: Set correct permissions on .pgpass
+      ansible.builtin.file:
+        path: "{{ postgres_user_info.ansible_facts.getent_passwd['postgres'][4] }}/.pgpass"
+        owner: postgres
+        group: postgres
+        mode: '0600'
       become: yes
-      become_user: postgres  # Run as postgres user
+      become_user: root
+
+    - name: Set ACL for postgres user on .pgpass (optional, if needed)
+      ansible.builtin.acl:
+        path: "{{ postgres_user_info.ansible_facts.getent_passwd['postgres'][4] }}/.pgpass"
+        entity: postgres
+        etype: user
+        permissions: rwx
+        state: present
+      become: yes
+      become_user: root
+      ignore_errors: yes # Use ignore_errors if ACLs are not supported on your filesystem
 
     - name: Ensure .pgpass contains the required line
       ansible.builtin.lineinfile:
@@ -722,12 +742,11 @@ cat <<EOF > $HOME/configure_pgpass.yml
         line: "{{ localhost_ip.stdout }}:5432:*:*:{{ timescaledb_password }}"
         create: yes
         state: present
-        mode: '0600'  # Set the correct permissions while creating the file
+        mode: '0600'
       become: yes
-      become_user: postgres  # Run as postgres user
-
-
+      become_user: postgres
 EOF
+
 echo "Playbook file created at: $HOME/configure_pgpass.yml"
 
 
@@ -830,9 +849,8 @@ echo "barman sudo priv added!"
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
-
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
-ansible-playbook $HOME/install_packages.yml  #on localhost
+# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
+# ansible-playbook $HOME/install_packages.yml  #on localhost
 
 if command -v aws > /dev/null; then
     echo "Fetching TimescaleDB password from AWS Systems Manager Parameter Store..."
@@ -843,5 +861,5 @@ else
     exit 1
 fi
 ansible-playbook -vv -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml -e "timescaledb_password=${TIMESCALEDBPASSWORD_RETRIEVED}"
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
+#ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
 
