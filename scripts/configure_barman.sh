@@ -58,4 +58,4 @@ cat <<EOF > $HOME/configure_barman.yml
       when: barman_check is failed
 EOF
 
-ansible-playbook -v $HOME/configure_barman.yml  #on localhost
+sudo ansible-playbook -v $HOME/configure_barman.yml  #on localhost
