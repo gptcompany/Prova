@@ -716,6 +716,16 @@ cat <<EOF > $HOME/configure_pgpass.yml
       ansible.builtin.shell: "hostname -I | awk '{print $1}'"
       register: localhost_ip
 
+    - name: Ensure .pgpass file exists for setting permissions
+      ansible.builtin.file:
+        path: "{{ postgres_user_info.ansible_facts.getent_passwd['postgres'][4] }}/.pgpass"
+        state: touch
+        owner: postgres
+        group: postgres
+        mode: '0600'
+      become: yes
+      become_user: root
+
     - name: Set correct permissions on .pgpass
       ansible.builtin.file:
         path: "{{ postgres_user_info.ansible_facts.getent_passwd['postgres'][4] }}/.pgpass"
