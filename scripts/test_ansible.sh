@@ -705,7 +705,7 @@ cat <<EOF > $HOME/configure_pgpass.yml
   gather_facts: yes
   vars:
     aws_region: "{{ lookup('env','AWS_REGION') }}"
-    timescaledb_password: "{{ 'your_password_here' }}"  # Make sure to securely obtain your password
+    timescaledb_password: "{{ 'timescaledb_password' }}"  # Make sure to securely obtain your password
   tasks:
     - name: Get information about the postgres user
       ansible.builtin.getent:
@@ -791,7 +791,7 @@ echo "Playbook file created at: $HOME/configure_pg_hba_conf_timescaledb_servers.
 cat <<EOF > $HOME/ansible_cc.cfg
 [defaults]
 remote_tmp = /var/tmp/ansible-tmp
-ansible_python_interpreter: /usr/lib/python3
+# ansible_python_interpreter: /usr/lib/python3
 EOF
 
 # Export ANSIBLE_CONFIG to use the newly created configuration file
@@ -837,9 +837,9 @@ ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
 
-ansible-playbook -vvv -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
-ansible-playbook -v $HOME/install_packages.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
+ansible-playbook $HOME/install_packages.yml  #on localhost
 
-ansible-playbook -vvv -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml -e "timescaledb_password=${TIMESCALEDBPASSWORD_RETRIEVED}"
+ansible-playbook -vv -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml -e "timescaledb_password=${TIMESCALEDBPASSWORD_RETRIEVED}"
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
 
