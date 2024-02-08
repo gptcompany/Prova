@@ -701,7 +701,7 @@ EOF
 cat <<EOF > $HOME/configure_pgpass.yml
 ---
 - name: Update .pgpass with TimescaleDB password
-  hosts: timescaledb_server
+  hosts: timescaledb_servers
   gather_facts: yes
   tasks:
     - name: Get information about the postgres user
@@ -827,8 +827,8 @@ echo "barman sudo priv added!"
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 # ansible-playbook $HOME/configure_barman_on_cc.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/modify_sudoers.yml
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
+# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
+# ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
 
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
