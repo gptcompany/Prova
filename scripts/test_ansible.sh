@@ -417,7 +417,7 @@ all:
     ansible_user: ubuntu
     ansible_ssh_private_key_file: "\${HOME}/retrieved_key.pem"  # This will work because it's in a shell script
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
-    ansible_python_interpreter: /usr/bin/python3
+    #ansible_python_interpreter: /usr/bin/python3
   children:
     timescaledb_servers:
       hosts:
@@ -832,6 +832,10 @@ cat <<EOF > $HOME/ensure_remote_tmp.yml
 EOF
 
 # Execute playbooks
+pip install --upgrade ansible
+ansible-galaxy collection install community.aws --force
+ansible-galaxy collection install amazon.aws --force
+
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/install_acl.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 # ansible-playbook $HOME/configure_barman_on_cc.yml
@@ -839,9 +843,9 @@ EOF
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_ssh_from_cc.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
 # ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
-ansible-galaxy collection install community.aws
+
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
 ansible-playbook -v $HOME/install_packages.yml
-ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml
+ansible-playbook -vvv -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml
 ansible-playbook -v -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
 
