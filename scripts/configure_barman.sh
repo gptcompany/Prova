@@ -208,4 +208,4 @@ else
     echo "AWS CLI not found. Please install AWS CLI and configure it."
     exit 1
 fi
-ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/configure_barman.yml  -e "timescaledb_password=${TIMESCALEDBPASSWORD_RETRIEVED} clustercontrol_private_ip=${CLUSTERCONTROL_PRIVATE_IP}""
+ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/configure_barman.yml  -e "timescaledb_password=${TIMESCALEDBPASSWORD_RETRIEVED} clustercontrol_private_ip=${CLUSTERCONTROL_PRIVATE_IP}"
