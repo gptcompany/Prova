@@ -1,5 +1,10 @@
-
 #!/bin/bash
+
+# Install Barman and Barman-cli if not already installed
+sudo apt-get update
+sudo apt-get install -y barman barman-cli
+
+# Create the Ansible playbook file
 cat <<EOF > $HOME/configure_barman.yml
 ---
 - name: Configure Barman on localhost with ACL for barman user
@@ -20,11 +25,18 @@ cat <<EOF > $HOME/configure_barman.yml
       log_level = INFO
       compression = pigz
       parallel_jobs = 3
+      backup_directory = /var/lib/barman/backups
+      backup_method = rsync
+      wal_retention_policy = main
+      retention_policy_mode = auto
+      archiver = on
 
       [timescaledb]
       description = "Timescaledb Server"
       ssh_command = ssh postgres@172.31.35.73
       conninfo = host=172.31.35.73 user=postgres password=Timescaledb2023
+      retention_policy_mode = auto
+      wal_retention_policy = main
 
   tasks:
     - name: Ensure barman.conf exists
@@ -58,4 +70,9 @@ cat <<EOF > $HOME/configure_barman.yml
       when: barman_check is failed
 EOF
 
+# Set ACL for the barman user on /etc/barman.conf
+# This ensures barman has the necessary permissions
+sudo setfacl -m u:barman:rw- /etc/barman.conf
+
+# Run the Ansible playbook
 sudo ansible-playbook -v $HOME/configure_barman.yml  #on localhost
