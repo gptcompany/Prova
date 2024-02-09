@@ -109,7 +109,7 @@ cat <<EOF > $HOME/configure_barman.yml
 - name: Configure PostgreSQL on TimescaleDB Server for WAL Streaming
   hosts: timescaledb_servers
   become: yes
-  gather_facts: no  # Assuming you don't need to gather facts; set to yes if needed
+  gather_facts: yes
   vars:
     barman_server_ip: "{{ ansible_default_ipv4.address }}"
 
