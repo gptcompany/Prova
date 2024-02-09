@@ -68,7 +68,8 @@ cat <<EOF > $HOME/configure_barman.yml
     - name: Verify Barman configuration
       ansible.builtin.command:
         cmd: barman check all
-      become: no  # Run verification as the barman user without sudo
+      become: yes  # Enables privilege escalation
+      become_user: barman  # Specifies the user to become
       register: barman_check
       ignore_errors: yes
 
@@ -109,6 +110,8 @@ cat <<EOF > $HOME/configure_barman.yml
   hosts: timescaledb_servers
   become: yes
   gather_facts: no  # Assuming you don't need to gather facts; set to yes if needed
+  vars:
+    barman_server_ip: "{{ ansible_default_ipv4.address }}"
 
   tasks:
     - name: Fetch PostgreSQL configuration file path
