@@ -85,7 +85,8 @@ cat <<EOF > $HOME/configure_barman.yml
 
     - name: Extract incoming WALs directory path
       set_fact:
-        incoming_wals_dir: "{{ barman_server_info.stdout | regex_search('incoming_wals_directory:\\s*(.*)', '\\1') | first }}"
+        incoming_wals_dir: "{{ barman_server_info.stdout | regex_search('incoming_wals_directory: ([^\\s]+)') | first }}"
+
       when: barman_server_info.stdout is defined
 
     - name: Debug print incoming WALs directory path
