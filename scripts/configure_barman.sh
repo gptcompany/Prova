@@ -69,12 +69,14 @@ cat <<EOF > $HOME/configure_barman.yml
       ansible.builtin.command:
         cmd: barman check all
       become: no  # Run verification as the barman user without sudo
+      register: barman_check
       ignore_errors: yes
 
     - name: Report Barman check failure
       ansible.builtin.debug:
         msg: "Barman configuration check failed. Please review the configuration."
-      when: barman_check.failed
+      when: (barman_check is defined) and (barman_check.failed | default(false))
+
     
     - name: Get Barman server info for 'timescaledb'
       ansible.builtin.command: "barman show-server timescaledb"
