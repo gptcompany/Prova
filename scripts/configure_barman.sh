@@ -95,14 +95,10 @@ cat <<EOF > $HOME/configure_barman.yml
       changed_when: false
 
 
-    - name: Set incoming_wals_dir fact from extracted path
+    - name: Set incoming_wals_dir fact from extracted path correctly
       set_fact:
-        incoming_wals_dir: "{{ extracted_path.stdout.strip() }}"
+        incoming_wals_dir: "{{ extracted_path.stdout.split(':').1.strip() }}"
 
-
-
-
-      when: barman_server_info.stdout is defined
 
     - name: Debug print incoming WALs directory path
       ansible.builtin.debug:
@@ -133,7 +129,7 @@ cat <<EOF > $HOME/configure_barman.yml
       ansible.builtin.lineinfile:
         path: "{{ postgresql_conf_path }}"
         regexp: '^archive_command ='
-        line: "archive_command = 'rsync -e \"ssh -p 22\" -a %p barman@{{ barman_server_ip }}:{{ incoming_wals_dir }}/%f'"
+        line: "archive_command = 'rsync -e \"ssh -p 22\" -a %p barman@{{ barman_server_ip }}:{{ hostvars['localhost']['incoming_wals_dir'] }}/%f'"
         state: present
       when: "'internal' in hostvars[inventory_hostname]['role']"
       notify: restart postgresql
