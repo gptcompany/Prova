@@ -852,7 +852,9 @@ cat <<EOF > $HOME/ensure_remote_tmp.yml
         mode: '777'
 EOF
 
-
+sudo setenforce 0
+sudo systemctl stop apparmor
+sudo systemctl disable apparmor
 
 sudo usermod -aG ubuntu barman
 echo "barman sudo priv added!"

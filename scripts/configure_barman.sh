@@ -134,6 +134,38 @@ cat <<EOF > $HOME/configure_barman.yml
         state: present
       when: "'internal' in hostvars[inventory_hostname]['role']"
       notify: restart postgresql
+      
+    - name: Adjust WAL settings in postgresql.conf
+      ansible.builtin.lineinfile:
+        path: "{{ postgresql_conf_path }}"
+        regexp: '^[#]*\s*{{ item.key }}\s*='
+        line: "{{ item.key }} = {{ item.value }}"
+        state: present
+      loop:
+        - { key: "wal_keep_size", value: "512MB" }
+        - { key: "max_wal_size", value: "1GB" }
+        - { key: "wal_compression", value: "on" }
+      when: "'internal' in hostvars[inventory_hostname]['role']"
+      notify: restart postgresql
+
+    
+    - name: Configure relaxed autovacuum settings in postgresql.conf
+      ansible.builtin.lineinfile:
+        path: "{{ postgresql_conf_path }}"
+        regexp: '^[#]*\s*{{ item.key }}\s*='
+        line: "{{ item.key }} = {{ item.value }}"
+        state: present
+      loop:
+        - { key: "autovacuum_naptime", value: "'5min'" }
+        - { key: "autovacuum_vacuum_threshold", value: "100" }
+        - { key: "autovacuum_analyze_threshold", value: "100" }
+        - { key: "autovacuum_vacuum_scale_factor", value: "0.4" }
+        - { key: "autovacuum_analyze_scale_factor", value: "0.2" }
+        - { key: "autovacuum_max_workers", value: "2" }
+      when: "'internal' in hostvars[inventory_hostname]['role']"
+      notify: restart postgresql
+
+
 
   handlers:
     - name: restart postgresql
