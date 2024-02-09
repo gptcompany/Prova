@@ -94,9 +94,11 @@ cat <<EOF > $HOME/configure_barman.yml
       register: extracted_path
       changed_when: false
 
+
     - name: Set incoming_wals_dir fact from extracted path
       set_fact:
-        incoming_wals_dir: "{{ extracted_path.stdout }}"
+        incoming_wals_dir: "{{ extracted_path.stdout.strip() }}"
+
 
 
 
