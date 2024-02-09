@@ -10,9 +10,7 @@ TIMESCALEDBPASSWORD="timescaledbpassword"
 AWS_REGION="ap-northeast-1"
 CLUSTERCONTROL_PRIVATE_IP=$(hostname -I | awk '{print $1}')
 CLUSTERCONTROL_PUBLIC_IP=$(curl -s ifconfig.me)
-# Install Barman and Barman-cli if not already installed
-sudo apt-get update
-sudo apt-get install -y barman barman-cli
+
 
 # Create the Ansible playbook file
 cat <<EOF > $HOME/configure_barman.yml
@@ -85,7 +83,8 @@ cat <<EOF > $HOME/configure_barman.yml
 
     - name: Extract incoming WALs directory path
       set_fact:
-        incoming_wals_dir: "{{ barman_server_info.stdout | regex_search('incoming_wals_directory: ([^\\s]+)', '\\1') | first }}"
+        incoming_wals_dir: "{{ barman_server_info.stdout | regex_search('incoming_wals_directory:\\s*([^\\s]+)', '\\1') | first }}"
+
       when: barman_server_info.stdout is defined
 
     - name: Debug print incoming WALs directory path
@@ -175,9 +174,14 @@ EOF
 else
     echo "Inventory file already exists at $INVENTORY_FILE"
 fi
+# Install Barman and Barman-cli if not already installed
+# sudo apt-get update
+# sudo apt-get install -y barman barman-cli
+
+
 # Set ACL for the barman user on /etc/barman.conf
 # This ensures barman has the necessary permissions
-sudo setfacl -m u:barman:rw- /etc/barman.conf
+# sudo setfacl -m u:barman:rw- /etc/barman.conf
 
 # Run the Ansible playbook
 sudo ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/configure_barman.yml  #on localhost
