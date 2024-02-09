@@ -198,4 +198,4 @@ fi
 # sudo setfacl -m u:barman:rw- /etc/barman.conf
 
 # Run the Ansible playbook
-sudo ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/configure_barman.yml  #on localhost
+ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/configure_barman.yml  #on localhost
