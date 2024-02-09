@@ -42,7 +42,7 @@ cat <<EOF > $HOME/configure_barman.yml
       [timescaledb]
       description = "Timescaledb Server"
       ssh_command = ssh postgres@172.31.35.73
-      conninfo = host=172.31.35.73 user=postgres password=Timescaledb2023
+      conninfo = host=172.31.35.73 user=postgres password={{ timescaledb_password }}
       retention_policy_mode = auto
       wal_retention_policy = main
   tasks:
@@ -199,4 +199,12 @@ fi
 # sudo setfacl -m u:barman:rw- /etc/barman.conf
 
 # Run the Ansible playbook
-ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/configure_barman.yml  #on localhost
+if command -v aws > /dev/null; then
+    echo "Fetching TimescaleDB password from AWS Systems Manager Parameter Store..."
+    TIMESCALEDBPASSWORD_RETRIEVED=$(aws ssm get-parameter --name "$TIMESCALEDBPASSWORD" --with-decryption --query 'Parameter.Value' --output text)
+    
+else
+    echo "AWS CLI not found. Please install AWS CLI and configure it."
+    exit 1
+fi
+ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/configure_barman.yml  -e "timescaledb_password=${TIMESCALEDBPASSWORD_RETRIEVED}"
