@@ -873,14 +873,7 @@ ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
 ansible-playbook $HOME/install_packages.yml  #on localhost
 
-if command -v aws > /dev/null; then
-    echo "Fetching TimescaleDB password from AWS Systems Manager Parameter Store..."
-    TIMESCALEDBPASSWORD_RETRIEVED=$(aws ssm get-parameter --name "$TIMESCALEDBPASSWORD" --with-decryption --query 'Parameter.Value' --output text)
-    
-else
-    echo "AWS CLI not found. Please install AWS CLI and configure it."
-    exit 1
-fi
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml -e "timescaledb_password=${TIMESCALEDBPASSWORD_RETRIEVED}"
+
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml -e "timescaledb_password=${TIMESCALEDBPASSWORD}"
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
 
