@@ -13,6 +13,38 @@ CLUSTERCONTROL_PUBLIC_IP=$(curl -s ifconfig.me)
 
 # Create the Ansible playbook file
 cat <<EOF > $HOME/configure_postgres_timescaledb.yml
+- name: Configure Barman on localhost with ACL for barman user
+  hosts: localhost
+  connection: local
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Get Barman server info for 'timescaledb'
+      ansible.builtin.command: "barman show-server timescaledb"
+      register: barman_server_info
+      ignore_errors: yes
+
+    - name: Print Barman server info output
+      ansible.builtin.debug:
+        var: barman_server_info.stdout
+
+    - name: Extract incoming WALs directory path using shell
+      ansible.builtin.shell: |
+        echo "{{ barman_server_info.stdout }}" | grep 'incoming_wals_directory' | awk '{print $2}'
+      register: extracted_path
+      changed_when: false
+
+
+    - name: Set incoming_wals_dir fact from extracted path correctly
+      set_fact:
+        incoming_wals_dir: "{{ extracted_path.stdout.split(':').1.strip() }}"
+
+
+    - name: Debug print incoming WALs directory path
+      ansible.builtin.debug:
+        msg: "Incoming WALs directory path: {{ incoming_wals_dir }}"
+
+
 - name: Configure PostgreSQL on TimescaleDB Server for WAL Streaming
   hosts: timescaledb_servers
   become: yes

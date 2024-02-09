@@ -7,14 +7,14 @@
 # fi
 
 # Assign arguments to variables
-TIMESCALEDB_PRIVATE_IP="172.31.35.73"
-TIMESCALEDB_PUBLIC_IP="57.181.106.64"
-STANDBY_PUBLIC_IP="timescaledb.mywire.org"
-ECS_INSTANCE_PRIVATE_IP="172.31.38.68"
-ECS_INSTANCE_PUBLIC_IP="52.193.34.34"
-AWS_SECRET_ID="sshkeypem"
-TIMESCALEDBPASSWORD="timescaledbpassword"
-AWS_REGION="ap-northeast-1"
+TIMESCALEDB_PRIVATE_IP=$(aws ssm get-parameter --name TIMESCALEDB_PRIVATE_IP --with-decryption --query 'Parameter.Value' --output text)
+TIMESCALEDB_PUBLIC_IP=$(aws ssm get-parameter --name TIMESCALEDB_PUBLIC_IP --with-decryption --query 'Parameter.Value' --output text)
+STANDBY_PUBLIC_IP=$(aws ssm get-parameter --name STANDBY_PUBLIC_IP --with-decryption --query 'Parameter.Value' --output text)
+ECS_INSTANCE_PRIVATE_IP=$(aws ssm get-parameter --name ECS_INSTANCE_PRIVATE_IP --with-decryption --query 'Parameter.Value' --output text)
+ECS_INSTANCE_PUBLIC_IP=$(aws ssm get-parameter --name ECS_INSTANCE_PUBLIC_IP --with-decryption --query 'Parameter.Value' --output text)
+AWS_SECRET_ID=$(aws ssm get-parameter --name sshkeypem --with-decryption --query 'Parameter.Value' --output text)
+TIMESCALEDBPASSWORD=$(aws ssm get-parameter --name timescaledbpassword --with-decryption --query 'Parameter.Value' --output text)
+AWS_REGION=$(aws ssm get-parameter --name REGION --with-decryption --query 'Parameter.Value' --output text)
 CLUSTERCONTROL_PRIVATE_IP=$(hostname -I | awk '{print $1}')
 CLUSTERCONTROL_PUBLIC_IP=$(curl -s ifconfig.me)
 # Check if Ansible is installed, install if not
