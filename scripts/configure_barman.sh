@@ -80,6 +80,10 @@ cat <<EOF > $HOME/configure_barman.yml
       ansible.builtin.command: "barman show-server timescaledb"
       register: barman_server_info
       ignore_errors: yes
+      
+    - name: Print Barman server info output
+      ansible.builtin.debug:
+        var: barman_server_info.stdout
 
     - name: Extract incoming WALs directory path
       set_fact:
