@@ -116,6 +116,66 @@ cat <<EOF > $HOME/configure_postgres_timescaledb.yml
       listen: "restart postgresql"
 
 EOF
+
+# Modified playbook for configuring pg_hba.conf
+cat <<EOF > $HOME/configure_postgres_timescaledb_servers.yml
+---
+- name: Configure pg_hba_conf in TimescaleDB Servers to allow specific IPs
+  hosts: timescaledb_servers
+  become: yes
+
+  vars:
+    ecs_instance_private_ip: "$ECS_INSTANCE_PRIVATE_IP"
+    clustercontrol_public_ip: "$CLUSTERCONTROL_PUBLIC_IP"
+    clustercontrol_private_ip: "$CLUSTERCONTROL_PRIVATE_IP"
+
+  tasks:
+    - name: Get PostgreSQL config file location
+      ansible.builtin.command: psql -U postgres -tA -c "SHOW config_file;"
+      become: yes
+      become_user: postgres
+      register: pg_config_file
+      changed_when: false
+
+    - name: Set fact for pg_hba.conf directory
+      set_fact:
+        pg_hba_dir: "{{ pg_config_file.stdout | dirname }}"
+
+    - name: Ensure TimescaleDB can accept connections from ECS instance private IP
+      ansible.builtin.lineinfile:
+        path: "{{ pg_hba_dir }}/pg_hba.conf"
+        line: "host all all {{ ecs_instance_private_ip }}/32 trust"
+      notify: reload postgresql
+
+    - name: Ensure TimescaleDB can accept connections from ClusterControl public IP
+      ansible.builtin.lineinfile:
+        path: "{{ pg_hba_dir }}/pg_hba.conf"
+        line: "host all all {{ clustercontrol_public_ip }}/32 trust"
+      notify: reload postgresql
+
+    - name: Ensure TimescaleDB can accept connections from ClusterControl private IP
+      ansible.builtin.lineinfile:
+        path: "{{ pg_hba_dir }}/pg_hba.conf"
+        line: "host all all {{ clustercontrol_private_ip }}/32 trust"
+      notify: reload postgresql
+
+    - name: Ensure local access for PostgreSQL user
+      ansible.builtin.lineinfile:
+        path: "{{ pg_hba_dir }}/pg_hba.conf"
+        line: "local all postgres trust"
+      notify: reload postgresql
+
+  handlers:
+    - name: reload postgresql
+      ansible.builtin.service:
+        name: postgresql
+        state: reloaded
+      become: yes
+
+EOF
+
+# Echo the path of configure_pg_hba_conf_timescaledb_servers.yml for debugging
+echo "pg_hba_conf configuration playbook created at: $HOME/configure_postgres_timescaledb_servers.yml"
 # Path to the inventory file
 INVENTORY_FILE="$HOME/timescaledb_inventory.yml"
 # Check if the inventory file exists, create if not
@@ -174,3 +234,4 @@ fi
 
 # Run the Ansible playbook
 ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/configure_postgres_timescaledb.yml  -e "timescaledb_password=${TIMESCALEDBPASSWORD} clustercontrol_private_ip=${CLUSTERCONTROL_PRIVATE_IP}"
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_postgres_timescaledb_servers.yml -e "ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP clustercontrol_public_ip=$CLUSTERCONTROL_PUBLIC_IP clustercontrol_private_ip=$CLUSTERCONTROL_PRIVATE_IP"
