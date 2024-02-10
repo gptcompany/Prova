@@ -769,59 +769,6 @@ EOF
 echo "Playbook file created at: $HOME/configure_pgpass.yml"
 
 
-# Create the Ansible playbook file dynamically
-# Create the Ansible playbook with the determined IP
-cat <<EOF > $HOME/configure_pg_hba_conf_timescaledb_servers.yml
----
-- name: Configure pg_hba_conf in TimescaleDB Servers to allow private clustercontrol ip
-  hosts: timescaledb_servers
-  become: yes  # This elevates privilege for the entire playbook; adjust as necessary for your environment
-
-  vars:
-    additional_access_ip: "${CLUSTERCONTROL_PUBLIC_IP}"
-
-  tasks:
-    - name: Get PostgreSQL config file location
-      ansible.builtin.command: psql -U postgres -tA -c "SHOW config_file;"
-      become: yes
-      become_user: postgres
-      register: pg_config_file
-      changed_when: false
-
-    - name: Set fact for pg_hba.conf directory
-      set_fact:
-        pg_hba_dir: "{{ pg_config_file.stdout | dirname }}"
-
-    - name: Ensure TimescaleDB can accept connections from default IPv4 address
-      ansible.builtin.lineinfile:
-        path: "{{ pg_hba_dir }}/pg_hba.conf"
-        line: "host all all {{ ansible_default_ipv4.address }}/32 trust"
-      notify: reload postgresql
-
-    - name: Ensure TimescaleDB can accept connections from additional IP
-      ansible.builtin.lineinfile:
-        path: "{{ pg_hba_dir }}/pg_hba.conf"
-        line: "host all all {{ additional_access_ip }}/32 trust"
-      notify: reload postgresql
-
-    - name: Ensure local access for PostgreSQL user
-      ansible.builtin.lineinfile:
-        path: "{{ pg_hba_dir }}/pg_hba.conf"
-        line: "local all postgres trust"
-      notify: reload postgresql
-
-  handlers:
-    - name: reload postgresql
-      ansible.builtin.service:
-        name: postgresql
-        state: reloaded
-      become: yes
-
-EOF
-
-
-# Echo the path of configure_timescaledb.yml for debugging
-echo "Playbook file created at: $HOME/configure_pg_hba_conf_timescaledb_servers.yml"
 
 # Create an Ansible configuration file with a fixed temporary directory
 cat <<EOF > $HOME/ansible_cc.cfg
@@ -829,11 +776,10 @@ cat <<EOF > $HOME/ansible_cc.cfg
 remote_tmp = /var/tmp/ansible-tmp
 # ansible_python_interpreter: /usr/lib/python3
 EOF
-
+echo "Ansible configuration file created at: $HOME/ansible_cc.cfg"
 # Export ANSIBLE_CONFIG to use the newly created configuration file
 export ANSIBLE_CONFIG=$HOME/ansible_cc.cfg
-
-echo "Ansible configuration file created at: $HOME/ansible_cc.cfg"
+echo "Using Ansible configuration file at: $ANSIBLE_CONFIG"
 # Ensure the temporary directory exists on localhost
 mkdir -p /var/tmp/ansible-tmp
 chmod 777 /var/tmp/ansible-tmp
@@ -875,5 +821,5 @@ ansible-playbook $HOME/install_packages.yml  #on localhost
 
 
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml -e "timescaledb_password=${TIMESCALEDBPASSWORD}"
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pg_hba_conf_timescaledb_servers.yml
+
 

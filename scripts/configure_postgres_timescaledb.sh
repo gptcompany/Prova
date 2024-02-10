@@ -223,6 +223,19 @@ EOF
 else
     echo "Inventory file already exists at $INVENTORY_FILE"
 fi
+# Playbook to ensure the temporary directory exists on remote hosts
+cat <<EOF > $HOME/ensure_remote_tmp.yml
+---
+- name: Ensure Ansible temporary directory exists on all hosts
+  hosts: all
+  become: yes
+  tasks:
+    - name: Create Ansible temporary directory
+      file:
+        path: "/var/tmp/ansible-tmp"
+        state: directory
+        mode: '777'
+EOF
 # Install Barman and Barman-cli if not already installed
 # sudo apt-get update
 # sudo apt-get install -y barman barman-cli
@@ -231,7 +244,9 @@ fi
 # Set ACL for the barman user on /etc/barman.conf
 # This ensures barman has the necessary permissions
 # sudo setfacl -m u:barman:rw- /etc/barman.conf
-
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
+export ANSIBLE_CONFIG=$HOME/ansible_cc.cfg
+echo "Using Ansible configuration file at: $ANSIBLE_CONFIG"
 # Run the Ansible playbook
 ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/configure_postgres_timescaledb.yml  -e "timescaledb_password=${TIMESCALEDBPASSWORD} clustercontrol_private_ip=${CLUSTERCONTROL_PRIVATE_IP}"
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_postgres_timescaledb_servers.yml -e "ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP clustercontrol_public_ip=$CLUSTERCONTROL_PUBLIC_IP clustercontrol_private_ip=$CLUSTERCONTROL_PRIVATE_IP"
