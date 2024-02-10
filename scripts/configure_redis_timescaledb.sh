@@ -18,8 +18,8 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
   hosts: localhost
   gather_facts: no
   vars:
-    timescaledb_private_ip: "{{ lookup('env', 'TIMESCALEDB_PRIVATE_IP') }}"
-    ecs_instance_private_ip: "{{ lookup('env', 'ECS_INSTANCE_PRIVATE_IP') }}"
+    timescaledb_private_ip: "$TIMESCALEDB_PRIVATE_IP"
+    ecs_instance_private_ip: "$ECS_INSTANCE_PRIVATE_IP"
     redis_certificates:
       - { src: "/var/lib/redis/server.key", dest: "/home/ubuntu/server.key" }
       - { src: "/var/lib/redis/server.crt", dest: "/home/ubuntu/server.crt" }
@@ -39,9 +39,7 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
         flat: yes
       become: yes  # Use elevated privileges to fetch the file
       delegate_to: "{{ timescaledb_private_ip }}"
-      remote_user: ec2-user
       loop: "{{ redis_certificates }}"
-
 
     - name: Copy Redis certificates to ECS Instance
       ansible.builtin.copy:
@@ -52,6 +50,7 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
         mode: '0644'
         force: yes  # This ensures the file is overwritten if it already exists
       delegate_to: "{{ ecs_instance_private_ip }}"
+      remote_user: ec2-user  # Corrected user for ECS instance
       loop: "{{ redis_certificates }}"
 
     - name: Clean up local temporary directory
@@ -81,5 +80,5 @@ cat <<EOF > $HOME/ensure_remote_tmp.yml
         mode: '777'
 EOF
 export ANSIBLE_CONFIG=$HOME/ansible_cc.cfg
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
+ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml -e "timescaledb_private_ip=$TIMESCALEDB_PRIVATE_IP ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP"
 ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/configure_redis_timescaledb.yml -e "timescaledb_private_ip=$TIMESCALEDB_PRIVATE_IP ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP"
