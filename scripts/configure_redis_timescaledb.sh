@@ -39,6 +39,7 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
         flat: yes
       become: yes  # Use elevated privileges to fetch the file
       delegate_to: "{{ timescaledb_private_ip }}"
+      remote_user: ec2-user
       loop: "{{ redis_certificates }}"
 
 
@@ -46,8 +47,8 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
       ansible.builtin.copy:
         src: "{{ local_tmp_dir }}/{{ item.src | basename }}"
         dest: "{{ item.dest }}"
-        owner: ubuntu
-        group: ubuntu
+        owner: ec2-user
+        group: ec2-user
         mode: '0644'
         force: yes  # This ensures the file is overwritten if it already exists
       delegate_to: "{{ ecs_instance_private_ip }}"
