@@ -43,8 +43,8 @@ cat <<EOF > $HOME/configure_barman.yml
 
       [timescaledb]
       description = "Timescaledb Server"
-      ssh_command = ssh postgres@"{{ timescaledb_private_ip }}"
-      conninfo = host="{{ timescaledb_private_ip }}"user=postgres password="{{ timescaledb_password }}"
+      ssh_command = ssh postgres@{{ timescaledb_private_ip }}
+      conninfo = host={{ timescaledb_private_ip }} user=postgres password={{ timescaledb_password }}
       retention_policy_mode = auto
       wal_retention_policy = main
       backup_options = concurrent_backup
