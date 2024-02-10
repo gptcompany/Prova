@@ -1,14 +1,9 @@
 #!/bin/bash
 
 # Database and AWS S3 settings
-PGUSER="barman"
-PGHOST=$(python3 -c "import yaml; print(yaml.safe_load(open('/config_cf.yaml'))['pg_host'])")
-PGPORT="5432"
-PGPASSWORD=$(python3 -c "import yaml; print(yaml.safe_load(open('/config_cf.yaml'))['timescaledb_password'])")
-S3_BUCKET="s3://timescalebackups"
 LOG_FILE="$HOME/ts_backups.log"
 SERVER="timescaledb"
-export PGUSER PGHOST PGPORT PGPASSWORD
+
 
 # Function to log messages
 exec 3>>$LOG_FILE
@@ -84,16 +79,16 @@ else
 fi
 log_message "Backup type determined: $backup_type"
 
-# Perform backup
-log_message "Performing $backup_type backup..."
-if [ "$backup_type" == "incremental" ]; then
-    barman_output=$(barman backup --reuse=link "$SERVER")
-else
-    barman_output=$(barman backup "$SERVER")
-fi
-log_message "Backup Output:" "$barman_output"
+# # Perform backup
+# log_message "Performing $backup_type backup..."
+# if [ "$backup_type" == "incremental" ]; then
+#     barman_output=$(barman backup --reuse=link "$SERVER")
+# else
+#     barman_output=$(barman backup "$SERVER")
+# fi
+# log_message "Backup Output:" "$barman_output"
 
-# List backups
-log_message "Listing available backups..."
-barman_output=$(barman list-backup timescaledb)
-log_message "Available Backups:" "$barman_output"
+# # List backups
+# log_message "Listing available backups..."
+# barman_output=$(barman list-backup timescaledb)
+# log_message "Available Backups:" "$barman_output"
