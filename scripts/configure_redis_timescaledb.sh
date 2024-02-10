@@ -37,8 +37,10 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
         src: "{{ item.src }}"
         dest: "{{ local_tmp_dir }}/"
         flat: yes
+      become: yes  # Use elevated privileges to fetch the file
       delegate_to: "{{ timescaledb_private_ip }}"
       loop: "{{ redis_certificates }}"
+
 
     - name: Copy Redis certificates to ECS Instance
       ansible.builtin.copy:
