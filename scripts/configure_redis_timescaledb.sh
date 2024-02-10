@@ -21,9 +21,9 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
     timescaledb_private_ip: "$TIMESCALEDB_PRIVATE_IP"
     ecs_instance_private_ip: "$ECS_INSTANCE_PRIVATE_IP"
     redis_certificates:
-      - { src: "/var/lib/redis/server.key", dest: "/home/ubuntu/server.key" }
-      - { src: "/var/lib/redis/server.crt", dest: "/home/ubuntu/server.crt" }
-      - { src: "/var/lib/redis/ca.crt", dest: "/home/ubuntu/redis/ca.crt" }
+      - { src: "/var/lib/redis/server.key", dest: "/home/ec2-user/server.key" }
+      - { src: "/var/lib/redis/server.crt", dest: "/home/ec2-user/server.crt" }
+      - { src: "/var/lib/redis/ca.crt", dest: "/home/ec2-user/ca.crt" }
     local_tmp_dir: "/tmp/redis-certs"
 
   tasks:
@@ -44,7 +44,7 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
     - name: Copy Redis certificates to ECS Instance
       ansible.builtin.copy:
         src: "{{ local_tmp_dir }}/{{ item.src | basename }}"
-        dest: "{{ item.dest }}"
+        dest: "{{ item.dest.replace('/home/ubuntu/', '/home/ec2-user/') }}"
         owner: ec2-user
         group: ec2-user
         mode: '0644'
