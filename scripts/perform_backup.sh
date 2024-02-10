@@ -44,20 +44,30 @@ check_full_backup_exists() {
     local backups=$(barman list-backup "$SERVER")
     log_message "Available Backups:" "$backups"
 
+    # Check if backups variable is empty or does not contain valid backup entries
+    if [[ -z "$backups" || "$backups" == *"No backups available"* ]]; then
+        log_message "No backups found for $SERVER"
+        echo "false"
+        return
+    fi
+
     # Iterate over each listed backup to check if a matching directory exists
     local backup_exists="false"
     while read -r backup_line; do
-        # Extract the backup name/ID - adjust based on your barman version's output format
-        local backup_name=$(echo "$backup_line" | awk '{print $2}')
-        
-        # Form the expected directory path for this backup
-        local backup_dir="$basebackups_directory/$backup_name"
-        
-        # Check if this directory exists
-        if [ -d "$backup_dir" ]; then
-            backup_exists="true"
-            log_message "Full backup $backup_name exist in base folder $backup_dir"
-            break # A matching directory is found, no need to check further
+        # Proceed only if the line contains a valid backup entry
+        if [[ -n "$backup_line" && "$backup_line" != *"No backups available"* ]]; then
+            # Extract the backup name/ID - adjust based on your barman version's output format
+            local backup_name=$(echo "$backup_line" | awk '{print $2}')
+            
+            # Form the expected directory path for this backup
+            local backup_dir="$basebackups_directory/$backup_name"
+            
+            # Check if this directory exists
+            if [ -d "$backup_dir" ]; then
+                backup_exists="true"
+                log_message "Full backup $backup_name exists in base folder $backup_dir"
+                break # A matching directory is found, no need to check further
+            fi
         fi
     done <<< "$backups"
 
