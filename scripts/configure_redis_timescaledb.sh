@@ -49,6 +49,7 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
         group: ec2-user
         mode: '0644'
         force: yes  # This ensures the file is overwritten if it already exists
+      become: yes  # Use elevated privileges to fetch the file
       delegate_to: "{{ ecs_instance_private_ip }}"
       remote_user: ec2-user  # Corrected user for ECS instance
       loop: "{{ redis_certificates }}"
