@@ -81,5 +81,5 @@ cat <<EOF > $HOME/ensure_remote_tmp.yml
         mode: '777'
 EOF
 export ANSIBLE_CONFIG=$HOME/ansible_cc.cfg
-ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml -e "timescaledb_private_ip=$TIMESCALEDB_PRIVATE_IP ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP"
-ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/configure_redis_timescaledb.yml -e "timescaledb_private_ip=$TIMESCALEDB_PRIVATE_IP ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP"
+#ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
+ansible-playbook -v $HOME/configure_redis_timescaledb.yml -e "timescaledb_private_ip=$TIMESCALEDB_PRIVATE_IP ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP"
