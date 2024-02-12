@@ -62,48 +62,47 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
   hosts: localhost
   gather_facts: no
   vars:
-    timescaledb_private_ip: "172.31.35.73"
-    ecs_instance_private_ip: "172.31.38.68"
+    timescaledb_private_ip: "$TIMESCALEDB_PRIVATE_IP"
+    ecs_instance_private_ip: "$ECS_INSTANCE_PRIVATE_IP"
     redis_certificates:
       - { src: "/var/lib/redis/server.key", dest: "/home/ec2-user/server.key" }
       - { src: "/var/lib/redis/server.crt", dest: "/home/ec2-user/server.crt" }
       - { src: "/var/lib/redis/ca.crt", dest: "/home/ec2-user/ca.crt" }
     local_tmp_dir: "/tmp/redis-certs"
 
-    tasks:
-      - name: Ensure local temporary directory exists
-        ansible.builtin.file:
-          path: "{{ local_tmp_dir }}"
-          state: directory
+  tasks:
+    - name: Ensure local temporary directory exists
+      ansible.builtin.file:
+        path: "{{ local_tmp_dir }}"
+        state: directory
 
-      - name: Remove existing directories named as certificate files
-        ansible.builtin.file:
-          path: "{{ item.dest }}"
-          state: absent
-        loop: "{{ redis_certificates }}"
-        when: ansible.builtin.stat(path=item.dest).isdir is defined and ansible.builtin.stat(path=item.dest).isdir
-        delegate_to: localhost
+    - name: Fetch Redis certificates from TimescaleDB server
+      ansible.builtin.fetch:
+        src: "{{ item.src }}"
+        dest: "{{ local_tmp_dir }}/"
+        flat: yes
+      become: yes
+      delegate_to: "{{ timescaledb_private_ip }}"
+      loop: "{{ redis_certificates }}"
 
-      - name: Fetch Redis certificates from TimescaleDB server
-        ansible.builtin.fetch:
-          src: "{{ item.src }}"
-          dest: "{{ local_tmp_dir }}/"
-          flat: yes
-        become: yes
-        delegate_to: "{{ timescaledb_private_ip }}"
-        loop: "{{ redis_certificates }}"
+    # Correctly delegate the next steps to the ECS instance
+    - name: Remove existing directories or files on ECS Instance before copying new ones
+      ansible.builtin.file:
+        path: "{{ item.dest }}"
+        state: absent
+      loop: "{{ redis_certificates }}"
+      delegate_to: "{{ ecs_instance_private_ip }}"
 
-      - name: Copy Redis certificates to ECS Instance
-        ansible.builtin.copy:
-          src: "{{ local_tmp_dir }}/{{ item.src | basename }}"
-          dest: "{{ item.dest }}"
-          owner: ec2-user
-          group: ec2-user
-          mode: '0644'
-          force: yes
-        delegate_to: "{{ ecs_instance_private_ip }}"
-        remote_user: ec2-user
-        loop: "{{ redis_certificates }}"
+    - name: Copy Redis certificates to ECS Instance
+      ansible.builtin.copy:
+        src: "{{ local_tmp_dir }}/{{ item.src | basename }}"
+        dest: "{{ item.dest }}"
+        owner: ec2-user
+        group: ec2-user
+        mode: '0644'
+        force: yes
+      loop: "{{ redis_certificates }}"
+      delegate_to: "{{ ecs_instance_private_ip }}"
 
 EOF
 
