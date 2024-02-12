@@ -33,6 +33,7 @@ cat <<EOF > $HOME/settings_redis_timescaledb.yml
         line: "bind 127.0.0.1 {{ ecs_instance_private_ip }}"
         state: present
       become: yes
+      notify: restart redis
 
     - name: Set Redis requirepass configuration
       ansible.builtin.lineinfile:
@@ -41,6 +42,7 @@ cat <<EOF > $HOME/settings_redis_timescaledb.yml
         line: "requirepass {{ redis_password }}"
         state: present
       become: yes
+      notify: restart redis
 
     - name: Enable TLS authentication for clients
       ansible.builtin.lineinfile:
@@ -49,6 +51,15 @@ cat <<EOF > $HOME/settings_redis_timescaledb.yml
         line: "tls-auth-clients yes"
         state: present
       become: yes
+      notify: restart redis
+
+  handlers:
+    - name: restart redis
+      ansible.builtin.service:
+        name: redis
+        state: restarted
+        become: yes
+
 EOF
 # Create the Ansible playbook file
 cat <<EOF > $HOME/configure_redis_timescaledb.yml
@@ -122,4 +133,4 @@ EOF
 export ANSIBLE_CONFIG=$HOME/ansible_cc.cfg
 #ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 ansible-playbook -v $HOME/configure_redis_timescaledb.yml -e "timescaledb_private_ip=$TIMESCALEDB_PRIVATE_IP ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP"
-ansible-playbook -v $HOME/settings_redis_timescaledb.yml
+ansible-playbook -v $HOME/settings_redis_timescaledb.yml -e "timescaledb_private_ip=$TIMESCALEDB_PRIVATE_IP ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP REDIS_PASSWORD=$REDIS_PASSWORD"
