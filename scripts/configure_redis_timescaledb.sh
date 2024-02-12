@@ -18,8 +18,8 @@ REDIS_PASSWORD=$(aws ssm get-parameter --name REDIS_PASSWORD --with-decryption -
 cat <<EOF > $HOME/settings_redis_timescaledb.yml
 ---
 - name: Configure Redis settings
-  hosts: localhost
-  gather_facts: no
+  hosts: timescaledb_private_server
+  gather_facts: yes
   vars:
     redis_conf_path: "/etc/redis/redis.conf"  # Adjust the path according to your Redis installation
     timescaledb_private_ip: "{{ timescaledb_private_ip }}"
@@ -111,6 +111,51 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
 
 EOF
 echo "Playbook file created at: $HOME/configure_redis_timescaledb.yml"
+
+if [ ! -f "$INVENTORY_FILE" ]; then
+    cat <<EOF > "$INVENTORY_FILE"
+---
+all:
+  vars:
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: "\${HOME}/retrieved_key.pem"  # This will work because it's in a shell script
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+    #ansible_python_interpreter: /usr/bin/python3
+  children:
+    timescaledb_servers:
+      hosts:
+        timescaledb_private_server:
+          ansible_host: "$TIMESCALEDB_PRIVATE_IP"  # Direct shell variable substitution
+          role: internal
+        timescaledb_public_server:
+          ansible_host: "$TIMESCALEDB_PUBLIC_IP"  # Direct shell variable substitution
+          role: external
+        standby_server:
+          ansible_host: "$STANDBY_PUBLIC_IP"  # Direct shell variable substitution
+          role: external
+    clustercontrol:
+      hosts:
+        clustercontrol_private_server:
+          ansible_host: "$CLUSTERCONTROL_PRIVATE_IP"  # Direct shell variable substitution
+          role: internal
+        clustercontrol_public_server:
+          ansible_host: "$CLUSTERCONTROL_PUBLIC_IP"  # Direct shell variable substitution
+          role: external
+    ecs:
+      hosts:
+        ecs_private_server:
+          ansible_host: "$ECS_INSTANCE_PRIVATE_IP"  # Direct shell variable substitution
+          ansible_user: ec2-user  # Specify the user for ECS instances
+          role: internal
+        ecs_public_server:
+          ansible_host: "$ECS_INSTANCE_PUBLIC_IP"  # Direct shell variable substitution
+          ansible_user: ec2-user  # Specify the user for ECS instances
+          role: external
+EOF
+    echo "Inventory file created at $INVENTORY_FILE"
+else
+    echo "Inventory file already exists at $INVENTORY_FILE"
+fi
 # Create an Ansible configuration file with a fixed temporary directory
 cat <<EOF > $HOME/ansible_cc.cfg
 [defaults]
@@ -133,4 +178,4 @@ EOF
 export ANSIBLE_CONFIG=$HOME/ansible_cc.cfg
 #ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 ansible-playbook -v $HOME/configure_redis_timescaledb.yml -e "timescaledb_private_ip=$TIMESCALEDB_PRIVATE_IP ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP"
-ansible-playbook -v $HOME/settings_redis_timescaledb.yml -e "timescaledb_private_ip=$TIMESCALEDB_PRIVATE_IP ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP REDIS_PASSWORD=$REDIS_PASSWORD"
+ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/settings_redis_timescaledb.yml -e "timescaledb_private_ip=$TIMESCALEDB_PRIVATE_IP ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP REDIS_PASSWORD=$REDIS_PASSWORD"
