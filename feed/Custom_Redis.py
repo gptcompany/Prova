@@ -41,6 +41,10 @@ class CustomRedisCallback(RedisCallback):
             ssl_keyfile = '/server.key' if os.path.exists('/server.key') else '/home/ec2-user/server.key'
             ssl_certfile = '/server.crt' if os.path.exists('/server.crt') else '/home/ec2-user/server.crt'
             ssl_ca_certs = '/ca.crt' if os.path.exists('/ca.crt') else '/home/ec2-user/ca.crt'
+            # Log the paths of the loaded certificates
+            logging.info(f"SSL keyfile loaded from: {ssl_keyfile}")
+            logging.info(f"SSL certfile loaded from: {ssl_certfile}")
+            logging.info(f"SSL CA certs loaded from: {ssl_ca_certs}")
             self.conn = await aioredis.from_url(
                 self.redis,
                 #ssl=ssl,

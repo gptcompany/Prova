@@ -10,7 +10,46 @@ TIMESCALEDBPASSWORD=$(aws ssm get-parameter --name timescaledbpassword --with-de
 AWS_REGION=$(aws ssm get-parameter --name REGION --with-decryption --query 'Parameter.Value' --output text)
 CLUSTERCONTROL_PRIVATE_IP=$(hostname -I | awk '{print $1}')
 CLUSTERCONTROL_PUBLIC_IP=$(curl -s ifconfig.me)
+REDIS_PASSWORD=$(aws ssm get-parameter --name REDIS_PASSWORD --with-decryption --query 'Parameter.Value' --output text)
 
+
+
+# Create the Ansible playbook file
+cat <<EOF > $HOME/settings_redis_timescaledb.yml
+---
+- name: Configure Redis settings
+  hosts: localhost
+  gather_facts: no
+  vars:
+    redis_conf_path: "/etc/redis/redis.conf"  # Adjust the path according to your Redis installation
+    timescaledb_private_ip: "{{ timescaledb_private_ip }}"
+    ecs_instance_private_ip: "{{ ecs_instance_private_ip }}"
+    redis_password: "{{ REDIS_PASSWORD }}"
+  tasks:
+    - name: Update Redis configuration to bind specific IPs
+      ansible.builtin.lineinfile:
+        path: "{{ redis_conf_path }}"
+        regexp: "^bind "
+        line: "bind 127.0.0.1 {{ ecs_instance_private_ip }}"
+        state: present
+      become: yes
+
+    - name: Set Redis requirepass configuration
+      ansible.builtin.lineinfile:
+        path: "{{ redis_conf_path }}"
+        regexp: "^requirepass "
+        line: "requirepass {{ redis_password }}"
+        state: present
+      become: yes
+
+    - name: Enable TLS authentication for clients
+      ansible.builtin.lineinfile:
+        path: "{{ redis_conf_path }}"
+        regexp: "^tls-auth-clients "
+        line: "tls-auth-clients yes"
+        state: present
+      become: yes
+EOF
 # Create the Ansible playbook file
 cat <<EOF > $HOME/configure_redis_timescaledb.yml
 ---
@@ -83,3 +122,4 @@ EOF
 export ANSIBLE_CONFIG=$HOME/ansible_cc.cfg
 #ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ensure_remote_tmp.yml
 ansible-playbook -v $HOME/configure_redis_timescaledb.yml -e "timescaledb_private_ip=$TIMESCALEDB_PRIVATE_IP ecs_instance_private_ip=$ECS_INSTANCE_PRIVATE_IP"
+ansible-playbook -v $HOME/settings_redis_timescaledb.yml
