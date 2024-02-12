@@ -85,7 +85,6 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
       delegate_to: "{{ timescaledb_private_ip }}"
       loop: "{{ redis_certificates }}"
 
-    # Correctly delegate the next steps to the ECS instance
     - name: Remove existing directories or files on ECS Instance before copying new ones
       ansible.builtin.file:
         path: "{{ item.dest }}"
