@@ -99,7 +99,7 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
         ansible_user: "ec2-user"
       become: yes
       become_method: sudo
-      become_user: ec2-user
+      become_user: root
 
 
     - name: Copy Redis certificates to ECS Instance
