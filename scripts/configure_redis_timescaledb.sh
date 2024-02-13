@@ -97,6 +97,10 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
       vars:
         ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/retrieved_key.pem"
         ansible_user: "ec2-user"
+      become: yes
+      become_method: sudo
+      become_user: ec2-user
+
 
     - name: Copy Redis certificates to ECS Instance
       ansible.builtin.copy:
