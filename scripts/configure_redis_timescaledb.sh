@@ -69,6 +69,9 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
       - { src: "/var/lib/redis/server.crt", dest: "/home/ec2-user/server.crt" }
       - { src: "/var/lib/redis/ca.crt", dest: "/home/ec2-user/ca.crt" }
     local_tmp_dir: "/tmp/redis-certs"
+    ansible_user: "ec2-user"
+    ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/retrieved_key.pem"
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 
   tasks:
     - name: Ensure local temporary directory exists
@@ -102,6 +105,9 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
         force: yes
       loop: "{{ redis_certificates }}"
       delegate_to: "{{ ecs_instance_private_ip }}"
+      vars:
+        ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/retrieved_key.pem"
+        ansible_user: "ec2-user"
 
 EOF
 
