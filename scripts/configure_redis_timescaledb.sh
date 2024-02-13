@@ -69,7 +69,7 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
       - { src: "/var/lib/redis/server.crt", dest: "/home/ec2-user/server.crt" }
       - { src: "/var/lib/redis/ca.crt", dest: "/home/ec2-user/ca.crt" }
     local_tmp_dir: "/tmp/redis-certs"
-    ansible_user: "ec2-user"
+    ansible_user: "ubuntu"
     ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/retrieved_key.pem"
     ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 
