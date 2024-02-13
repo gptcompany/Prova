@@ -94,6 +94,9 @@ cat <<EOF > $HOME/configure_redis_timescaledb.yml
         state: absent
       loop: "{{ redis_certificates }}"
       delegate_to: "{{ ecs_instance_private_ip }}"
+      vars:
+        ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/retrieved_key.pem"
+        ansible_user: "ec2-user"
 
     - name: Copy Redis certificates to ECS Instance
       ansible.builtin.copy:
