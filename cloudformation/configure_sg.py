@@ -2,6 +2,8 @@ import boto3
 from botocore.exceptions import ClientError
 import socket
 import requests
+from ipaddress import ip_network, ip_address
+import functools
 # Initialize the Boto3 clients for EC2 and SSM
 ec2 = boto3.client('ec2')
 ssm = boto3.client('ssm')
@@ -50,20 +52,49 @@ def fetch_parameter(name):
 # Fetching security group ID and IP addresses from SSM
 security_group_id = fetch_parameter('SECURITY_GROUP_ID')
 timescaledb_private_ip = fetch_parameter('TIMESCALEDB_PRIVATE_IP')
-timescaledb_public_ip = fetch_parameter('TIMESCALEDB_PUBLIC_IP')
 standby_public_ip = fetch_parameter('STANDBY_PUBLIC_IP')
+ecs_instance_private_ip = fetch_parameter('ECS_INSTANCE_PRIVATE_IP')
+#ecs_instance_public_ip = fetch_parameter('ECS_INSTANCE_PUBLIC_IP')
+#timescaledb_public_ip = fetch_parameter('TIMESCALEDB_PUBLIC_IP')
+
 try:
     standby_public_ip_address = socket.gethostbyname(standby_public_ip)
     print(f"The IP address for {standby_public_ip} is {standby_public_ip_address}")
 except socket.gaierror:
     print(f"Could not resolve {standby_public_ip}")
-ecs_instance_private_ip = fetch_parameter('ECS_INSTANCE_PRIVATE_IP')
-ecs_instance_public_ip = fetch_parameter('ECS_INSTANCE_PUBLIC_IP')
+
 # Fetching the IP addresses using IMDSv2
 clustercontrol_private_ip, clustercontrol_public_ip = get_instance_ip_addresses_v2()
 print(f"Private IP: {clustercontrol_private_ip if clustercontrol_private_ip else 'Not available'}")
-print(f"Public IP: {clustercontrol_public_ip if clustercontrol_public_ip else 'This instance does not have a public IP or it’s not available.'}")
-
+#print(f"Public IP: {clustercontrol_public_ip if clustercontrol_public_ip else 'This instance does not have a public IP or it’s not available.'}")
+def find_common_cidr(ip_list):
+    # Convert IPs to binary strings
+    binary_ips = [''.join(format(int(x), '08b') for x in ip.split('.')) for ip in ip_list]
+    
+    # Find the common prefix length
+    prefix_len = 0
+    for zipped in zip(*binary_ips):
+        if len(set(zipped)) == 1:
+            prefix_len += 1
+        else:
+            break
+    
+    # Calculate the network address by applying the common prefix and padding with zeros
+    network_bin = binary_ips[0][:prefix_len].ljust(32, '0')
+    network_address = '.'.join(str(int(network_bin[i:i+8], 2)) for i in range(0, 32, 8))
+    
+    # Combine network address with prefix length to form CIDR
+    cidr = f"{network_address}/{prefix_len}"
+    
+    # Optionally, you can use ip_network to normalize the CIDR (e.g., remove redundant bits in the network address)
+    cidr = str(ip_network(cidr, strict=False))
+    
+    return cidr
+ips_vpc = [
+    timescaledb_private_ip,
+    clustercontrol_private_ip,
+    ecs_instance_private_ip,
+]
 # Correcting the IP address format to CIDR notation
 def to_cidr(ip):
     if ip and '/' not in ip:
@@ -72,12 +103,13 @@ def to_cidr(ip):
 
 ip_ranges = [
     to_cidr(timescaledb_private_ip),
-    to_cidr(timescaledb_public_ip),
-    to_cidr(standby_public_ip_address),  # Assuming standby_public_ip_address is the resolved IP
-    to_cidr(ecs_instance_private_ip),
-    to_cidr(ecs_instance_public_ip),
     to_cidr(clustercontrol_private_ip),
-    to_cidr(clustercontrol_public_ip if clustercontrol_public_ip != 'No public IP assigned' else None),
+    to_cidr(ecs_instance_private_ip),
+    to_cidr(standby_public_ip_address),  # Assuming standby_public_ip_address is the resolved IP
+    #to_cidr(timescaledb_public_ip),
+    
+    #to_cidr(ecs_instance_public_ip),
+    #to_cidr(clustercontrol_public_ip if clustercontrol_public_ip != 'No public IP assigned' else None),
 ]
 
 # Filtering out any None values in case of 'No public IP assigned'
@@ -128,7 +160,7 @@ def update_security_group_rules(security_group_id, ip_ranges, ports, protocol):
                 }]
             )
         except Exception as e:
-            print(f"Error removing existing rule for port {from_port - to_port}: {e}")
+            print(f"Error removing existing rule for port {from_port, to_port}: {e}")
 
         # Add new rules for specified IP ranges
         try:
@@ -136,9 +168,13 @@ def update_security_group_rules(security_group_id, ip_ranges, ports, protocol):
                 GroupId=security_group_id,
                 IpPermissions=ip_permissions
             )
-            print(f"Rules updated successfully for port {from_port - to_port}:.")
+            print(f"Rules updated successfully for port {from_port, to_port}:.")
         except Exception as e:
-            print(f"Error adding new rule for port {from_port - to_port}:: {e}")
+            print(f"Error adding new rule for port {from_port, to_port}:: {e}")
 
+
+
+common_cidr = find_common_cidr(ips_vpc)
+print(f"The smallest CIDR block that encompasses all IPs is: {common_cidr}")
 # Update security group
-update_security_group_rules(security_group_id, ip_ranges, ports, protocol)
+#update_security_group_rules(security_group_id, ip_ranges, ports, protocol)
