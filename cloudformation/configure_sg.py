@@ -156,7 +156,12 @@ def update_security_group_rules(security_group_id, ip_ranges, ports, protocol):
             )
             print(f"Rules updated successfully for port {from_port} to {to_port}.")
         except Exception as e:
-            print(f"Error adding new rule for port {from_port} to {to_port}: {e}")
+            if "InvalidPermission.Duplicate" in str(e):
+                print(f"Rule for port {from_port} to {to_port} already exists, no action needed.")
+            elif "RulesPerSecurityGroupLimitExceeded" in str(e):
+                print(f"Cannot add new rule for port {from_port} to {to_port}: Security Group rule limit exceeded.")
+            else:
+                print(f"Error adding new rule for port {from_port} to {to_port}: {e}")
 
 
 
