@@ -101,20 +101,6 @@ def to_cidr(ip):
         return ip + '/32'
     return ip
 
-ip_ranges = [
-    to_cidr(timescaledb_private_ip),
-    to_cidr(clustercontrol_private_ip),
-    to_cidr(ecs_instance_private_ip),
-    to_cidr(standby_public_ip_address),  # Assuming standby_public_ip_address is the resolved IP
-    #to_cidr(timescaledb_public_ip),
-    
-    #to_cidr(ecs_instance_public_ip),
-    #to_cidr(clustercontrol_public_ip if clustercontrol_public_ip != 'No public IP assigned' else None),
-]
-
-# Filtering out any None values in case of 'No public IP assigned'
-ip_ranges = [ip for ip in ip_ranges if ip]
-
 # Example ports to allow, including handling for port ranges
 ports = [
     (5432, 5432),
@@ -140,6 +126,7 @@ protocol = 'tcp'  # Adjust as necessary
 def update_security_group_rules(security_group_id, ip_ranges, ports, protocol):
     for port_range in ports:
         from_port, to_port = port_range
+        # Constructing the IpRanges list with multiple CIDR blocks
         ip_permissions = [{
             'IpProtocol': protocol,
             'FromPort': from_port,
@@ -147,34 +134,40 @@ def update_security_group_rules(security_group_id, ip_ranges, ports, protocol):
             'IpRanges': [{'CidrIp': ip_range} for ip_range in ip_ranges],
         }]
         
-        # Remove the existing rule that allows all traffic for this port from 0.0.0.0/0, if necessary
-        # It's a good practice to handle exceptions here as there might not be a matching rule
+        # Example: This would add rules allowing access from multiple IPs/CIDRs to the same port range
+        
         try:
+            # First, try to remove a potentially conflicting rule that allows all traffic (0.0.0.0/0)
+            # This step is optional and depends on your specific security requirements
             ec2.revoke_security_group_ingress(
                 GroupId=security_group_id,
-                IpPermissions=[{
-                    'IpProtocol': protocol,
-                    'FromPort': from_port,
-                    'ToPort': to_port,
-                    'IpRanges': [{'CidrIp': '0.0.0.0/0'}],
-                }]
+                IpPermissions=[
+                    {'IpProtocol': protocol, 'FromPort': from_port, 'ToPort': to_port, 'IpRanges': [{'CidrIp': '0.0.0.0/0'}]}
+                ]
             )
         except Exception as e:
-            print(f"Error removing existing rule for port {from_port, to_port}: {e}")
-
-        # Add new rules for specified IP ranges
+            print(f"Error removing existing rule for port {from_port} to {to_port}: {e}")
+        
         try:
+            # Then, add the new rule with specified IP ranges
             ec2.authorize_security_group_ingress(
                 GroupId=security_group_id,
                 IpPermissions=ip_permissions
             )
-            print(f"Rules updated successfully for port {from_port, to_port}:.")
+            print(f"Rules updated successfully for port {from_port} to {to_port}.")
         except Exception as e:
-            print(f"Error adding new rule for port {from_port, to_port}:: {e}")
+            print(f"Error adding new rule for port {from_port} to {to_port}: {e}")
+
 
 
 print(f"the vpc private ips: {ips_vpc}")
 common_cidr = find_common_cidr(ips_vpc)
 print(f"The smallest CIDR block that encompasses all IPs is: {common_cidr}")
+ip_ranges = [
+    common_cidr,
+    to_cidr(standby_public_ip_address),  # Assuming standby_public_ip_address is the resolved IP
+]
+# Now, filter out any None values
+ip_ranges = [ip for ip in ip_ranges if ip]
 # Update security group
-#update_security_group_rules(security_group_id, ip_ranges, ports, protocol)
+update_security_group_rules(security_group_id, ip_ranges, ports, protocol)
