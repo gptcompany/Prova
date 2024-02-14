@@ -40,6 +40,7 @@ cat <<EOF > $HOME/configure_barman.yml
       retention_policy_mode = auto
       archiver = on
       backup_options = concurrent_backup
+      network_compression = true
 
       [timescaledb]
       description = "Timescaledb Server"
@@ -48,8 +49,15 @@ cat <<EOF > $HOME/configure_barman.yml
       retention_policy_mode = auto
       wal_retention_policy = main
       backup_options = concurrent_backup
+      network_compression = true
 
   tasks:
+    - name: Ensure pigz is installed
+      become: yes
+      package:
+        name: pigz
+        state: present
+
     - name: Ensure barman.conf exists
       ansible.builtin.file:
         path: "{{ barman_conf_path }}"
@@ -144,10 +152,14 @@ cat <<EOF > $HOME/ensure_remote_tmp.yml
         state: directory
         mode: '777'
 EOF
+# Install PostgreSQL common packages
+# sudo apt install -y postgresql-common
+# Configure PostgreSQL repositories
+# sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
 # Install Barman and Barman-cli if not already installed
 # sudo apt-get update
 # sudo apt-get install -y barman barman-cli
-
+# sudo -i -u barman barman --version
 
 # Set ACL for the barman user on /etc/barman.conf
 # This ensures barman has the necessary permissions
@@ -157,3 +169,4 @@ export ANSIBLE_CONFIG=$HOME/ansible_cc.cfg
 echo "Using Ansible configuration file at: $ANSIBLE_CONFIG"
 # Run the Ansible playbook
 ansible-playbook -v -i "$HOME/timescaledb_inventory.yml" $HOME/configure_barman.yml  -e "timescaledb_private_ip=${TIMESCALEDB_PRIVATE_IP} timescaledb_password=${TIMESCALEDBPASSWORD} clustercontrol_private_ip=${CLUSTERCONTROL_PRIVATE_IP}"
+echo "PLEASE RUN TO FORCE BARMAN TO START ARCHIVING: sudo -i -u barman barman switch-xlog --force --archive timescaledb"

@@ -801,9 +801,10 @@ EOF
 sudo setenforce 0
 sudo systemctl stop apparmor
 sudo systemctl disable apparmor
-
-sudo usermod -aG ubuntu barman
-echo "barman sudo priv added!"
+# Install PostgreSQL common packages
+sudo apt install -y postgresql-common
+# Configure PostgreSQL repositories
+sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
 # Execute playbooks
 sudo apt install ansible -y
 ansible-galaxy collection install community.aws --force
@@ -818,7 +819,8 @@ ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/ecs_instance.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_sshd.yml
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/check_ssh.yml
 ansible-playbook $HOME/install_packages.yml  #on localhost
-
+sudo usermod -aG ubuntu barman
+echo "barman sudo priv added!"
 
 ansible-playbook -i $HOME/timescaledb_inventory.yml $HOME/configure_pgpass.yml -e "timescaledb_password=${TIMESCALEDBPASSWORD}"
 
