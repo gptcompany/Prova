@@ -173,7 +173,7 @@ def update_security_group_rules(security_group_id, ip_ranges, ports, protocol):
             print(f"Error adding new rule for port {from_port, to_port}:: {e}")
 
 
-
+print(f"the vpc private ips: {ips_vpc}")
 common_cidr = find_common_cidr(ips_vpc)
 print(f"The smallest CIDR block that encompasses all IPs is: {common_cidr}")
 # Update security group
