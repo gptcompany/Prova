@@ -54,6 +54,8 @@ security_group_id = fetch_parameter('SECURITY_GROUP_ID')
 timescaledb_private_ip = fetch_parameter('TIMESCALEDB_PRIVATE_IP')
 standby_public_ip = fetch_parameter('STANDBY_PUBLIC_IP')
 ecs_instance_private_ip = fetch_parameter('ECS_INSTANCE_PRIVATE_IP')
+
+#UNCOMMENT IF YOU WANT TO ADD THE PUBLIC IP
 #ecs_instance_public_ip = fetch_parameter('ECS_INSTANCE_PUBLIC_IP')
 #timescaledb_public_ip = fetch_parameter('TIMESCALEDB_PUBLIC_IP')
 
@@ -65,8 +67,8 @@ except socket.gaierror:
 
 # Fetching the IP addresses using IMDSv2
 clustercontrol_private_ip, clustercontrol_public_ip = get_instance_ip_addresses_v2()
-print(f"Private IP: {clustercontrol_private_ip if clustercontrol_private_ip else 'Not available'}")
-#print(f"Public IP: {clustercontrol_public_ip if clustercontrol_public_ip else 'This instance does not have a public IP or it’s not available.'}")
+print(f"Private IP of the clustercontrol: {clustercontrol_private_ip if clustercontrol_private_ip else 'Not available'}")
+print(f"Public IP of the clustercontrol: {clustercontrol_public_ip if clustercontrol_public_ip else 'This instance does not have a public IP or it’s not available.'}")
 def find_common_cidr(ip_list):
     # Convert IPs to binary strings
     binary_ips = [''.join(format(int(x), '08b') for x in ip.split('.')) for ip in ip_list]
