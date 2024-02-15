@@ -2,6 +2,7 @@
 SERVER="timescaledb"
 # List all failed backups for the server and delete them
 failed_backups=$(sudo -i -u barman barman list-backup $SERVER | grep FAILED | awk '{print $2}')
+echo "failed backups: $failed_backups"
 for backup_id in $failed_backups; do
     echo "Deleting failed backup: $backup_id"
     sudo -i -u barman barman delete $SERVER $backup_id
