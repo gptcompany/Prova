@@ -4,7 +4,7 @@ SERVER="timescaledb"
 failed_backups=$(sudo -i -u barman barman list-backup $SERVER | grep FAILED | awk '{print $2}')
 for backup_id in $failed_backups; do
     echo "Deleting failed backup: $backup_id"
-    barman delete $SERVER $backup_id
+    sudo -i -u barman barman delete $SERVER $backup_id
 done
 # Define local directory and S3 bucket path
 local_directory=$(sudo -i -u barman barman show-server "$SERVER" | grep "basebackups_directory" | awk '{print $2}')
