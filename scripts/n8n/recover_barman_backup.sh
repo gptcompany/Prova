@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define server identifier and remote PostgreSQL instance
-SERVER_ID="your_server_id"
+SERVER_ID="timesacledb"
 REMOTE_HOST="timescaledb.mywire.org"
 #REMOTE_PGDATA_PATH="/var/lib/postgresql/15/main" # Update with actual data directory path on the remote host
 REMOTE_PGDATA_PATH=$(ssh postgres@$REMOTE_HOST "psql -t -c 'SHOW data_directory;'")
