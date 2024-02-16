@@ -20,6 +20,6 @@ echo "Restoring the latest backup: $LATEST_BACKUP_ID"
 
 # Execute the recovery, replacing placeholders as necessary
 # This command assumes you can run commands remotely via SSH as the PostgreSQL user
-sudo -i -u barman barman recover --remote-ssh-command 'ssh postgres@$REMOTE_HOST' $SERVER_ID $LATEST_BACKUP_ID $REMOTE_PGDATA_PATH
+sudo -i -u barman /bin/bash -c "barman recover --remote-ssh-command 'ssh postgres@${REMOTE_HOST}' $SERVER_ID $LATEST_BACKUP_ID $REMOTE_PGDATA_PATH"
 
 # echo "Restore process initiated for backup $LATEST_BACKUP_ID to $REMOTE_HOST"
