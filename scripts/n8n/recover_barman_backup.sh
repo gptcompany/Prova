@@ -2,9 +2,8 @@
 
 # Define server identifier and remote PostgreSQL instance
 SERVER_ID="timescaledb"
-REMOTE_HOST="timescaledb.mywire.org"
-#REMOTE_PGDATA_PATH="/var/lib/postgresql/15/main" # Update with actual data directory path on the remote host
-REMOTE_PGDATA_PATH=$(ssh postgres@$REMOTE_HOST "psql -t -c 'SHOW data_directory;'")
+REMOTE_HOST=$(aws ssm get-parameter --name STANDBY_PUBLIC_IP --with-decryption --query 'Parameter.Value' --output text)
+REMOTE_PGDATA_PATH=$(ssh postgres@$REMOTE_HOST "psql -p 5432 -t -c 'SHOW data_directory;'")
 echo "Remote PostgreSQL data directory: $REMOTE_PGDATA_PATH"
 # Get the latest backup ID for the server
 LATEST_BACKUP_ID=$(sudo -i -u barman barman list-backup $SERVER_ID | head -n 1 | awk '{print $2}')
@@ -18,8 +17,12 @@ fi
 
 echo "Restoring the latest backup: $LATEST_BACKUP_ID"
 
-# Execute the recovery, replacing placeholders as necessary
+# Execute the recovery
 # This command assumes you can run commands remotely via SSH as the PostgreSQL user
 sudo -i -u barman /bin/bash -c "barman recover --remote-ssh-command 'ssh postgres@${REMOTE_HOST}' $SERVER_ID $LATEST_BACKUP_ID $REMOTE_PGDATA_PATH"
 
-# echo "Restore process initiated for backup $LATEST_BACKUP_ID to $REMOTE_HOST"
+# Check the status of PostgreSQL running on port 5432
+
+# sudo -i -u barman /bin/bash -c "ssh -v postgres@timescaledb.mywire.org 'pg_isready -p 5432'"
+sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p 5432'"
+
