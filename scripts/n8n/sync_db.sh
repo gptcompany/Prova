@@ -68,6 +68,10 @@ copy_new_records_dblink() {
 # Main
 # Ensure the TimescaleDB extension is installed in the newly created database
 execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;'"
+# Ensure the dblink extension is installed in the newly created database
+execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'CREATE EXTENSION IF NOT EXISTS dblink CASCADE;'"
+
+
 # Ensure the database exists on both source and target before proceeding
 ensure_database_exists $DB_NAME $PGPORT_SRC
 ensure_database_exists $DB_NAME $PGPORT_DEST
