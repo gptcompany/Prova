@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-REMOTE_HOST="localhost" # Assuming localhost for simplicity; adjust as needed.
+REMOTE_HOST=$(aws ssm get-parameter --name STANDBY_PUBLIC_IP --with-decryption --query 'Parameter.Value' --output text)
 DB_NAME_SOURCE="db0"
 DB_NAME_TARGET="db0"
 PGPORT_SOURCE="5432"
