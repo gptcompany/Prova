@@ -22,7 +22,7 @@ get_verification_timestamp_range() {
 }
 # Execute a command as postgres user on the remote host
 execute_as_postgres() {
-    ssh -T postgres@$REMOTE_HOST "$1"
+    psql -h "$REMOTE_HOST" -p "$1" -d "$2" -U postgres -tAc "$3"
 }
 
 # Function to verify data synchronization for a single table
@@ -36,17 +36,16 @@ verify_table_data_synchronization() {
     local verify_query_count="SELECT COUNT(*) FROM $table WHERE timestamp >= $timestamp_range;"
     local verify_query_checksum="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table WHERE timestamp >= $timestamp_range ORDER BY timestamp) t;"
 
-    # Execute verification queries on source and target databases
-    local count_source=$(execute_as_postgres "psql -p "$PGPORT_SOURCE" -d "$DB_NAME_SOURCE" -tAc "$verify_query_count"")
-    local count_target=$(execute_as_postgres "psql -p "$PGPORT_TARGET" -d "$DB_NAME_TARGET" -tAc "$verify_query_count"")
-    local checksum_source=$(execute_as_postgres "psql -p "$PGPORT_SOURCE" -d "$DB_NAME_SOURCE" -tAc "$verify_query_checksum"")
-    local checksum_target=$(execute_as_postgres "psql -p "$PGPORT_TARGET" -d "$DB_NAME_TARGET" -tAc "$verify_query_checksum"")
+    local count_source=$(execute_as_postgres "$PGPORT_SOURCE" "$DB_NAME_SOURCE" "$verify_query_count")
+    local count_target=$(execute_as_postgres "$PGPORT_TARGET" "$DB_NAME_TARGET" "$verify_query_count")
+    local checksum_source=$(execute_as_postgres "$PGPORT_SOURCE" "$DB_NAME_SOURCE" "$verify_query_checksum")
+    local checksum_target=$(execute_as_postgres "$PGPORT_TARGET" "$DB_NAME_TARGET" "$verify_query_checksum")
 
-    # Log the results for review
+    # Log the results
     log_message "Source count: $count_source, Target count: $count_target"
     log_message "Source checksum: $checksum_source, Target checksum: $checksum_target"
 
-    # Compare counts and checksums for the specified range
+    # Compare counts and checksums
     if [[ "$count_source" -eq "$count_target" && "$checksum_source" == "$checksum_target" ]]; then
         log_message "Verification successful for table: $table"
     else
