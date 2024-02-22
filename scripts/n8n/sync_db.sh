@@ -57,19 +57,13 @@ compare_and_sync_schema() {
 copy_new_records_dblink() {
     for table in "${TABLES[@]}"; do
         log_message "Copying new records for table $table..."
-
-        # Command to copy new records using dblink
-        # Note the use of '\'' to correctly end, escape, and restart the single quote context
-        CMD_COPY="
-        INSERT INTO $table
-        SELECT * FROM dblink('dbname=db0 port=5432 host=localhost user=postgres password=your_password',
-        'SELECT * FROM $table WHERE timestamp > (SELECT COALESCE(MAX(timestamp), \'\'1970-01-01\'\'::timestamp) FROM $table)') AS t1
-        ON CONFLICT DO NOTHING;
-        "
-        execute_as_postgres "$CMD_COPY"
-
+        SQL_CMD="INSERT INTO $table SELECT * FROM dblink('dbname=$DB_NAME port=$PGPORT_SRC host=$REMOTE_HOST user=postgres', 'SELECT * FROM $table WHERE timestamp > (SELECT COALESCE(MAX(timestamp), ''1970-01-01''::timestamp) FROM $table)') AS t1 ON CONFLICT DO NOTHING;"
+        
+        # Use printf to correctly handle complex SQL commands and pipe them into psql via ssh
+        printf "%s\n" "$SQL_CMD" | ssh postgres@$REMOTE_HOST "psql -p $PGPORT_DEST -d $DB_NAME"
     done
 }
+
 
 # Main
 # Ensure the TimescaleDB extension is installed in the newly created database
