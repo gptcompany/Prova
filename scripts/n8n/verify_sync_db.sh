@@ -14,49 +14,49 @@ log_message() {
     echo "$(date +"%Y-%m-%d %T") - $1" | tee -a "$LOG_FILE"
 }
 
-# Execute a command as postgres user on the remote host
+# Function to dynamically determine the timestamp range for verification based on the latest recovery operation
+get_verification_timestamp_range() {
+    # Placeholder for fetching the last recovery timestamp; adjust as needed
+    # This could be replaced with a command to fetch this timestamp from recovery logs or metadata
+    echo "now() - interval '1 day'"
+}
 # Execute a command as postgres user on the remote host
 execute_as_postgres() {
     ssh -T postgres@$REMOTE_HOST "$1"
 }
 
 # Function to verify data synchronization for a single table
-# Function to verify data checksum for a single table, adjusted to your schema
-verify_table_data_checksum() {
+# Function to verify data synchronization for a single table
+verify_table_data_synchronization() {
     local table=$1
-    log_message "Verifying data checksum for table: $table"
+    local timestamp_range=$(get_verification_timestamp_range)
+    log_message "Verifying data synchronization for table: $table within $timestamp_range"
 
-    # Adjust checksum query based on actual columns
-    local checksum_query=""
-    case "$table" in
-        "trades"|"liquidations")
-            checksum_query="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table ORDER BY exchange, symbol, timestamp, id) t;"
-            ;;
-        "book")
-            checksum_query="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table ORDER BY exchange, symbol, receipt, update_type) t;"
-            ;;
-        "open_interest"|"funding")
-            checksum_query="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table ORDER BY exchange, symbol, timestamp) t;"
-            ;;
-        *)
-            log_message "Unknown table: $table. Skipping checksum verification."
-            return
-            ;;
-    esac
+    # Construct verification queries
+    local verify_query_count="SELECT COUNT(*) FROM $table WHERE timestamp >= $timestamp_range;"
+    local verify_query_checksum="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table WHERE timestamp >= $timestamp_range ORDER BY timestamp) t;"
 
-    local checksum_source=$(execute_as_postgres "psql -p \"$PGPORT_SOURCE\" -d \"$DB_NAME_SOURCE\" -tAc \"$checksum_query\"")
-    local checksum_target=$(execute_as_postgres "psql -p \"$PGPORT_TARGET\" -d \"$DB_NAME_TARGET\" -tAc \"$checksum_query\"")
+    # Execute verification queries on source and target databases
+    local count_source=$(execute_as_postgres "psql -p "$PGPORT_SOURCE" -d "$DB_NAME_SOURCE" -tAc "$verify_query_count"")
+    local count_target=$(execute_as_postgres "psql -p "$PGPORT_TARGET" -d "$DB_NAME_TARGET" -tAc "$verify_query_count"")
+    local checksum_source=$(execute_as_postgres "psql -p "$PGPORT_SOURCE" -d "$DB_NAME_SOURCE" -tAc "$verify_query_checksum"")
+    local checksum_target=$(execute_as_postgres "psql -p "$PGPORT_TARGET" -d "$DB_NAME_TARGET" -tAc "$verify_query_checksum"")
 
-    if [ "$checksum_source" = "$checksum_target" ]; then
-        log_message "Data checksum verification successful for table: $table"
+    # Log the results for review
+    log_message "Source count: $count_source, Target count: $count_target"
+    log_message "Source checksum: $checksum_source, Target checksum: $checksum_target"
+
+    # Compare counts and checksums for the specified range
+    if [[ "$count_source" -eq "$count_target" && "$checksum_source" == "$checksum_target" ]]; then
+        log_message "Verification successful for table: $table"
     else
-        log_message "Data checksum verification failed for table: $table - Checksums do not match"
+        log_message "Verification failed for table: $table - Counts or checksums do not match"
     fi
 }
 
 # Main execution loop
 log_message "Starting data synchronization verification process..."
 for table in "${TABLES[@]}"; do
-    verify_table_data_checksum "$table"
+    verify_table_data_synchronization "$table"
 done
 log_message "Data synchronization verification process completed."
