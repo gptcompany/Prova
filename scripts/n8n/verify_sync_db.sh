@@ -23,44 +23,53 @@ execute_as_postgres() {
 # Function to verify data synchronization for a single table
 verify_table_data() {
     local table=$1
-    local recent_period='1 day' # Adjust this value based on your synchronization frequency
-    log_message "Verifying recent data synchronization for table: $table"
+    log_message "Verifying data for table: $table"
 
-    # Adjusted verification query to focus on recent records
-    local verify_query="SELECT COUNT(*) FROM $table WHERE last_updated > now() - INTERVAL '$recent_period';"
+    # Verification query for record count
+    local verify_query_count="SELECT COUNT(*) FROM $table;"
 
-    # Execute verification query on source and target databases
-    local count_source=$(execute_as_postgres "psql -h localhost -p $PGPORT_SOURCE -d $DB_NAME_SOURCE -tAc \"$verify_query\"")
-    local count_target=$(execute_as_postgres "psql -h localhost -p $PGPORT_TARGET -d $DB_NAME_TARGET -tAc \"$verify_query\"")
+    # Verification query for data checksum, adjusted for each table's unique identifiers
+    local verify_query_checksum=""
+    case $table in
+        trades)
+            verify_query_checksum="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table ORDER BY exchange, symbol, timestamp, id) t;"
+            ;;
+        book)
+            verify_query_checksum="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table ORDER BY exchange, symbol, receipt, update_type) t;"
+            ;;
+        open_interest)
+            verify_query_checksum="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table ORDER BY exchange, symbol, timestamp) t;"
+            ;;
+        funding)
+            verify_query_checksum="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table ORDER BY exchange, symbol, timestamp) t;"
+            ;;
+        liquidations)
+            verify_query_checksum="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table ORDER BY exchange, symbol, timestamp, id) t;"
+            ;;
+        *)
+            log_message "Unknown table: $table. Skipping checksum verification."
+            return
+            ;;
+    esac
 
-    # Log the counts for review
-    log_message "Recent count in source ($DB_NAME_SOURCE): $count_source"
-    log_message "Recent count in target ($DB_NAME_TARGET): $count_target"
+    # Execute verification queries on source and target databases
+    local count_source=$(execute_as_postgres "psql -p "$PGPORT_SOURCE" -d "$DB_NAME_SOURCE" -tAc "$verify_query_count"")
+    local count_target=$(execute_as_postgres "psql -p "$PGPORT_TARGET" -d "$DB_NAME_TARGET" -tAc "$verify_query_count"")
 
-    # Compare counts for recent data
-    if [ "$count_source" -eq "$count_target" ]; then
-        log_message "Recent data verification successful for table: $table"
+    local checksum_source=$(execute_as_postgres "psql -p "$PGPORT_SOURCE" -d "$DB_NAME_SOURCE" -tAc "$verify_query_checksum"")
+    local checksum_target=$(execute_as_postgres "psql -p "$PGPORT_TARGET" -d "$DB_NAME_TARGET" -tAc "$verify_query_checksum"")
+
+    # Log the results for review
+    log_message "Count in source ($DB_NAME_SOURCE): $count_source"
+    log_message "Count in target ($DB_NAME_TARGET): $count_target"
+    log_message "Checksum in source ($DB_NAME_SOURCE): $checksum_source"
+    log_message "Checksum in target ($DB_NAME_TARGET): $checksum_target"
+
+    # Compare counts and checksums
+    if [ "$count_source" -eq "$count_target" ] && [ "$checksum_source" = "$checksum_target" ]; then
+        log_message "Verification successful for table: $table"
     else
-        log_message "Recent data verification failed for table: $table - Source: $count_source, Target: $count_target"
-    fi
-}
-
-
-# Function to verify data checksum for a single table
-verify_table_data_checksum() {
-    local table=$1
-    log_message "Verifying data checksum for table: $table"
-
-    # Checksum query
-    local checksum_query="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table ORDER BY primary_key_column) t;"
-
-    local checksum_source=$(execute_as_postgres "psql -h localhost -p $PGPORT_SOURCE -d $DB_NAME_SOURCE -tAc \"$checksum_query\"")
-    local checksum_target=$(execute_as_postgres "psql -h localhost -p $PGPORT_TARGET -d $DB_NAME_TARGET -tAc \"$checksum_query\"")
-
-    if [ "$checksum_source" = "$checksum_target" ]; then
-        log_message "Data checksum verification successful for table: $table"
-    else
-        log_message "Data checksum verification failed for table: $table - Checksums do not match"
+        log_message "Verification failed for table: $table - Counts or checksums do not match"
     fi
 }
 
@@ -68,6 +77,5 @@ verify_table_data_checksum() {
 log_message "Starting data synchronization verification process..."
 for table in "${TABLES[@]}"; do
     verify_table_data "$table"
-    verify_table_data_checksum "$table"
 done
 log_message "Data synchronization verification process completed."
