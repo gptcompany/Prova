@@ -64,7 +64,27 @@ copy_new_records_dblink() {
     done
 }
 
+# Adjusted Function to Synchronize Data Incrementally
+copy_new_records_incrementally() {
+    for table in "${TABLES[@]}"; do
+        log_message "Synchronizing new records for table $table..."
 
+        # Conceptual command to select and insert/update data
+        # This needs to be replaced with actual logic tailored to your database and tables
+        # The idea is to use 'psql' to execute an 'INSERT ... ON CONFLICT' operation for new or updated records
+        SQL_CMD=$(cat <<EOF
+        INSERT INTO $table
+        SELECT * FROM remote_$table
+        WHERE timestamp > (SELECT COALESCE(MAX(timestamp), '1970-01-01'::timestamp) FROM $table)
+        ON CONFLICT (primary_key) DO UPDATE SET column = EXCLUDED.column;
+EOF
+        )
+
+        # Execute the SQL command on the target database
+        # Adjust this command to match how you execute SQL commands remotely or locally
+        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$SQL_CMD\""
+    done
+}
 # Main
 # Ensure the TimescaleDB extension is installed in the newly created database
 execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;'"
@@ -79,7 +99,7 @@ ensure_database_exists $DB_NAME $PGPORT_DEST
 compare_and_sync_schema
 
 # Copy new records
-copy_new_records_dblink
+copy_new_records_incrementally
 
 # Cleanup temp files
 rm /tmp/schema_src_*.sql
