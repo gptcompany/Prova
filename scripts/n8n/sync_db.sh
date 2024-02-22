@@ -16,6 +16,22 @@ log_message() {
 execute_as_postgres() {
     ssh -T postgres@$REMOTE_HOST "$1"
 }
+# Function to check and create the database if it doesn't exist
+ensure_database_exists() {
+    local dbName=$1
+    local dbPort=$2
+    log_message "Ensuring database $dbName exists on port $dbPort..."
+    
+    # Check if database exists
+    EXISTS=$(execute_as_postgres "psql -p $dbPort -tAc \"SELECT 1 FROM pg_database WHERE datname='$dbName';\"" | tr -d '[:space:]')
+    
+    if [ "$EXISTS" != "1" ]; then
+        log_message "Database $dbName does not exist on port $dbPort. Creating..."
+        execute_as_postgres "createdb -p $dbPort -T template0 $dbName"
+    else
+        log_message "Database $dbName already exists on port $dbPort."
+    fi
+}
 
 # Compare and synchronize schema
 compare_and_sync_schema() {
@@ -54,7 +70,9 @@ copy_new_records_dblink() {
 }
 
 # Main
-
+# Ensure the database exists on both source and target before proceeding
+ensure_database_exists $DB_NAME $PGPORT_SRC
+ensure_database_exists $DB_NAME $PGPORT_DEST
 # Check and synchronize schemas
 compare_and_sync_schema
 
