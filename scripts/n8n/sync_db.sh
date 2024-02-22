@@ -34,7 +34,7 @@ setup_fdw() {
     # Optionally, drop and recreate the server for a clean setup
 
     # execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"DROP SERVER IF EXISTS source_db CASCADE;\""
-    
+
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE SERVER IF NOT EXISTS source_db FOREIGN DATA WRAPPER postgres_fdw OPTIONS (dbname '$DB_NAME', host 'localhost', port '$PGPORT_SRC');\""
     log_message "Updating Foreign Data Wrapper Server Configuration..."
    
@@ -56,9 +56,11 @@ copy_new_records_fdw() {
         log_message "Synchronizing new records for table $table..."
         
         # Directly copy new records using FDW with ON CONFLICT DO NOTHING
-        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO $table SELECT * FROM $table@source_db ON CONFLICT DO NOTHING;\""
+        # Ensure the foreign table name is used correctly after importing the schema
+        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO $table SELECT * FROM $table ON CONFLICT DO NOTHING;\""
     done
 }
+
 
 # Main Execution Flow
 ensure_extensions_installed
