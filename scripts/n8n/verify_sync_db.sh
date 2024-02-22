@@ -30,8 +30,8 @@ verify_table_data() {
     local verify_query="SELECT COUNT(*) FROM $table WHERE last_updated > now() - INTERVAL '$recent_period';"
 
     # Execute verification query on source and target databases
-    local count_source=$(execute_as_postgres "psql -h $REMOTE_HOST -p $PGPORT_SOURCE -d $DB_NAME_SOURCE -tAc \"$verify_query\"")
-    local count_target=$(execute_as_postgres "psql -h $REMOTE_HOST -p $PGPORT_TARGET -d $DB_NAME_TARGET -tAc \"$verify_query\"")
+    local count_source=$(execute_as_postgres "psql -h localhost -p $PGPORT_SOURCE -d $DB_NAME_SOURCE -tAc \"$verify_query\"")
+    local count_target=$(execute_as_postgres "psql -h localhost -p $PGPORT_TARGET -d $DB_NAME_TARGET -tAc \"$verify_query\"")
 
     # Log the counts for review
     log_message "Recent count in source ($DB_NAME_SOURCE): $count_source"
@@ -54,8 +54,8 @@ verify_table_data_checksum() {
     # Checksum query
     local checksum_query="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table ORDER BY primary_key_column) t;"
 
-    local checksum_source=$(execute_as_postgres "psql -h $REMOTE_HOST -p $PGPORT_SOURCE -d $DB_NAME_SOURCE -tAc \"$checksum_query\"")
-    local checksum_target=$(execute_as_postgres "psql -h $REMOTE_HOST -p $PGPORT_TARGET -d $DB_NAME_TARGET -tAc \"$checksum_query\"")
+    local checksum_source=$(execute_as_postgres "psql -h localhost -p $PGPORT_SOURCE -d $DB_NAME_SOURCE -tAc \"$checksum_query\"")
+    local checksum_target=$(execute_as_postgres "psql -h localhost -p $PGPORT_TARGET -d $DB_NAME_TARGET -tAc \"$checksum_query\"")
 
     if [ "$checksum_source" = "$checksum_target" ]; then
         log_message "Data checksum verification successful for table: $table"
