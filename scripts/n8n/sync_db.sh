@@ -65,24 +65,16 @@ copy_new_records_dblink() {
 }
 
 # Adjusted Function to Synchronize Data Incrementally
+# Function to Synchronize Data Incrementally with ON CONFLICT DO NOTHING
 copy_new_records_incrementally() {
     for table in "${TABLES[@]}"; do
         log_message "Synchronizing new records for table $table..."
+        
+        # Use ON CONFLICT DO NOTHING to skip conflicting inserts
+        local SQL_CMD="INSERT INTO $table SELECT * FROM dblink('dbname=$DB_NAME port=$PGPORT_SRC host=$REMOTE_HOST user=postgres', 'SELECT * FROM $table WHERE timestamp > (SELECT COALESCE(MAX(timestamp), ''1970-01-01''::timestamp) FROM $table)') AS t1 ON CONFLICT DO NOTHING;"
 
-        # Conceptual command to select and insert/update data
-        # This needs to be replaced with actual logic tailored to your database and tables
-        # The idea is to use 'psql' to execute an 'INSERT ... ON CONFLICT' operation for new or updated records
-        SQL_CMD=$(cat <<EOF
-        INSERT INTO $table
-        SELECT * FROM remote_$table
-        WHERE timestamp > (SELECT COALESCE(MAX(timestamp), '1970-01-01'::timestamp) FROM $table)
-        ON CONFLICT (primary_key) DO UPDATE SET column = EXCLUDED.column;
-EOF
-        )
-
-        # Execute the SQL command on the target database
-        # Adjust this command to match how you execute SQL commands remotely or locally
-        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$SQL_CMD\""
+        # Execute the SQL command
+        printf "%s\n" "$SQL_CMD" | ssh postgres@$REMOTE_HOST "psql -p $PGPORT_DEST -d $DB_NAME"
     done
 }
 # Main
