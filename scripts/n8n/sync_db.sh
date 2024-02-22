@@ -29,9 +29,17 @@ setup_fdw() {
     log_message "Setting up Foreign Data Wrapper..."
     
     # Create server connection
-    # Adjust the FDW setup to use localhost for the source database connection
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE SERVER IF NOT EXISTS source_db FOREIGN DATA WRAPPER postgres_fdw OPTIONS (dbname '$DB_NAME', host 'localhost', port '$PGPORT_SRC');\""
     
+    # Adjust the FDW setup to use localhost for the source database connection
+    # Optionally, drop and recreate the server for a clean setup
+
+    # execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"DROP SERVER IF EXISTS source_db CASCADE;\""
+    
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE SERVER IF NOT EXISTS source_db FOREIGN DATA WRAPPER postgres_fdw OPTIONS (dbname '$DB_NAME', host 'localhost', port '$PGPORT_SRC');\""
+    log_message "Updating Foreign Data Wrapper Server Configuration..."
+   
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"ALTER SERVER source_db OPTIONS (SET host 'localhost');\""
+
     # Create user mapping
     # Replace 'your_remote_user' and 'your_password' with actual credentials
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER source_db OPTIONS (user 'postgres', password '$TIMESCALEDBPASSWORD');\""
