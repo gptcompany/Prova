@@ -59,17 +59,21 @@ copy_new_records_dblink() {
         log_message "Copying new records for table $table..."
 
         # Command to copy new records using dblink
+        # Note the use of '\'' to correctly end, escape, and restart the single quote context
         CMD_COPY="
         INSERT INTO $table
-        SELECT * FROM dblink('dbname=$DB_NAME port=$PGPORT_SRC host=localhost user=postgres',
-        'SELECT * FROM $table WHERE timestamp > (SELECT COALESCE(MAX(timestamp), ''1970-01-01''::timestamp) FROM $table)') AS t1
-        ON CONFLICT DO NOTHING;"
-        
+        SELECT * FROM dblink('dbname=db0 port=5432 host=localhost user=postgres password=your_password',
+        'SELECT * FROM $table WHERE timestamp > (SELECT COALESCE(MAX(timestamp), \'\'1970-01-01\'\'::timestamp) FROM $table)') AS t1
+        ON CONFLICT DO NOTHING;
+        "
         execute_as_postgres "$CMD_COPY"
+
     done
 }
 
 # Main
+# Ensure the TimescaleDB extension is installed in the newly created database
+execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;'"
 # Ensure the database exists on both source and target before proceeding
 ensure_database_exists $DB_NAME $PGPORT_SRC
 ensure_database_exists $DB_NAME $PGPORT_DEST
