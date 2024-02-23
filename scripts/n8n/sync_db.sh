@@ -24,32 +24,34 @@ ensure_extensions_installed() {
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'CREATE EXTENSION IF NOT EXISTS postgres_fdw;'"
 }
 
-# Function to set up foreign data wrapper
+# Function to set up foreign data wrapper and create foreign tables directly
 setup_fdw() {
     log_message "Setting up Foreign Data Wrapper..."
-    
-    # Create server connection
+
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE SERVER IF NOT EXISTS source_db FOREIGN DATA WRAPPER postgres_fdw OPTIONS (dbname '$DB_NAME', host 'localhost', port '$PGPORT_SRC');\""
     log_message "Foreign Data Wrapper Server Configuration Updated."
-   
-    # Create user mapping
+
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER source_db OPTIONS (user 'postgres', password '$TIMESCALEDBPASSWORD');\""
     
-    # Import foreign schema
-    # Assuming you want to keep the same schema name but differentiate the tables by prefixing them with 'foreign_'
+    # Directly create foreign tables instead of importing schema
     for table in "${TABLES[@]}"; do
-        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"DROP FOREIGN TABLE IF EXISTS foreign_$table CASCADE; IMPORT FOREIGN SCHEMA public LIMIT TO ($table) FROM SERVER source_db INTO public; ALTER FOREIGN TABLE $table RENAME TO foreign_$table;\""
+        # Drop the foreign table if it exists to avoid conflicts
+        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"DROP FOREIGN TABLE IF EXISTS foreign_$table CASCADE;\""
+        
+        # Create the foreign table
+        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE FOREIGN TABLE foreign_$table LIKE public.$table INCLUDING ALL SERVER source_db OPTIONS (schema_name 'public', table_name '$table');\""
     done
 }
 
-# Function to synchronize data using FDW
+# Adjusted data synchronization function
 copy_new_records_fdw() {
     for table in "${TABLES[@]}"; do
         log_message "Synchronizing new records for table $table..."
         # Insert data from foreign tables to local tables
-        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO public.$table SELECT * FROM public.foreign_$table ON CONFLICT DO NOTHING;\""
+        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO public.$table SELECT * FROM foreign_$table ON CONFLICT DO NOTHING;\""
     done
 }
+
 
 # Main Execution Flow
 log_message "Checking if PostgreSQL server is ready on source database..."
