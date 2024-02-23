@@ -66,7 +66,18 @@ EOF
 
     # Repeat for 'book' with appropriate modifications
 }
-
+setup_schema() {
+    # Step 1: Optionally, dump schema from source database (run this on the source database or a machine with access to it)
+    pg_dump -h $REMOTE_HOST -U postgres -p $PGPORT_SRC -d $DB_NAME --schema-only --no-owner --no-acl --file="source_schema.sql"
+    
+    # Step 2: Apply schema to target database if necessary (e.g., if 'trades' table doesn't exist)
+    if ! execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"SELECT to_regclass('public.trades')\" | grep -q '^public.trades$'"; then
+        log_message "Applying schema to target database..."
+        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -f source_schema.sql"
+    else
+        log_message "Required schema already set up on target database."
+    fi
+}
 
 # Main Execution Flow
 log_message "Checking if PostgreSQL server is ready on source database..."
@@ -75,6 +86,7 @@ if sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p $PGP
     #ensure_timescaledb_preloaded
     #check_timescaledb_preload
     #ensure_setup
+    setup_schema
     copy_new_records_fdw
     log_message "Data synchronization completed."
 else
