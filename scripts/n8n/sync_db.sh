@@ -17,7 +17,19 @@ log_message() {
 execute_as_postgres() {
     ssh -T postgres@$REMOTE_HOST "$1"
 }
-
+# Ensure TimescaleDB extension is installed and preloaded
+ensure_timescaledb() {
+    log_message "Ensuring TimescaleDB extension is installed and preloaded..."
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;'"
+    # Attempt to reload TimescaleDB extension to ensure it's properly preloaded
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c '\dx' | grep timescaledb"
+    if [ $? -ne 0 ]; then
+        log_message "TimescaleDB extension not found after attempting to load. Please ensure it is installed and included in shared_preload_libraries in your PostgreSQL configuration."
+        exit 1
+    else
+        log_message "TimescaleDB extension is confirmed installed."
+    fi
+}
 # Ensure required extensions are installed and FDW setup
 ensure_setup() {
     log_message "Ensuring setup..."
@@ -45,6 +57,7 @@ copy_new_records_fdw() {
 log_message "Checking if PostgreSQL server is ready on source database..."
 if sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p $PGPORT_SRC'"; then
     log_message "PostgreSQL server is ready. Starting data synchronization process..."
+    ensure_timescaledb
     ensure_setup
     copy_new_records_fdw
     log_message "Data synchronization completed."
