@@ -47,44 +47,36 @@ ensure_setup() {
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER source_db OPTIONS (user 'postgres', password '$TIMESCALEDBPASSWORD');\""
 }
 copy_new_records_fdw() {
-    # First, ensure the creation of temporary tables with the correct structure
-    # You should have similar commands to create temp_trades, temp_book, etc., before this function runs.
-    # For example:
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'CREATE TEMP TABLE IF NOT EXISTS temp_trades (LIKE trades INCLUDING ALL);'"
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'CREATE TEMP TABLE IF NOT EXISTS temp_book (LIKE book INCLUDING ALL);'"
+    # Combine commands for 'trades' synchronization
+    local trades_commands="BEGIN;
+    CREATE TEMP TABLE IF NOT EXISTS temp_trades (LIKE trades INCLUDING ALL);
+    INSERT INTO temp_trades SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM trades') AS source_table(exchange TEXT, symbol TEXT, side TEXT, amount DOUBLE PRECISION, price DOUBLE PRECISION, timestamp TIMESTAMPTZ, receipt TIMESTAMPTZ, id BIGINT);
+    INSERT INTO trades SELECT * FROM temp_trades ON CONFLICT (exchange, symbol, timestamp, id) DO NOTHING;
+    TRUNCATE TABLE temp_trades;
+    END;"
 
-    # Sync 'trades' table to temporary table
-    local sync_sql_trades_temp="INSERT INTO temp_trades SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM trades') AS source_table(exchange TEXT, symbol TEXT, side TEXT, amount DOUBLE PRECISION, price DOUBLE PRECISION, timestamp TIMESTAMPTZ, receipt TIMESTAMPTZ, id BIGINT);"
+    # Combine commands for 'book' synchronization
+    local book_commands="BEGIN;
+    CREATE TEMP TABLE IF NOT EXISTS temp_book (LIKE book INCLUDING ALL);
+    INSERT INTO temp_book SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, data, receipt, update_type FROM book') AS source_table(exchange TEXT, symbol TEXT, data JSONB, receipt TIMESTAMPTZ, update_type TEXT);
+    INSERT INTO book SELECT * FROM temp_book ON CONFLICT (exchange, symbol, receipt, update_type) DO NOTHING;
+    TRUNCATE TABLE temp_book;
+    END;"
 
-    # Sync 'book' table to temporary table
-    local sync_sql_book_temp="INSERT INTO temp_book SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, data, receipt, update_type FROM book') AS source_table(exchange TEXT, symbol TEXT, data JSONB, receipt TIMESTAMPTZ, update_type TEXT);"
-
-    # Corrected to execute the temporary table fill commands
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$sync_sql_trades_temp\""
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$sync_sql_book_temp\""
-
-    # Temporary to actual table synchronization
-    local move_trades="INSERT INTO trades SELECT * FROM temp_trades ON CONFLICT (exchange, symbol, timestamp, id) DO NOTHING;"
-    local move_book="INSERT INTO book SELECT * FROM temp_book ON CONFLICT (exchange, symbol, receipt, update_type) DO NOTHING;"
-
-    # Execute the move commands
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$move_trades\""
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$move_book\""
-
-    # Cleanup temporary tables
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'TRUNCATE TABLE temp_trades;'"
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'TRUNCATE TABLE temp_book;'"
-
-    # Additional tables would follow a similar pattern
+    # Execute the combined commands
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$trades_commands\""
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$book_commands\""
 }
+
+
 
 # Main Execution Flow
 log_message "Checking if PostgreSQL server is ready on source database..."
 if sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p $PGPORT_SRC'"; then
     log_message "PostgreSQL server is ready. Starting data synchronization process..."
-    ensure_timescaledb_preloaded
-    check_timescaledb_preload
-    ensure_setup
+    #ensure_timescaledb_preloaded
+    #check_timescaledb_preload
+    #ensure_setup
     copy_new_records_fdw
     log_message "Data synchronization completed."
 else
