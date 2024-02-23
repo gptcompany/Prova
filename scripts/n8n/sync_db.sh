@@ -46,7 +46,19 @@ ensure_setup() {
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"ALTER SERVER source_db OPTIONS (SET host 'localhost');\""
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER source_db OPTIONS (user 'postgres', password '$TIMESCALEDBPASSWORD');\""
 }
+# Function to synchronize data using FDW
+copy_new_records_fdw() {
+    # Adjusted to correctly reference primary keys and existing columns in the synchronization logic
+    local sync_sql_trades="INSERT INTO trades SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD','SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM trades') AS source(exchange TEXT, symbol TEXT, side TEXT, amount DOUBLE PRECISION, price DOUBLE PRECISION, timestamp TIMESTAMPTZ, receipt TIMESTAMPTZ, id BIGINT) ON CONFLICT (exchange, symbol, timestamp, id) DO NOTHING;"
+    
+    local sync_sql_book="INSERT INTO book SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD','SELECT exchange, symbol, data, receipt, update_type FROM book') AS source(exchange TEXT, symbol TEXT, data JSONB, receipt TIMESTAMPTZ, update_type TEXT) ON CONFLICT (exchange, symbol, receipt, update_type) DO NOTHING;"
+    
+    # Define similar SQL statements for 'open_interest', 'funding', and 'liquidations' based on their respective schemas
 
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$sync_sql_trades\""
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$sync_sql_book\""
+    # Execute similar commands for other tables
+}
 # Main Execution Flow
 log_message "Checking if PostgreSQL server is ready on source database..."
 if sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p $PGPORT_SRC'"; then
@@ -54,8 +66,8 @@ if sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p $PGP
     ensure_timescaledb_preloaded
     check_timescaledb_preload
     ensure_setup
-    # Add your data synchronization logic here, ensuring it's compatible with TimescaleDB hypertables.
-    log_message "Data synchronization completed."
+    copy_new_records_fdw
+    #log_message "Data synchronization completed."
 else
     log_message "PostgreSQL server is not ready. Attempt to try again in 180 seconds."
     exit 1
