@@ -47,13 +47,16 @@ ensure_setup() {
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER source_db OPTIONS (user 'postgres', password '$TIMESCALEDBPASSWORD');\""
 }
 copy_new_records_fdw() {
-    # Single SSH session to handle all commands for trades
+    # Define connection string for dblink outside of the heredoc
+    local conn_str="dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD"
+
+    # Use the connection string in the heredoc with variables already expanded
     trades_commands=$(cat <<EOF
 BEGIN;
 LOAD 'timescaledb';
 CREATE TEMP TABLE IF NOT EXISTS temp_trades (LIKE trades INCLUDING ALL);
 INSERT INTO temp_trades (exchange, symbol, side, amount, price, timestamp, receipt, id)
-SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM dblink('dbname=\$DB_NAME host=localhost port=\$PGPORT_SRC user=postgres password=\$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM trades') AS source_table(exchange TEXT, symbol TEXT, side TEXT, amount DOUBLE PRECISION, price DOUBLE PRECISION, timestamp TIMESTAMPTZ, receipt TIMESTAMPTZ, id BIGINT);
+SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM dblink('${conn_str}', 'SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM trades') AS source_table(exchange TEXT, symbol TEXT, side TEXT, amount DOUBLE PRECISION, price DOUBLE PRECISION, timestamp TIMESTAMPTZ, receipt TIMESTAMPTZ, id BIGINT);
 INSERT INTO trades SELECT * FROM temp_trades ON CONFLICT DO NOTHING;
 DROP TABLE temp_trades;
 COMMIT;
@@ -63,6 +66,7 @@ EOF
 
     # Repeat for 'book' with appropriate modifications
 }
+
 
 # Main Execution Flow
 log_message "Checking if PostgreSQL server is ready on source database..."
