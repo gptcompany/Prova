@@ -51,11 +51,11 @@ copy_new_records_fdw() {
     # and considering the unique constraints of your hypertables.
     # This function will attempt to synchronize data from the source to the destination database.
     
-    # Sync 'trades' table
-    local sync_sql_trades="INSERT INTO trades SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM trades') AS source_table(exchange TEXT, symbol TEXT, side TEXT, amount DOUBLE PRECISION, price DOUBLE PRECISION, timestamp TIMESTAMPTZ, receipt TIMESTAMPTZ, id BIGINT) ON CONFLICT (exchange, symbol, timestamp, id) DO NOTHING;"
+    # Sync 'trades' table to temporary table
+    local sync_sql_trades_temp="INSERT INTO temp_trades SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM trades') AS source_table(exchange TEXT, symbol TEXT, side TEXT, amount DOUBLE PRECISION, price DOUBLE PRECISION, timestamp TIMESTAMPTZ, receipt TIMESTAMPTZ, id BIGINT);"
 
-    # Sync 'book' table
-    local sync_sql_book="INSERT INTO book SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, data, receipt, update_type FROM book') AS source_table(exchange TEXT, symbol TEXT, data JSONB, receipt TIMESTAMPTZ, update_type TEXT) ON CONFLICT (exchange, symbol, receipt, update_type) DO NOTHING;"
+    # Sync 'book' table to temporary table
+    local sync_sql_book_temp="INSERT INTO temp_book SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, data, receipt, update_type FROM book') AS source_table(exchange TEXT, symbol TEXT, data JSONB, receipt TIMESTAMPTZ, update_type TEXT);"
 
     # Execute commands
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$sync_sql_trades\""
