@@ -18,32 +18,19 @@ execute_as_postgres() {
     ssh -T postgres@$REMOTE_HOST "$1"
 }
 
-# Function to ensure required extensions are installed
+# Ensure required extensions are installed
 ensure_extensions_installed() {
     log_message "Ensuring required extensions are installed..."
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'CREATE EXTENSION IF NOT EXISTS postgres_fdw;'"
 }
 
-# Function to set up foreign data wrapper
+# Set up foreign data wrapper
 setup_fdw() {
     log_message "Setting up Foreign Data Wrapper..."
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE SERVER IF NOT EXISTS source_db FOREIGN DATA WRAPPER postgres_fdw OPTIONS (dbname '$DB_NAME', host 'localhost', port '$PGPORT_SRC');\""
     log_message "Updating Foreign Data Wrapper Server Configuration..."
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"ALTER SERVER source_db OPTIONS (SET host 'localhost');\""
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER source_db OPTIONS (user 'postgres', password '$TIMESCALEDBPASSWORD');\""
-}
-
-# Function to check and import foreign schema for each table if not exists
-check_and_import_schema() {
-    for table in "${TABLES[@]}"; do
-        log_message "Checking and importing schema for table $table..."
-        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"DO \$\$
-        BEGIN
-            IF NOT EXISTS (SELECT 1 FROM information_schema.foreign_tables WHERE foreign_table_name = '$table') THEN
-                EXECUTE 'IMPORT FOREIGN SCHEMA public LIMIT TO ($table) FROM SERVER source_db INTO public;';
-            END IF;
-        END\$\$;\""
-    done
 }
 
 # Function to synchronize data using FDW
@@ -60,7 +47,7 @@ if sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p $PGP
     log_message "PostgreSQL server is ready. Starting data synchronization process..."
     ensure_extensions_installed
     setup_fdw
-    check_and_import_schema
+    # Instead of checking and importing schema for each table in a DO block, handle this manually or ensure it's pre-configured.
     copy_new_records_fdw
     log_message "Data synchronization completed."
 else
