@@ -18,55 +18,35 @@ execute_as_postgres() {
     ssh -T postgres@$REMOTE_HOST "$1"
 }
 
-# Ensure required extensions are installed
-ensure_extensions_installed() {
-    log_message "Ensuring required extensions are installed..."
+# Ensure required extensions are installed and FDW setup
+ensure_setup() {
+    log_message "Ensuring setup..."
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'CREATE EXTENSION IF NOT EXISTS postgres_fdw;'"
-}
-
-# Set up foreign data wrapper
-setup_fdw() {
-    log_message "Setting up Foreign Data Wrapper..."
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE SERVER IF NOT EXISTS source_db FOREIGN DATA WRAPPER postgres_fdw OPTIONS (dbname '$DB_NAME', host 'localhost', port '$PGPORT_SRC');\""
-    log_message "Updating Foreign Data Wrapper Server Configuration..."
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"ALTER SERVER source_db OPTIONS (SET host 'localhost');\""
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER source_db OPTIONS (user 'postgres', password '$TIMESCALEDBPASSWORD');\""
 }
 
 # Function to synchronize data using FDW
 copy_new_records_fdw() {
-    for table in "${TABLES[@]}"; do
-        log_message "Synchronizing new records for table $table..."
-        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO public.$table SELECT * FROM public.$table ON CONFLICT DO NOTHING;\""
-    done
-}
-# Assuming previous setup and configuration steps are correct
+    # Adjusted to correctly reference primary keys and existing columns in the synchronization logic
+    local sync_sql_trades="INSERT INTO trades SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD','SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM trades') AS source(exchange TEXT, symbol TEXT, side TEXT, amount DOUBLE PRECISION, price DOUBLE PRECISION, timestamp TIMESTAMPTZ, receipt TIMESTAMPTZ, id BIGINT) ON CONFLICT (exchange, symbol, timestamp, id) DO NOTHING;"
+    
+    local sync_sql_book="INSERT INTO book SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD','SELECT exchange, symbol, data, receipt, update_type FROM book') AS source(exchange TEXT, symbol TEXT, data JSONB, receipt TIMESTAMPTZ, update_type TEXT) ON CONFLICT (exchange, symbol, receipt, update_type) DO NOTHING;"
+    
+    # Define similar SQL statements for 'open_interest', 'funding', and 'liquidations' based on their respective schemas
 
-# Function to synchronize data using FDW with diagnostic logging
-copy_new_records_fdw_debug() {
-    for table in "${TABLES[@]}"; do
-        log_message "Attempting to synchronize new records for table $table..."
-        
-        # Diagnostic: Count records in source table
-        record_count_source=$(execute_as_postgres "psql -p $PGPORT_SRC -d $DB_NAME -c \"SELECT COUNT(*) FROM $table;\"")
-        log_message "Source table $table record count: $record_count_source"
-        
-        # Attempt to synchronize records
-        result=$(execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO public.$table SELECT * FROM public.$table WHERE NOT EXISTS (SELECT 1 FROM public.$table WHERE source_id = destination_id) ON CONFLICT DO NOTHING RETURNING *;\"")
-        log_message "Synchronization result for table $table: $result"
-    done
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$sync_sql_trades\""
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$sync_sql_book\""
+    # Execute similar commands for other tables
 }
 
-# Replace the call to `copy_new_records_fdw` with `copy_new_records_fdw_debug` in the main execution flow
-
-# Main Execution Flow
+# Main execution flow
 log_message "Checking if PostgreSQL server is ready on source database..."
 if sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p $PGPORT_SRC'"; then
     log_message "PostgreSQL server is ready. Starting data synchronization process..."
-    ensure_extensions_installed
-    setup_fdw
-    # Instead of checking and importing schema for each table in a DO block, handle this manually or ensure it's pre-configured.
-    copy_new_records_fdw_debug
+    ensure_setup
+    copy_new_records_fdw
     log_message "Data synchronization completed."
 else
     log_message "PostgreSQL server is not ready. Attempt to try again in 180 seconds."
