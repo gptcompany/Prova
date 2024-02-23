@@ -40,6 +40,24 @@ copy_new_records_fdw() {
         execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO public.$table SELECT * FROM public.$table ON CONFLICT DO NOTHING;\""
     done
 }
+# Assuming previous setup and configuration steps are correct
+
+# Function to synchronize data using FDW with diagnostic logging
+copy_new_records_fdw_debug() {
+    for table in "${TABLES[@]}"; do
+        log_message "Attempting to synchronize new records for table $table..."
+        
+        # Diagnostic: Count records in source table
+        record_count_source=$(execute_as_postgres "psql -p $PGPORT_SRC -d $DB_NAME -c \"SELECT COUNT(*) FROM $table;\"")
+        log_message "Source table $table record count: $record_count_source"
+        
+        # Attempt to synchronize records
+        result=$(execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO public.$table SELECT * FROM public.$table WHERE NOT EXISTS (SELECT 1 FROM public.$table WHERE source_id = destination_id) ON CONFLICT DO NOTHING RETURNING *;\"")
+        log_message "Synchronization result for table $table: $result"
+    done
+}
+
+# Replace the call to `copy_new_records_fdw` with `copy_new_records_fdw_debug` in the main execution flow
 
 # Main Execution Flow
 log_message "Checking if PostgreSQL server is ready on source database..."
@@ -48,7 +66,7 @@ if sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p $PGP
     ensure_extensions_installed
     setup_fdw
     # Instead of checking and importing schema for each table in a DO block, handle this manually or ensure it's pre-configured.
-    copy_new_records_fdw
+    copy_new_records_fdw_debug
     log_message "Data synchronization completed."
 else
     log_message "PostgreSQL server is not ready. Attempt to try again in 180 seconds."
