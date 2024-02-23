@@ -3,11 +3,18 @@
 # Define server identifier and remote PostgreSQL instance
 SERVER_ID="timescaledb"
 REMOTE_HOST=$(aws ssm get-parameter --name STANDBY_PUBLIC_IP --with-decryption --query 'Parameter.Value' --output text)
-REMOTE_PGDATA_PATH=$(ssh postgres@$REMOTE_HOST "psql -p 5432 -t -c 'SHOW data_directory;'")
+# Before executing a command, check SSH connection
+ssh -o BatchMode=yes -o ConnectTimeout=5 postgres@$REMOTE_HOST "echo SSH connection successful"
+if [ $? -ne 0 ]; then
+    echo "SSH connection failed. Exiting..."
+    exit 1
+fi
+REMOTE_PGDATA_PATH=$(ssh -o BatchMode=yes -o ConnectTimeout=5 postgres@$REMOTE_HOST "psql -p 5432 -t -c 'SHOW data_directory;'")
 echo "Remote PostgreSQL data directory: $REMOTE_PGDATA_PATH"
 # Get the latest backup ID for the server
 LATEST_BACKUP_ID=$(sudo -i -u barman barman list-backup $SERVER_ID | head -n 1 | awk '{print $2}')
-sudo -i -u barman barman list-backup $SERVER_ID
+echo "$LATEST_BACKUP_ID"
+#sudo -i -u barman barman list-backup $SERVER_ID
 echo "Latest backup : $LATEST_BACKUP_ID"
 # Check if a backup ID was found
 if [ -z "$LATEST_BACKUP_ID" ]; then

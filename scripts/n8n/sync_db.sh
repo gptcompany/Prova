@@ -63,8 +63,15 @@ copy_new_records_fdw() {
 
 
 # Main Execution Flow
-ensure_extensions_installed
-setup_fdw
-copy_new_records_fdw
-
-log_message "Data synchronization completed."
+log_message "Checking if PostgreSQL server is ready on source database..."
+sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p $PGPORT_SRC'"
+if [ $? -eq 0 ]; then
+    log_message "PostgreSQL server is ready. Starting data synchronization process..."
+    ensure_extensions_installed
+    setup_fdw
+    copy_new_records_fdw
+    log_message "Data synchronization completed."
+else
+    log_message "PostgreSQL server is not ready. Attempt to try again in 180 seconds."
+    exit 1
+fi
