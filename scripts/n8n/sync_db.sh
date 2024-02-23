@@ -29,24 +29,16 @@ setup_fdw() {
     log_message "Setting up Foreign Data Wrapper..."
     
     # Create server connection
-    
-    # Adjust the FDW setup to use localhost for the source database connection
-    # Optionally, drop and recreate the server for a clean setup
-
-    # execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"DROP SERVER IF EXISTS source_db CASCADE;\""
-
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE SERVER IF NOT EXISTS source_db FOREIGN DATA WRAPPER postgres_fdw OPTIONS (dbname '$DB_NAME', host 'localhost', port '$PGPORT_SRC');\""
-    log_message "Updating Foreign Data Wrapper Server Configuration..."
+    log_message "Foreign Data Wrapper Server Configuration Updated."
    
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"ALTER SERVER source_db OPTIONS (SET host 'localhost');\""
-
     # Create user mapping
-    # Replace 'your_remote_user' and 'your_password' with actual credentials
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER source_db OPTIONS (user 'postgres', password '$TIMESCALEDBPASSWORD');\""
     
-    # Import foreign schema for each table
+    # Import foreign schema
+    # Assuming you want to keep the same schema name but differentiate the tables by prefixing them with 'foreign_'
     for table in "${TABLES[@]}"; do
-        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"IMPORT FOREIGN SCHEMA public LIMIT TO ($table) FROM SERVER source_db INTO public;\""
+        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"DROP FOREIGN TABLE IF EXISTS foreign_$table CASCADE; IMPORT FOREIGN SCHEMA public LIMIT TO ($table) FROM SERVER source_db INTO public; ALTER FOREIGN TABLE $table RENAME TO foreign_$table;\""
     done
 }
 
@@ -54,13 +46,10 @@ setup_fdw() {
 copy_new_records_fdw() {
     for table in "${TABLES[@]}"; do
         log_message "Synchronizing new records for table $table..."
-        
-        # Directly copy new records using FDW with ON CONFLICT DO NOTHING
-        # Ensure the foreign table name is used correctly after importing the schema
-        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO $table SELECT * FROM $table ON CONFLICT DO NOTHING;\""
+        # Insert data from foreign tables to local tables
+        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO public.$table SELECT * FROM public.foreign_$table ON CONFLICT DO NOTHING;\""
     done
 }
-
 
 # Main Execution Flow
 log_message "Checking if PostgreSQL server is ready on source database..."
