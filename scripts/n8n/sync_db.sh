@@ -46,20 +46,24 @@ ensure_setup() {
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"ALTER SERVER source_db OPTIONS (SET host 'localhost');\""
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER source_db OPTIONS (user 'postgres', password '$TIMESCALEDBPASSWORD');\""
 }
-# Modified function to synchronize data using FDW, specifically tailored for TimescaleDB hypertables
 copy_new_records_fdw() {
-    # Example of synchronization logic for 'trades' hypertable, considering unique constraints
-    local sync_sql_trades="INSERT INTO trades SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD','SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM trades') AS source(exchange TEXT, symbol TEXT, side TEXT, amount DOUBLE PRECISION, price DOUBLE PRECISION, timestamp TIMESTAMPTZ, receipt TIMESTAMPTZ, id BIGINT) ON CONFLICT (exchange, symbol, timestamp, id) DO NOTHING;"
+    # Assuming TimescaleDB extension is properly installed and configured,
+    # and considering the unique constraints of your hypertables.
+    # This function will attempt to synchronize data from the source to the destination database.
+    
+    # Sync 'trades' table
+    local sync_sql_trades="INSERT INTO trades SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM trades') AS source_table(exchange TEXT, symbol TEXT, side TEXT, amount DOUBLE PRECISION, price DOUBLE PRECISION, timestamp TIMESTAMPTZ, receipt TIMESTAMPTZ, id BIGINT) ON CONFLICT (exchange, symbol, timestamp, id) DO NOTHING;"
 
-    # Similar adjusted SQL statements for other tables like 'book', 'open_interest', 'funding', 'liquidations' considering their unique constraints and schema
-    local sync_sql_book="INSERT INTO book SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD','SELECT exchange, symbol, data, receipt, update_type FROM book') AS source(exchange TEXT, symbol TEXT, data JSONB, receipt TIMESTAMPTZ, update_type TEXT) ON CONFLICT (exchange, symbol, receipt, update_type) DO NOTHING;"
+    # Sync 'book' table
+    local sync_sql_book="INSERT INTO book SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, data, receipt, update_type FROM book') AS source_table(exchange TEXT, symbol TEXT, data JSONB, receipt TIMESTAMPTZ, update_type TEXT) ON CONFLICT (exchange, symbol, receipt, update_type) DO NOTHING;"
 
-    # Execute the synchronization commands for 'trades' and 'book'. Add similar lines for 'open_interest', 'funding', 'liquidations' after defining their sync_sql_*
+    # Execute commands
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$sync_sql_trades\""
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$sync_sql_book\""
 
-    # Add your execution commands for 'open_interest', 'funding', 'liquidations' here...
+    # Add similar lines for other tables if necessary
 }
+
 
 # Remaining script logic...
 
