@@ -27,26 +27,20 @@ ensure_extensions_installed() {
 # Function to set up foreign data wrapper
 setup_fdw() {
     log_message "Setting up Foreign Data Wrapper..."
-    
-    # Create server connection
-    
-    # Adjust the FDW setup to use localhost for the source database connection
-    # Optionally, drop and recreate the server for a clean setup
-
-    # execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"DROP SERVER IF EXISTS source_db CASCADE;\""
-
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE SERVER IF NOT EXISTS source_db FOREIGN DATA WRAPPER postgres_fdw OPTIONS (dbname '$DB_NAME', host 'localhost', port '$PGPORT_SRC');\""
     log_message "Updating Foreign Data Wrapper Server Configuration..."
-   
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"ALTER SERVER source_db OPTIONS (SET host 'localhost');\""
-
-    # Create user mapping
-    # Replace 'your_remote_user' and 'your_password' with actual credentials
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER source_db OPTIONS (user 'postgres', password '$TIMESCALEDBPASSWORD');\""
     
-    # Import foreign schema for each table
+    # Check and import foreign schema for each table if not exists
     for table in "${TABLES[@]}"; do
-        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"IMPORT FOREIGN SCHEMA public LIMIT TO ($table) FROM SERVER source_db INTO public;\""
+        log_message "Checking and importing schema for table $table..."
+        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"DO \$\$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.foreign_tables WHERE foreign_table_name = '$table') THEN
+                IMPORT FOREIGN SCHEMA public LIMIT TO ($table) FROM SERVER source_db INTO public;
+            END IF;
+        END\$\$;\""
     done
 }
 
@@ -54,18 +48,14 @@ setup_fdw() {
 copy_new_records_fdw() {
     for table in "${TABLES[@]}"; do
         log_message "Synchronizing new records for table $table..."
-        
         # Directly copy new records using FDW with ON CONFLICT DO NOTHING
-        # Ensure the foreign table name is used correctly after importing the schema
-        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO $table SELECT * FROM $table ON CONFLICT DO NOTHING;\""
+        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO public.$table SELECT * FROM public.$table@$REMOTE_HOST ON CONFLICT DO NOTHING;\""
     done
 }
 
-
 # Main Execution Flow
 log_message "Checking if PostgreSQL server is ready on source database..."
-sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p $PGPORT_SRC'"
-if [ $? -eq 0 ]; then
+if sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p $PGPORT_SRC'"; then
     log_message "PostgreSQL server is ready. Starting data synchronization process..."
     ensure_extensions_installed
     setup_fdw
