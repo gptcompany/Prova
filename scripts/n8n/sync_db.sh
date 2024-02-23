@@ -31,14 +31,16 @@ setup_fdw() {
     log_message "Updating Foreign Data Wrapper Server Configuration..."
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"ALTER SERVER source_db OPTIONS (SET host 'localhost');\""
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER source_db OPTIONS (user 'postgres', password '$TIMESCALEDBPASSWORD');\""
-    
-    # Check and import foreign schema for each table if not exists
+}
+
+# Function to check and import foreign schema for each table if not exists
+check_and_import_schema() {
     for table in "${TABLES[@]}"; do
         log_message "Checking and importing schema for table $table..."
         execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"DO \$\$
         BEGIN
             IF NOT EXISTS (SELECT 1 FROM information_schema.foreign_tables WHERE foreign_table_name = '$table') THEN
-                IMPORT FOREIGN SCHEMA public LIMIT TO ($table) FROM SERVER source_db INTO public;
+                EXECUTE 'IMPORT FOREIGN SCHEMA public LIMIT TO ($table) FROM SERVER source_db INTO public;';
             END IF;
         END\$\$;\""
     done
@@ -48,8 +50,7 @@ setup_fdw() {
 copy_new_records_fdw() {
     for table in "${TABLES[@]}"; do
         log_message "Synchronizing new records for table $table..."
-        # Directly copy new records using FDW with ON CONFLICT DO NOTHING
-        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO public.$table SELECT * FROM public.$table@$REMOTE_HOST ON CONFLICT DO NOTHING;\""
+        execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"INSERT INTO public.$table SELECT * FROM public.$table ON CONFLICT DO NOTHING;\""
     done
 }
 
@@ -59,6 +60,7 @@ if sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p $PGP
     log_message "PostgreSQL server is ready. Starting data synchronization process..."
     ensure_extensions_installed
     setup_fdw
+    check_and_import_schema
     copy_new_records_fdw
     log_message "Data synchronization completed."
 else
