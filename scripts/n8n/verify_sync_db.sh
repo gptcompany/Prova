@@ -26,16 +26,18 @@ execute_as_postgres() {
 }
 
 # Function to verify data synchronization for a single table
-# Function to verify data synchronization for a single table
 verify_table_data_synchronization() {
     local table=$1
-    local timestamp_range=$(get_verification_timestamp_range)
-    log_message "Verifying data synchronization for table: $table within $timestamp_range"
+    local timestamp_column="timestamp"  # Default timestamp column
+    if [ "$table" == "book" ]; then
+        timestamp_column="receipt"  # Adjust based on actual schema
+    fi
+    log_message "Verifying data synchronization for table: $table within the last day using $timestamp_column column"
 
-    # Construct verification queries
-    local verify_query_count="SELECT COUNT(*) FROM $table WHERE timestamp >= $timestamp_range;"
-    local verify_query_checksum="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table WHERE timestamp >= $timestamp_range ORDER BY timestamp) t;"
+    local verify_query_count="SELECT COUNT(*) FROM $table WHERE \"$timestamp_column\" >= now() - interval '1 day';"
+    local verify_query_checksum="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table WHERE \"$timestamp_column\" >= now() - interval '1 day' ORDER BY \"$timestamp_column\") t;"
 
+    # Execute verification queries (example for count, adjust similarly for checksum)
     local count_source=$(execute_as_postgres "$PGPORT_SOURCE" "$DB_NAME_SOURCE" "$verify_query_count")
     local count_target=$(execute_as_postgres "$PGPORT_TARGET" "$DB_NAME_TARGET" "$verify_query_count")
     local checksum_source=$(execute_as_postgres "$PGPORT_SOURCE" "$DB_NAME_SOURCE" "$verify_query_checksum")
