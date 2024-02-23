@@ -46,28 +46,30 @@ ensure_setup() {
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"ALTER SERVER source_db OPTIONS (SET host 'localhost');\""
     execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"CREATE USER MAPPING IF NOT EXISTS FOR CURRENT_USER SERVER source_db OPTIONS (user 'postgres', password '$TIMESCALEDBPASSWORD');\""
 }
-# Revised function to use staging tables and then move data to hypertables
 copy_new_records_fdw() {
-    # Create staging tables if they don't exist (not temporary this time)
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'CREATE TABLE IF NOT EXISTS staging_trades (LIKE trades INCLUDING ALL);'"
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c 'CREATE TABLE IF NOT EXISTS staging_book (LIKE book INCLUDING ALL);'"
+    # Command sequence for 'trades' table operations
+    local trades_operations="BEGIN;
+    LOAD 'timescaledb';
+    CREATE TEMP TABLE IF NOT EXISTS temp_trades (LIKE trades INCLUDING ALL);
+    INSERT INTO temp_trades SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM trades') AS source_table;
+    INSERT INTO trades SELECT * FROM temp_trades ON CONFLICT (exchange, symbol, timestamp, id) DO NOTHING;
+    DROP TABLE temp_trades;
+    COMMIT;"
 
-    # Insert into staging tables from dblink
-    local sync_staging_trades="INSERT INTO staging_trades SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, side, amount, price, timestamp, receipt, id FROM trades') AS source_table(exchange TEXT, symbol TEXT, side TEXT, amount DOUBLE PRECISION, price DOUBLE PRECISION, timestamp TIMESTAMPTZ, receipt TIMESTAMPTZ, id BIGINT);"
-    local sync_staging_book="INSERT INTO staging_book SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, data, receipt, update_type FROM book') AS source_table(exchange TEXT, symbol TEXT, data JSONB, receipt TIMESTAMPTZ, update_type TEXT);"
+    # Command sequence for 'book' table operations
+    local book_operations="BEGIN;
+    LOAD 'timescaledb';
+    CREATE TEMP TABLE IF NOT EXISTS temp_book (LIKE book INCLUDING ALL);
+    INSERT INTO temp_book SELECT * FROM dblink('dbname=$DB_NAME host=localhost port=$PGPORT_SRC user=postgres password=$TIMESCALEDBPASSWORD', 'SELECT exchange, symbol, data, receipt, update_type FROM book') AS source_table;
+    INSERT INTO book SELECT * FROM temp_book ON CONFLICT (exchange, symbol, receipt, update_type) DO NOTHING;
+    DROP TABLE temp_book;
+    COMMIT;"
 
-    # Execute the insert into staging tables
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$sync_staging_trades\""
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$sync_staging_book\""
-
-    # Now, move from staging tables to hypertables, handling conflicts as necessary
-    local move_from_staging_trades="INSERT INTO trades SELECT * FROM staging_trades ON CONFLICT (exchange, symbol, timestamp, id) DO NOTHING; TRUNCATE TABLE staging_trades;"
-    local move_from_staging_book="INSERT INTO book SELECT * FROM staging_book ON CONFLICT (exchange, symbol, receipt, update_type) DO NOTHING; TRUNCATE TABLE staging_book;"
-
-    # Execute the move from staging to actual hypertables
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$move_from_staging_trades\""
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$move_from_staging_book\""
+    # Execute the operations
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$trades_operations\""
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"$book_operations\""
 }
+
 
 
 
