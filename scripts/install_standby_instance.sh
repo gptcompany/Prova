@@ -66,7 +66,10 @@ else
         echo "Failed to create and activate the swap file."
     fi
 fi
-
+wget https://assets.timescale.com/releases/timescaledb-backfill-x86_64-linux.tar.gz
+tar xf timescaledb-backfill-x86_64-linux.tar.gz
+sudo mv timescaledb-backfill /usr/local/bin/
+timescaledb-backfill -V
 ###########TODO###########################################################
 # INSTALL PACKAGES AND TERMINAL (USING THE SCRIPT)
 sudo chmod +x $HOME/startarb/scripts/install_packages_standby_instance.sh
