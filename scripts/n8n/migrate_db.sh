@@ -13,8 +13,8 @@ export TARGET=postgres://postgres:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/$D
 execute_as_postgres() {
     ssh -T postgres@$REMOTE_HOST "$1"
 }
-
-execute_as_postgres timescaledb-backfill stage --source $SOURCE --target $TARGET --until '2016-01-02T00:00:00' #dynamic set the until date fetching the last date in the source instance and setting this date 
-execute_as_postgres timescaledb-backfill copy --source $SOURCE --target $TARGET
-execute_as_postgres timescaledb-backfill verify --source $SOURCE --target $TARGET
-execute_as_postgres timescaledb-backfill clean --target $TARGET
+until_date=$(date '+%Y-%m-%d')
+execute_as_postgres "timescaledb-backfill stage --source $SOURCE --target $TARGET --until '$until_date'" #dynamic set the until date fetching the last date in the source instance and setting this date 
+execute_as_postgres "timescaledb-backfill copy --source $SOURCE --target $TARGET"
+execute_as_postgres "timescaledb-backfill verify --source $SOURCE --target $TARGET"
+execute_as_postgres "timescaledb-backfill clean --target $TARGET"
