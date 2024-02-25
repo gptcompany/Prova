@@ -31,5 +31,6 @@ sudo -i -u barman /bin/bash -c "barman recover --remote-ssh-command 'ssh postgre
 # Check the status of PostgreSQL running on port 5432
 
 # sudo -i -u barman /bin/bash -c "ssh -v postgres@timescaledb.mywire.org 'pg_isready -p 5432'"
+sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'sudo systemctl restart postgresql'"
 sudo -i -u barman /bin/bash -c "ssh postgres@$REMOTE_HOST 'pg_isready -p 5432'"
 
