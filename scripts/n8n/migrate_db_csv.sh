@@ -25,14 +25,17 @@ execute_as_postgres "pg_dumpall -d "$SOURCE" \
 
 
 # Migrating schema pre-data
+echo "Migrating schema pre-data"
 execute_as_postgres "pg_dump -U postgres -W \
 -h localhost -p $PGPORT_SRC -Fc -v \
 --section=pre-data --exclude-schema="_timescaledb*" \
 -f dump_pre_data.dump $DB_NAME"
+echo "Restoring the dump pre data"
 execute_as_postgres "pg_restore -U tsdbadmin -W \
 -h localhost -p $PGPORT_DEST --no-owner -Fc \
 -v -d tsdb dump_pre_data.dump"
-execute_as_postgres "psql "postgres://tsdbadmin:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/tsdb?sslmode=require""
+
+#execute_as_postgres "psql "postgres://tsdbadmin:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/tsdb?sslmode=require""
 
 # Restore the hypertable
 # Iterate over the table names
@@ -48,7 +51,8 @@ for TABLE_NAME in "${TABLES[@]}"; do
     SQL_COMMAND="SELECT create_hypertable('$TABLE_NAME', '$TIME_COLUMN_NAME', chunk_time_interval => INTERVAL '10 minutes');"
 
     # Execute the command
-    PGPASSWORD=$TIMESCALEDBPASSWORD psql "postgres://$TSDBADMIN:$TIMESCALEDBPASSWORD@$PGHOST:$PGPORT_DEST/$DATABASE?sslmode=require" -c "$SQL_COMMAND"
+    PGPASSWORD=$TIMESCALEDBPASSWORD 
+    execute_as_postgres "psql "postgres://$TSDBADMIN:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/$DATABASE?sslmode=require" -c "$SQL_COMMAND""
 done
 
 # Dump all plain tables and the TimescaleDB catalog from the source database
