@@ -27,6 +27,7 @@ execute_as_postgres "pg_dumpall -d "$SOURCE" \
 echo "Dump all plain tables and the TimescaleDB catalog from the source database"
 execute_as_postgres "pg_dump -d "$SOURCE" \
   --format=plain \
+  --disable-triggers \
   --quote-all-identifiers \
   --no-tablespaces \
   --no-owner \
