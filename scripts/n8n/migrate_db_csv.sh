@@ -10,73 +10,59 @@ TSDBADMIN="tsdbadmin"
 TIMESCALEDBPASSWORD=$(aws ssm get-parameter --name timescaledbpassword --with-decryption --query 'Parameter.Value' --output text)
 export SOURCE=postgres://postgres:$TIMESCALEDBPASSWORD@localhost:$PGPORT_SRC/$DB_NAME
 export TARGET=postgres://postgres:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/$DB_NAME
-# Execute a command as postgres user on the remote host
+
+# Function to execute a command as postgres user on the remote host
 execute_as_postgres() {
     ssh -T postgres@$REMOTE_HOST "PGPASSWORD='$TIMESCALEDBPASSWORD' $1"
 }
-# Dump the database roles from the source database
+
+# Function to check if a table exists and then convert it to a hypertable
+check_and_create_hypertable() {
+    local table_name=$1
+    local time_column_name=$2
+
+    # Check if the table exists
+    local check_exists_cmd="psql -p $PGPORT_DEST -d $DB_NAME -c \"SELECT to_regclass('public.$table_name');\""
+    local table_exists=$(execute_as_postgres "$check_exists_cmd" | grep -v to_regclass | grep -v row | grep -v -- '---' | grep -v '(' | tr -d '[:space:]')
+
+    # If the table exists, convert it to a hypertable
+    if [ "$table_exists" = "public.$table_name" ]; then
+        echo "Table $table_name exists. Converting to hypertable..."
+        local hypertable_cmd="psql -p $PGPORT_DEST -d $DB_NAME -c \"SELECT create_hypertable('$table_name', '$time_column_name', if_not_exists => TRUE, chunk_time_interval => INTERVAL '10 minutes');\""
+        execute_as_postgres "$hypertable_cmd"
+    else
+        echo "Table $table_name does not exist. Skipping hypertable conversion."
+    fi
+}
+
+# Function to remove retention policy if it exists
+remove_retention_policy_if_exists() {
+    local table_name=$1
+    echo "Checking and removing retention policy for $table_name if exists..."
+    local remove_policy_cmd="psql -p $PGPORT_DEST -d $DB_NAME -c \"SELECT remove_retention_policy('public.$table_name', if_exists => TRUE);\""
+    execute_as_postgres "$remove_policy_cmd"
+}
+
 echo "Dump the database roles from the source database"
-# Example corrected usage
 execute_as_postgres 'pg_dumpall -d "'"$SOURCE"'" -l '"$DB_NAME"' --quote-all-identifiers --roles-only --file=roles.sql'
 
-# Execute the command adding the --no-role-passwords flag. if errors in above commands
-
-
-# Migrating schema pre-data
 echo "Migrating schema pre-data"
-# Adjusted commands to include PGPASSWORD
 execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_dump -U postgres -h localhost -p $PGPORT_SRC -Fc -v --section=pre-data --exclude-schema='_timescaledb*' -f dump_pre_data.dump $DB_NAME"
 echo "Restoring the dump pre data"
 execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_restore -U postgres -h localhost -p $PGPORT_DEST --no-owner -Fc -v -d $DB_NAME dump_pre_data.dump"
 
-
-#execute_as_postgres "psql "postgres://tsdbadmin:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/tsdb?sslmode=require""
-
-# Restore the hypertable
-# Iterate over the table names
+# Loop through each table to convert to hypertable and handle retention policy
 for TABLE_NAME in "${TABLES[@]}"; do
-    # Set the time column name based on the table
+    # Determine the correct time column name
+    TIME_COLUMN_NAME="timestamp"
     if [ "$TABLE_NAME" = "book" ]; then
         TIME_COLUMN_NAME="receipt"
-    else
-        TIME_COLUMN_NAME="timestamp"
     fi
 
-    # Form the SQL command
-    SQL_COMMAND="SELECT create_hypertable('$TABLE_NAME', '$TIME_COLUMN_NAME', chunk_time_interval => INTERVAL '10 minutes');"
-
-    # Execute the command
-    PGPASSWORD=$TIMESCALEDBPASSWORD 
-    execute_as_postgres "psql \"\$TARGET\" -c \"$SQL_COMMAND\""
-done
-
-# Dump all plain tables and the TimescaleDB catalog from the source database
-
-echo "Ensure that the correct TimescaleDB version is installed"
-# Retrieve TimescaleDB extension version from source database
-TIMESCALEDB_VERSION=$(execute_as_postgres "psql -t -A -d $SOURCE -c \"SELECT extversion FROM pg_extension WHERE extname = 'timescaledb';\"")
-# Update TimescaleDB extension to the retrieved version in the target database
-# execute_as_postgres "psql -d $TARGET -c \"ALTER EXTENSION timescaledb UPDATE TO '$TIMESCALEDB_VERSION';\""
-
-# Loop through each table to export and then import data
-for TABLE_NAME in "${TABLES[@]}"; do
-    echo "Processing table: $TABLE_NAME"
-
-    # Define file name
-    FILE_NAME="${TABLE_NAME}.csv"
-
-    # Export data from source table to CSV
-    execute_as_postgres "psql -p $PGPORT_SRC -d $DB_NAME -c \"\copy (SELECT * FROM $TABLE_NAME) TO '$FILE_NAME' WITH (FORMAT CSV);\""
-
-    # Import data from CSV into target table
-    # Ensure no retention policy is in place for the table
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"SELECT remove_retention_policy('$TABLE_NAME');\""
-    # Now import the data
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"\copy $TABLE_NAME FROM '$FILE_NAME' WITH (FORMAT CSV);\""
-
-    # Cleanup: remove the CSV file from the remote host and local machine
-    execute_as_postgres "rm ~/$FILE_NAME"
-    rm $FILE_NAME
+    # Check if the table exists and convert it to a hypertable
+    check_and_create_hypertable "$TABLE_NAME" "$TIME_COLUMN_NAME"
+    # Remove retention policy if it exists
+    remove_retention_policy_if_exists "$TABLE_NAME"
 done
 
 echo "Data migration completed."
