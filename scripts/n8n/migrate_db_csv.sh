@@ -27,7 +27,7 @@ echo "Migrating schema pre-data"
 # Adjusted commands to include PGPASSWORD
 execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_dump -U postgres -h localhost -p $PGPORT_SRC -Fc -v --section=pre-data --exclude-schema='_timescaledb*' -f dump_pre_data.dump $DB_NAME"
 echo "Restoring the dump pre data"
-execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_restore -U tsdbadmin -h localhost -p $PGPORT_DEST --no-owner -Fc -v -d tsdb dump_pre_data.dump"
+execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_restore -U postgres -h localhost -p $PGPORT_DEST --no-owner -Fc -v -d tsdb dump_pre_data.dump"
 
 
 #execute_as_postgres "psql "postgres://tsdbadmin:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/tsdb?sslmode=require""
