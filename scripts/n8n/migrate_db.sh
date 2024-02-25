@@ -42,8 +42,8 @@ TIMESCALEDB_VERSION=$(execute_as_postgres "psql -t -A -d $SOURCE -c \"SELECT ext
 
 # Load the roles and schema into the target database, and turn off all background jobs
 echo "Load the roles and schema into the target database, and turn off all background jobs"
-execute_as_postgres "psql -X -d "$TARGET" \
   #-v ON_ERROR_STOP=1 \
+execute_as_postgres "psql -X -d "$TARGET" \
   --echo-errors \
   -f roles.sql \
   -c 'select public.timescaledb_pre_restore();' \
