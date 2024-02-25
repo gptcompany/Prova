@@ -147,7 +147,10 @@ create_hypertable() {
     local create_command=${config[create_command]}
     local time_column=${config[time_column]}
     local chunk_interval=${config[chunk_interval]}
-
+    if  psql -U $PGUSER -h $PGHOST -p $PGPORT -d $DB_NAME -c "SELECT * FROM timescaledb_information.hypertables WHERE table_name = '$table_name';" | grep -q $table_name; then
+        log_message "Creating hypertable $table_name."
+        psql -U $PGUSER -h $PGHOST -p $PGPORT -d $DB_NAME -c "SELECT create_hypertable('$table_name', '$time_column', chunk_time_interval => INTERVAL '$chunk_interval');"
+    fi
     # Check if the table is already a hypertable
     if  psql -U $PGUSER -h $PGHOST -p $PGPORT -d $DB_NAME -c "SELECT * FROM timescaledb_information.hypertables WHERE hypertable_name = '$table_name';" | grep -q $table_name; then
         log_message "Hypertable $table_name already exists."
