@@ -10,11 +10,26 @@ TSDBADMIN="tsdbadmin"
 TIMESCALEDBPASSWORD=$(aws ssm get-parameter --name timescaledbpassword --with-decryption --query 'Parameter.Value' --output text)
 SOURCE=postgres://postgres:$TIMESCALEDBPASSWORD@localhost:$PGPORT_SRC/$DB_NAME
 TARGET=postgres://postgres:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/$DB_NAME
-
+SEGMENTBY_COLUMN="exchange"
 # Execute a command as postgres user on the remote host
 execute_as_postgres() {
     ssh -T postgres@$REMOTE_HOST "PGPASSWORD='$TIMESCALEDBPASSWORD' $1"
 }
+
+# Additional steps after converting tables to hypertables and before data import
+
+echo "Identifying and removing existing retention policies in the target DB"
+for TABLE_NAME in "${TABLES[@]}"; do
+    echo "Processing retention policy for table: $TABLE_NAME"
+    
+    # Identify existing retention policies for the table
+    echo "Identifying existing retention policies for $TABLE_NAME"
+    execute_as_postgres "psql -d $DB_NAME -c \"SELECT * FROM timescaledb_information.jobs WHERE proc_name = 'policy_retention' AND hypertable_name = '$TABLE_NAME';\""
+    
+    # Remove the retention policy if exists
+    echo "Removing retention policy for $TABLE_NAME if exists"
+    execute_as_postgres "psql -d $DB_NAME -c \"SELECT remove_retention_policy('$TABLE_NAME', if_exists => TRUE);\""
+done
 
 # Dump and restore schema
 echo "Dumping the database roles from the source database"
@@ -61,17 +76,20 @@ for TABLE_NAME in "${TABLES[@]}"; do
     # Import data from CSV into target table
     echo "Importing data into $TABLE_NAME"
     execute_as_postgres "psql -d $DB_NAME -c \"\copy $TABLE_NAME FROM '$FILE_NAME' WITH (FORMAT CSV);\""
-
-    # Ensure compression is enabled for the hypertable
-    echo "Ensuring compression is enabled for $TABLE_NAME"
-    compression_cmd="psql -p $PGPORT_DEST -d $DB_NAME -c \"ALTER TABLE $TABLE_NAME SET (timescaledb.compress, timescaledb.compress_segmentby = 'YOUR_COLUMN'); SELECT add_compression_policy('$TABLE_NAME', INTERVAL '7 days', if_not_exists => TRUE);\""
-    execute_as_postgres "$compression_cmd"
     
-    # Cleanup: remove the CSV file
+    echo "Cleanup: remove the CSV file"
     execute_as_postgres "rm ~/$FILE_NAME"
 done
+#Migrate schema post-data
+echo "Dump the schema post-data from your source database"
+execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_dump -U postgres -W -h localhost -p $PGPORT_SRC -Fc -v --section=post-data --exclude-schema='_timescaledb*' -f dump_post_data.dump $DB_NAME"
+
+echo "Restoring the dump post-data"
+execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_restore -U postgres -W -h localhost -p $PGPORT_DEST --no-owner -Fc -v -d $DB_NAME dump_post_data.dump"
 
 echo "Data migration completed."
+
+
 
 
 
