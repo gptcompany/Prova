@@ -14,6 +14,7 @@ execute_as_postgres() {
     ssh -T postgres@$REMOTE_HOST "$1"
 }
 # Dump the database roles from the source database
+echo "Dump the database roles from the source database"
 execute_as_postgres "pg_dumpall -d "$SOURCE" \
   -l $DB_NAME \
   --quote-all-identifiers \
@@ -23,6 +24,7 @@ execute_as_postgres "pg_dumpall -d "$SOURCE" \
 
 
 # Dump all plain tables and the TimescaleDB catalog from the source database
+echo "Dump all plain tables and the TimescaleDB catalog from the source database"
 execute_as_postgres "pg_dump -d "$SOURCE" \
   --format=plain \
   --quote-all-identifiers \
@@ -32,13 +34,14 @@ execute_as_postgres "pg_dump -d "$SOURCE" \
   --exclude-table-data='_timescaledb_internal.*' \
   --file=dump.sql"
 
-# Ensure that the correct TimescaleDB version is installed
+echo "Ensure that the correct TimescaleDB version is installed"
 # Retrieve TimescaleDB extension version from source database
 TIMESCALEDB_VERSION=$(execute_as_postgres "psql -t -A -d $SOURCE -c \"SELECT extversion FROM pg_extension WHERE extname = 'timescaledb';\"")
 # Update TimescaleDB extension to the retrieved version in the target database
 execute_as_postgres "psql -d $TARGET -c \"ALTER EXTENSION timescaledb UPDATE TO '$TIMESCALEDB_VERSION';\""
 
 # Load the roles and schema into the target database, and turn off all background jobs
+echo "Load the roles and schema into the target database, and turn off all background jobs"
 execute_as_postgres "psql -X -d "$TARGET" \
   -v ON_ERROR_STOP=1 \
   --echo-errors \
@@ -57,6 +60,7 @@ where id >= 1000
 commit;
 EOF"
 
+echo "Using Timescaledb backfill"
 until_date=$(date '+%Y-%m-%d')
 execute_as_postgres "timescaledb-backfill stage --source $SOURCE --target $TARGET --until '$until_date'" #dynamic set the until date fetching the last date in the source instance and setting this date 
 execute_as_postgres "timescaledb-backfill copy --source $SOURCE --target $TARGET"
