@@ -12,28 +12,23 @@ export SOURCE=postgres://postgres:$TIMESCALEDBPASSWORD@localhost:$PGPORT_SRC/$DB
 export TARGET=postgres://postgres:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/$DB_NAME
 # Execute a command as postgres user on the remote host
 execute_as_postgres() {
-    ssh -T postgres@$REMOTE_HOST "export PGPASSWORD='$TIMESCALEDBPASSWORD' $1"
+    ssh -T postgres@$REMOTE_HOST "PGPASSWORD='$TIMESCALEDBPASSWORD' $1"
 }
 # Dump the database roles from the source database
 echo "Dump the database roles from the source database"
-execute_as_postgres "pg_dumpall -d "$SOURCE" \
-  -l $DB_NAME \
-  --quote-all-identifiers \
-  --roles-only \
-  --file=roles.sql"
+# Example corrected usage
+execute_as_postgres 'pg_dumpall -d "'"$SOURCE"'" -l '"$DB_NAME"' --quote-all-identifiers --roles-only --file=roles.sql'
+
 # Execute the command adding the --no-role-passwords flag. if errors in above commands
 
 
 # Migrating schema pre-data
 echo "Migrating schema pre-data"
-execute_as_postgres "pg_dump -U postgres -W \
--h localhost -p $PGPORT_SRC -Fc -v \
---section=pre-data --exclude-schema="_timescaledb*" \
--f dump_pre_data.dump $DB_NAME"
+# Adjusted commands to include PGPASSWORD
+execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_dump -U postgres -h localhost -p $PGPORT_SRC -Fc -v --section=pre-data --exclude-schema='_timescaledb*' -f dump_pre_data.dump $DB_NAME"
 echo "Restoring the dump pre data"
-execute_as_postgres "pg_restore -U tsdbadmin -W \
--h localhost -p $PGPORT_DEST --no-owner -Fc \
--v -d tsdb dump_pre_data.dump"
+execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_restore -U tsdbadmin -h localhost -p $PGPORT_DEST --no-owner -Fc -v -d tsdb dump_pre_data.dump"
+
 
 #execute_as_postgres "psql "postgres://tsdbadmin:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/tsdb?sslmode=require""
 
@@ -52,7 +47,7 @@ for TABLE_NAME in "${TABLES[@]}"; do
 
     # Execute the command
     PGPASSWORD=$TIMESCALEDBPASSWORD 
-    execute_as_postgres "psql "postgres://$TSDBADMIN:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/$DATABASE?sslmode=require" -c "$SQL_COMMAND""
+    execute_as_postgres "psql \"\$TARGET\" -c \"$SQL_COMMAND\""
 done
 
 # Dump all plain tables and the TimescaleDB catalog from the source database
