@@ -13,52 +13,53 @@ export TARGET=postgres://postgres:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/$D
 execute_as_postgres() {
     ssh -T postgres@$REMOTE_HOST "$1"
 }
-# # Dump the database roles from the source database
-# echo "Dump the database roles from the source database"
-# execute_as_postgres "pg_dumpall -d "$SOURCE" \
-#   -l $DB_NAME \
-#   --quote-all-identifiers \
-#   --roles-only \
-#   --file=roles.sql"
-# # Execute the command adding the --no-role-passwords flag. if errors in above commands
+# Dump the database roles from the source database
+echo "Dump the database roles from the source database"
+execute_as_postgres "pg_dumpall -d "$SOURCE" \
+  -l $DB_NAME \
+  --quote-all-identifiers \
+  --roles-only \
+  --file=roles.sql"
+# Execute the command adding the --no-role-passwords flag. if errors in above commands
 
 
-# # Dump all plain tables and the TimescaleDB catalog from the source database
-# echo "Dump all plain tables and the TimescaleDB catalog from the source database"
-# execute_as_postgres "pg_dump -d "$SOURCE" \
-#   --format=plain \
-#   --quote-all-identifiers \
-#   --no-tablespaces \
-#   --no-owner \
-#   --no-privileges \
-#   --exclude-table-data='_timescaledb_internal.*' \
-#   --file=dump.sql"
+# Dump all plain tables and the TimescaleDB catalog from the source database
+echo "Dump all plain tables and the TimescaleDB catalog from the source database"
+execute_as_postgres "pg_dump -d "$SOURCE" \
+  --format=plain \
+  --quote-all-identifiers \
+  --no-tablespaces \
+  --no-owner \
+  --no-privileges \
+  --exclude-table-data='_timescaledb_internal.*' \
+  --file=dump.sql"
 
-# echo "Ensure that the correct TimescaleDB version is installed"
-# # Retrieve TimescaleDB extension version from source database
-# TIMESCALEDB_VERSION=$(execute_as_postgres "psql -t -A -d $SOURCE -c \"SELECT extversion FROM pg_extension WHERE extname = 'timescaledb';\"")
-# # Update TimescaleDB extension to the retrieved version in the target database
-# # execute_as_postgres "psql -d $TARGET -c \"ALTER EXTENSION timescaledb UPDATE TO '$TIMESCALEDB_VERSION';\""
+echo "Ensure that the correct TimescaleDB version is installed"
+# Retrieve TimescaleDB extension version from source database
+TIMESCALEDB_VERSION=$(execute_as_postgres "psql -t -A -d $SOURCE -c \"SELECT extversion FROM pg_extension WHERE extname = 'timescaledb';\"")
+# Update TimescaleDB extension to the retrieved version in the target database
+# execute_as_postgres "psql -d $TARGET -c \"ALTER EXTENSION timescaledb UPDATE TO '$TIMESCALEDB_VERSION';\""
 
-# # Load the roles and schema into the target database, and turn off all background jobs
-# echo "Load the roles and schema into the target database, and turn off all background jobs"
-#   #-v ON_ERROR_STOP=1 \
-# execute_as_postgres "psql -X -d "$TARGET" \
-#   --echo-errors \
-#   -f roles.sql \
-#   -c 'select public.timescaledb_pre_restore();' \
-#   -f dump.sql \
-#   -f - <<'EOF'
-# begin;
-# select public.timescaledb_post_restore();
+# Load the roles and schema into the target database, and turn off all background jobs
+echo "Load the roles and schema into the target database, and turn off all background jobs"
+  #-v ON_ERROR_STOP=1 \
+execute_as_postgres "psql -X -d "$TARGET" \
+  -v ON_ERROR_STOP=0 \
+  --echo-errors \
+  -f roles.sql \
+  -c 'select public.timescaledb_pre_restore();' \
+  -f dump.sql \
+  -f - <<'EOF'
+begin;
+select public.timescaledb_post_restore();
 
-# -- disable all background jobs
-# select public.alter_job(id::integer, scheduled=>false)
-# from _timescaledb_config.bgw_job
-# where id >= 1000
-# ;
-# commit;
-# EOF"
+-- disable all background jobs
+select public.alter_job(id::integer, scheduled=>false)
+from _timescaledb_config.bgw_job
+where id >= 1000
+;
+commit;
+EOF"
 
 echo "Using Timescaledb backfill"
 until_date=$(date '+%Y-%m-%d')
