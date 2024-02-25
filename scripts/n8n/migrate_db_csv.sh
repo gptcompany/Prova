@@ -12,7 +12,7 @@ export SOURCE=postgres://postgres:$TIMESCALEDBPASSWORD@localhost:$PGPORT_SRC/$DB
 export TARGET=postgres://postgres:$TIMESCALEDBPASSWORD@localhost:$PGPORT_DEST/$DB_NAME
 # Execute a command as postgres user on the remote host
 execute_as_postgres() {
-    ssh -T postgres@$REMOTE_HOST "$1"
+    ssh -T postgres@$REMOTE_HOST "PGPASSWORD='$TIMESCALEDBPASSWORD' $1"
 }
 # Dump the database roles from the source database
 echo "Dump the database roles from the source database"
