@@ -98,7 +98,7 @@ for TABLE_NAME in "${TABLES[@]}"; do
     FILE_NAME="${TABLE_NAME}.csv"
     # Export data from source table to CSV
     # execute_as_postgres "psql -d $DB_NAME -c \"\copy (SELECT * FROM $TABLE_NAME) TO '$FILE_NAME' WITH (FORMAT CSV);\""
-    psql_copy_cmd1="psql -p $PGPORT_SRC -d $DB_NAME -c \"\copy (SELECT * FROM $TABLE_NAME) TO '$FILE_NAME' WITH (FORMAT CSV);\""
+    psql_copy_cmd1="psql -p $PGPORT_SRC -d $DB_NAME -c \"\copy (SELECT * FROM $TABLE_NAME) TO '/var/lib/postgresql/$FILE_NAME' WITH (FORMAT CSV);\""
     retry_command "$psql_copy_cmd1"
     # Check and remove retention policy if it exists
     echo "Checking and removing retention policy for $TABLE_NAME if exists..."
@@ -113,7 +113,7 @@ for TABLE_NAME in "${TABLES[@]}"; do
     psql_copy_cmd="psql -p $PGPORT_DEST -d $DB_NAME -c \"
     BEGIN;
     CREATE TEMP TABLE temp_$TABLE_NAME AS TABLE $TABLE_NAME WITH NO DATA;
-    COPY temp_$TABLE_NAME FROM '$FILE_NAME' WITH (FORMAT CSV);
+    COPY temp_$TABLE_NAME FROM '/var/lib/postgresql/$FILE_NAME' WITH (FORMAT CSV);
     INSERT INTO $TABLE_NAME SELECT * FROM temp_$TABLE_NAME ON CONFLICT DO NOTHING;
     DROP TABLE temp_$TABLE_NAME;
     COMMIT;
@@ -123,7 +123,7 @@ for TABLE_NAME in "${TABLES[@]}"; do
     retry_command "$psql_copy_cmd"
 
     echo "Cleanup: remove the CSV file"
-    execute_as_postgres "rm ~/$FILE_NAME"
+    execute_as_postgres "rm /var/lib/postgresql/$FILE_NAME"
 done
 #Migrate schema post-data
 echo "Dump the schema post-data from your source database"
