@@ -97,7 +97,7 @@ for TABLE_NAME in "${TABLES[@]}"; do
     FILE_NAME="${TABLE_NAME}.csv"
     # Export data from source table to CSV
     # execute_as_postgres "psql -d $DB_NAME -c \"\copy (SELECT * FROM $TABLE_NAME) TO '$FILE_NAME' WITH (FORMAT CSV);\""
-    local psql_copy_cmd1="psql -d $DB_NAME -c \"\copy (SELECT * FROM $TABLE_NAME) TO '$FILE_NAME' WITH (FORMAT CSV);\""
+    psql_copy_cmd1="psql -d $DB_NAME -c \"\copy (SELECT * FROM $TABLE_NAME) TO '$FILE_NAME' WITH (FORMAT CSV);\""
     retry_command "$psql_copy_cmd1"
     # Check and remove retention policy if it exists
     echo "Checking and removing retention policy for $TABLE_NAME if exists..."
@@ -108,7 +108,7 @@ for TABLE_NAME in "${TABLES[@]}"; do
     echo "Importing data into $TABLE_NAME"
     # execute_as_postgres "psql -d $DB_NAME -c \"\copy $TABLE_NAME FROM '$FILE_NAME' WITH (FORMAT CSV);\""
     # Construct the psql copy command
-    local psql_copy_cmd="psql -d $DB_NAME -c \"\\copy $TABLE_NAME FROM '$FILE_NAME' WITH (FORMAT CSV);\""
+    psql_copy_cmd="psql -d $DB_NAME -c \"\\copy $TABLE_NAME FROM '$FILE_NAME' WITH (FORMAT CSV);\""
     
     # Call retry_command function with the constructed psql copy command
     retry_command "$psql_copy_cmd"
@@ -125,7 +125,7 @@ execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_restore -U postgres -h
 
 echo "Data migration completed."
 
-psql "postgres://tsdbadmin:<PASSWORD>@<HOST>:<PORT>/tsdb?sslmode=require" -c "ANALYZE;"
+# psql "postgres://tsdbadmin:<PASSWORD>@<HOST>:<PORT>/tsdb?sslmode=require" -c "ANALYZE;"
 
 
 
