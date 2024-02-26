@@ -22,20 +22,21 @@ execute_as_postgres() {
 retry_command() {
     local command=$1
     local attempts=0
-    local max_attempts=3
-    local sleep_seconds=10
+    local max_attempts=2
+    local sleep_seconds=3
     local success=0
 
     while [ $attempts -lt $max_attempts ]; do
         attempts=$((attempts+1))
         echo "Attempt $attempts: $command"
         
-        if execute_as_postgres "$command"; then
-            echo "Command succeeded."
+        if output=$(execute_as_postgres "$command" 2>&1); then
+            echo "Command succeeded [OKAY]."
             success=1
             break
         else
-            echo "Command failed."
+            error_message=$output
+            echo "Command failed. Error: $error_message"
             if [ $attempts -lt $max_attempts ]; then
                 echo "Retrying in $sleep_seconds seconds..."
                 execute_as_postgres "sudo systemctl restart postgresql"
@@ -58,22 +59,22 @@ for TABLE_NAME in "${TABLES[@]}"; do
     
     # Identify existing retention policies for the table
     echo "Identifying existing retention policies for $TABLE_NAME"
-    execute_as_postgres "psql -p $PGPORT_SRC -d $DB_NAME -c \"SELECT * FROM timescaledb_information.jobs WHERE proc_name = 'policy_retention' AND hypertable_name = '$TABLE_NAME';\""
+    retry_command "psql -p $PGPORT_SRC -d $DB_NAME -c \"SELECT * FROM timescaledb_information.jobs WHERE proc_name = 'policy_retention' AND hypertable_name = '$TABLE_NAME';\""
     
     # Remove the retention policy if exists
     echo "Removing retention policy for $TABLE_NAME if exists"
-    execute_as_postgres "psql -p $PGPORT_SRC -d $DB_NAME -c \"SELECT remove_retention_policy('$TABLE_NAME', if_exists => TRUE);\""
+    retry_command "psql -p $PGPORT_SRC -d $DB_NAME -c \"SELECT remove_retention_policy('$TABLE_NAME', if_exists => TRUE);\""
 done
 
 # Dump and restore schema
 echo "Dumping the database roles from the source database"
-execute_as_postgres "pg_dumpall -p $PGPORT_SRC -d '$SOURCE' -l '$DB_NAME' --quote-all-identifiers --roles-only --file=roles.sql"
+retry_command "pg_dumpall -p $PGPORT_SRC -d '$SOURCE' -l '$DB_NAME' --quote-all-identifiers --roles-only --file=roles.sql"
 
 echo "Migrating schema pre-data"
-execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_dump -U postgres -h localhost -p $PGPORT_SRC -Fc -v --section=pre-data --exclude-schema='_timescaledb*' -f dump_pre_data.dump $DB_NAME"
+retry_command "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_dump -U postgres -h localhost -p $PGPORT_SRC -Fc -v --section=pre-data --exclude-schema='_timescaledb*' -f dump_pre_data.dump $DB_NAME"
 
 echo "Restoring the dump pre-data"
-execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_restore -U postgres -h localhost -p $PGPORT_DEST --no-owner -Fc -v -d $DB_NAME dump_pre_data.dump"
+retry_command "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_restore -U postgres -h localhost -p $PGPORT_DEST --no-owner -Fc -v -d $DB_NAME dump_pre_data.dump"
 
 # Convert tables to hypertables in target db
 for TABLE_NAME in "${TABLES[@]}"; do
@@ -87,11 +88,11 @@ for TABLE_NAME in "${TABLES[@]}"; do
     
     # Check if the table exists before converting to hypertable
     echo "Checking if $TABLE_NAME exists"
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"SELECT to_regclass('public.$TABLE_NAME');\""
+    retry_command "psql -p $PGPORT_DEST -d $DB_NAME -c \"SELECT to_regclass('public.$TABLE_NAME');\""
 
     # Convert table to hypertable
     echo "Converting $TABLE_NAME to hypertable"
-    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"SELECT create_hypertable('$TABLE_NAME', '$TIME_COLUMN_NAME', if_not_exists => TRUE, chunk_time_interval => INTERVAL '10 minutes');\""
+    retry_command "psql -p $PGPORT_DEST -d $DB_NAME -c \"SELECT create_hypertable('$TABLE_NAME', '$TIME_COLUMN_NAME', if_not_exists => TRUE, chunk_time_interval => INTERVAL '10 minutes');\""
 done
 
 # Data export, import, and ensure compression
@@ -105,7 +106,7 @@ for TABLE_NAME in "${TABLES[@]}"; do
     # Check and remove retention policy if it exists
     echo "Checking and removing retention policy for $TABLE_NAME if exists..."
     remove_policy_cmd="psql -p $PGPORT_DEST -d $DB_NAME -c \"SELECT remove_retention_policy('public.$TABLE_NAME', if_exists => TRUE);\""
-    execute_as_postgres "$remove_policy_cmd"
+    retry_command "$remove_policy_cmd"
 
     # Import data from CSV into target table
     echo "Importing data into $TABLE_NAME"
@@ -125,14 +126,14 @@ for TABLE_NAME in "${TABLES[@]}"; do
     retry_command "$psql_copy_cmd"
 
     echo "Cleanup: remove the CSV file"
-    execute_as_postgres "rm /var/lib/postgresql/$FILE_NAME"
+    retry_command "rm /var/lib/postgresql/$FILE_NAME"
 done
 #Migrate schema post-data
 echo "Dump the schema post-data from your source database"
-execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_dump -U postgres -h localhost -p $PGPORT_SRC -Fc -v --section=post-data --exclude-schema='_timescaledb*' -f dump_post_data.dump $DB_NAME"
+retry_command "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_dump -U postgres -h localhost -p $PGPORT_SRC -Fc -v --section=post-data --exclude-schema='_timescaledb*' -f dump_post_data.dump $DB_NAME"
 
 echo "Restoring the dump post-data"
-execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_restore -U postgres -h localhost -p $PGPORT_DEST --no-owner -Fc -v -d $DB_NAME dump_post_data.dump"
+retry_command "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_restore -U postgres -h localhost -p $PGPORT_DEST --no-owner -Fc -v -d $DB_NAME dump_post_data.dump"
 
 echo "Data migration completed."
 
