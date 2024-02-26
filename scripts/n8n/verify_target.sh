@@ -9,8 +9,8 @@ PGPORT_TARGET="5433"
 TABLES=("trades" "book" "open_interest" "funding" "liquidations")
 LOG_FILE="/tmp/data_sync_verification.log"
 TIMESCALEDBPASSWORD=$(aws ssm get-parameter --name timescaledbpassword --with-decryption --query 'Parameter.Value' --output text)
-SOURCE=postgres://postgres:$TIMESCALEDBPASSWORD@localhost:$PGPORT_SOURCE/$DB_NAME_SOURCE
-TARGET=postgres://postgres:$TIMESCALEDBPASSWORD@localhost:$PGPORT_TARGET/$DB_NAME_TARGET
+SOURCE=postgres://postgres:$TIMESCALEDBPASSWORD@$REMOTE_HOST:$PGPORT_SOURCE/$DB_NAME_SOURCE
+TARGET=postgres://postgres:$TIMESCALEDBPASSWORD@$REMOTE_HOST:$PGPORT_TARGET/$DB_NAME_TARGET
 # Calculate a fixed timestamp for verification
 FIXED_TIMESTAMP=$(date +"%Y-%m-%d %T") # or use another method to get the exact timestamp you need
 
@@ -57,7 +57,7 @@ verify_table_data_synchronization() {
 # Function to run ANALYZE on a database
 run_analyze() {
     local db_connection_string=$1
-    log_message "Running ANALYZE on database: $db_connection_string"
+    log_message "Running ANALYZE on database"
     psql "$db_connection_string" -c "ANALYZE;"
 }
 # Main execution loop

@@ -50,22 +50,22 @@ retry_command() {
 
     return $success
 }
-echo "Identifying and removing existing retention policies in the target DB"
+echo "Identifying and removing existing retention policies in the source DB"
 for TABLE_NAME in "${TABLES[@]}"; do
     echo "Processing retention policy for table: $TABLE_NAME"
     
     # Identify existing retention policies for the table
     echo "Identifying existing retention policies for $TABLE_NAME"
-    execute_as_postgres "psql -d $DB_NAME -c \"SELECT * FROM timescaledb_information.jobs WHERE proc_name = 'policy_retention' AND hypertable_name = '$TABLE_NAME';\""
+    execute_as_postgres "psql -p $PGPORT_SRC -d $DB_NAME -c \"SELECT * FROM timescaledb_information.jobs WHERE proc_name = 'policy_retention' AND hypertable_name = '$TABLE_NAME';\""
     
     # Remove the retention policy if exists
     echo "Removing retention policy for $TABLE_NAME if exists"
-    execute_as_postgres "psql -d $DB_NAME -c \"SELECT remove_retention_policy('$TABLE_NAME', if_exists => TRUE);\""
+    execute_as_postgres "psql -p $PGPORT_SRC -d $DB_NAME -c \"SELECT remove_retention_policy('$TABLE_NAME', if_exists => TRUE);\""
 done
 
 # Dump and restore schema
 echo "Dumping the database roles from the source database"
-execute_as_postgres "pg_dumpall -d '$SOURCE' -l '$DB_NAME' --quote-all-identifiers --roles-only --file=roles.sql"
+execute_as_postgres "pg_dumpall -p $PGPORT_SRC -d '$SOURCE' -l '$DB_NAME' --quote-all-identifiers --roles-only --file=roles.sql"
 
 echo "Migrating schema pre-data"
 execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_dump -U postgres -h localhost -p $PGPORT_SRC -Fc -v --section=pre-data --exclude-schema='_timescaledb*' -f dump_pre_data.dump $DB_NAME"
@@ -73,7 +73,7 @@ execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_dump -U postgres -h lo
 echo "Restoring the dump pre-data"
 execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_restore -U postgres -h localhost -p $PGPORT_DEST --no-owner -Fc -v -d $DB_NAME dump_pre_data.dump"
 
-# Convert tables to hypertables
+# Convert tables to hypertables in target db
 for TABLE_NAME in "${TABLES[@]}"; do
     echo "Processing table: $TABLE_NAME"
     
@@ -85,11 +85,11 @@ for TABLE_NAME in "${TABLES[@]}"; do
     
     # Check if the table exists before converting to hypertable
     echo "Checking if $TABLE_NAME exists"
-    execute_as_postgres "psql -d $DB_NAME -c \"SELECT to_regclass('public.$TABLE_NAME');\""
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"SELECT to_regclass('public.$TABLE_NAME');\""
 
     # Convert table to hypertable
     echo "Converting $TABLE_NAME to hypertable"
-    execute_as_postgres "psql -d $DB_NAME -c \"SELECT create_hypertable('$TABLE_NAME', '$TIME_COLUMN_NAME', if_not_exists => TRUE, chunk_time_interval => INTERVAL '10 minutes');\""
+    execute_as_postgres "psql -p $PGPORT_DEST -d $DB_NAME -c \"SELECT create_hypertable('$TABLE_NAME', '$TIME_COLUMN_NAME', if_not_exists => TRUE, chunk_time_interval => INTERVAL '10 minutes');\""
 done
 
 # Data export, import, and ensure compression
@@ -98,7 +98,7 @@ for TABLE_NAME in "${TABLES[@]}"; do
     FILE_NAME="${TABLE_NAME}.csv"
     # Export data from source table to CSV
     # execute_as_postgres "psql -d $DB_NAME -c \"\copy (SELECT * FROM $TABLE_NAME) TO '$FILE_NAME' WITH (FORMAT CSV);\""
-    psql_copy_cmd1="psql -d $DB_NAME -c \"\copy (SELECT * FROM $TABLE_NAME) TO '$FILE_NAME' WITH (FORMAT CSV);\""
+    psql_copy_cmd1="psql -p $PGPORT_SRC -d $DB_NAME -c \"\copy (SELECT * FROM $TABLE_NAME) TO '$FILE_NAME' WITH (FORMAT CSV);\""
     retry_command "$psql_copy_cmd1"
     # Check and remove retention policy if it exists
     echo "Checking and removing retention policy for $TABLE_NAME if exists..."
@@ -109,7 +109,7 @@ for TABLE_NAME in "${TABLES[@]}"; do
     echo "Importing data into $TABLE_NAME"
     # execute_as_postgres "psql -d $DB_NAME -c \"\copy $TABLE_NAME FROM '$FILE_NAME' WITH (FORMAT CSV);\""
     # Construct the psql copy command
-    psql_copy_cmd="psql -d $DB_NAME -c \"\\copy $TABLE_NAME FROM '$FILE_NAME' WITH (FORMAT CSV);\""
+    psql_copy_cmd="psql -p $PGPORT_DEST -d $DB_NAME -c \"\\copy $TABLE_NAME FROM '$FILE_NAME' WITH (FORMAT CSV);\""
     
     # Call retry_command function with the constructed psql copy command
     retry_command "$psql_copy_cmd"
@@ -126,7 +126,6 @@ execute_as_postgres "PGPASSWORD='$TIMESCALEDBPASSWORD' pg_restore -U postgres -h
 
 echo "Data migration completed."
 
-# psql "postgres://tsdbadmin:<PASSWORD>@<HOST>:<PORT>/tsdb?sslmode=require" -c "ANALYZE;"
 
 
 
