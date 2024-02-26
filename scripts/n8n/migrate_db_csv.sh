@@ -21,7 +21,7 @@ retry_command() {
     local command=$1
     local attempts=0
     local max_attempts=3
-    local sleep_seconds=5
+    local sleep_seconds=10
     local success=0
 
     while [ $attempts -lt $max_attempts ]; do
@@ -36,6 +36,7 @@ retry_command() {
             echo "Command failed."
             if [ $attempts -lt $max_attempts ]; then
                 echo "Retrying in $sleep_seconds seconds..."
+                execute_as_postgres "sudo systemctl restart postgresql"
                 sleep $sleep_seconds
             else
                 echo "Reached maximum attempts. Not retrying."
