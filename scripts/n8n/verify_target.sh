@@ -34,8 +34,8 @@ verify_table_data_synchronization() {
     fi
     log_message "Verifying data synchronization for table: $table using $timestamp_column column with fixed timestamp: $fixed_timestamp"
 
-    local verify_query_count="SELECT COUNT(*) FROM $table WHERE \"$timestamp_column\" >= TIMESTAMP '$fixed_timestamp' - interval '1 day';"
-    local verify_query_checksum="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table WHERE \"$timestamp_column\" >= TIMESTAMP '$fixed_timestamp' - interval '1 day' ORDER BY \"$timestamp_column\") t;"
+    local verify_query_count="SELECT COUNT(*) FROM $table WHERE \"$timestamp_column\" >= TIMESTAMP '$fixed_timestamp' - interval '7 day';"
+    local verify_query_checksum="SELECT md5(array_agg(t::text)::text) FROM (SELECT * FROM $table WHERE \"$timestamp_column\" >= TIMESTAMP '$fixed_timestamp' - interval '7 day' ORDER BY \"$timestamp_column\") t;"
 
     # Execute verification queries
     local count_source=$(execute_as_postgres "$PGPORT_SOURCE" "$DB_NAME_SOURCE" "$verify_query_count")

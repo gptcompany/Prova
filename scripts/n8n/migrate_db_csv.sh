@@ -108,8 +108,16 @@ for TABLE_NAME in "${TABLES[@]}"; do
     # Import data from CSV into target table
     echo "Importing data into $TABLE_NAME"
     # execute_as_postgres "psql -d $DB_NAME -c \"\copy $TABLE_NAME FROM '$FILE_NAME' WITH (FORMAT CSV);\""
-    # Construct the psql copy command
-    psql_copy_cmd="psql -p $PGPORT_DEST -d $DB_NAME -c \"\\copy $TABLE_NAME FROM '$FILE_NAME' WITH (FORMAT CSV);\""
+    # Create temporary table
+    # Insert data from temporary table into target table, skipping duplicates
+    psql_copy_cmd="psql -p $PGPORT_DEST -d $DB_NAME -c \"
+    BEGIN;
+    CREATE TEMP TABLE temp_$TABLE_NAME AS TABLE $TABLE_NAME WITH NO DATA;
+    \\copy temp_$TABLE_NAME FROM '$FILE_NAME' WITH (FORMAT CSV);
+    INSERT INTO $TABLE_NAME SELECT * FROM temp_$TABLE_NAME ON CONFLICT DO NOTHING;
+    DROP TABLE temp_$TABLE_NAME;
+    COMMIT;
+    \""
     
     # Call retry_command function with the constructed psql copy command
     retry_command "$psql_copy_cmd"
