@@ -1,4 +1,6 @@
 #!/bin/bash
+# Redirect stdout and stderr to a log file and also echo it
+exec > >(tee -a ~/migrate_db.log) 2>&1
 
 # Configuration
 REMOTE_HOST=$(aws ssm get-parameter --name STANDBY_PUBLIC_IP --with-decryption --query 'Parameter.Value' --output text)

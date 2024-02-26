@@ -4,7 +4,7 @@
 SERVER_ID="timescaledb"
 REMOTE_HOST=$(aws ssm get-parameter --name STANDBY_PUBLIC_IP --with-decryption --query 'Parameter.Value' --output text)
 # Before executing a command, check SSH connection
-ssh -o BatchMode=yes -o ConnectTimeout=5 postgres@$REMOTE_HOST "echo SSH connection successful"
+ssh -o BatchMode=yes -o ConnectTimeout=30 postgres@$REMOTE_HOST "echo SSH connection successful"
 if [ $? -ne 0 ]; then
     echo "SSH connection failed. Exiting..."
     exit 1
