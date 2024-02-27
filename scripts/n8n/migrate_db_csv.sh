@@ -22,13 +22,13 @@ execute_as_postgres() {
 retry_command() {
     local command=$1
     local attempts=0
-    local max_attempts=2
+    local max_attempts=1
     local sleep_seconds=3
     local success=0
 
     while [ $attempts -lt $max_attempts ]; do
         attempts=$((attempts+1))
-        echo "Attempt $attempts: $command"
+        echo "Attempt $attempts"
         
         if output=$(execute_as_postgres "$command" 2>&1); then
             echo "Command succeeded [OKAY]."
@@ -36,20 +36,20 @@ retry_command() {
             break
         else
             error_message=$output
-            echo "Command failed. Error: $error_message"
+            echo "Command failed [KO]. " #Error: $error_message"
             if [ $attempts -lt $max_attempts ]; then
                 echo "Retrying in $sleep_seconds seconds..."
-                execute_as_postgres "sudo systemctl restart postgresql"
+                # execute_as_postgres "sudo systemctl restart postgresql"
                 sleep $sleep_seconds
             else
-                echo "Reached maximum attempts. Not retrying."
+                # echo "Reached maximum attempts. Not retrying."
             fi
         fi
     done
     
-    if [ $success -eq 0 ]; then
-        echo "The command has failed after $max_attempts attempts."
-    fi
+    # if [ $success -eq 0 ]; then
+    #     echo "The command has failed after $max_attempts attempts."
+    # fi
 
     return $success
 }
