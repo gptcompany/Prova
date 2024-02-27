@@ -41,8 +41,8 @@ retry_command() {
                 echo "Retrying in $sleep_seconds seconds..."
                 # execute_as_postgres "sudo systemctl restart postgresql"
                 sleep $sleep_seconds
-            else
-                # echo "Reached maximum attempts. Not retrying."
+            # else
+            #     echo "Reached maximum attempts. Not retrying."
             fi
         fi
     done
