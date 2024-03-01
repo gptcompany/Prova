@@ -10,7 +10,7 @@ from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, Fundi
 from decimal import Decimal
 import asyncio
 import logging
-from Custom_Coinbase import CustomCoinbase
+from custom_coinbase import CustomCoinbase
 import sys
 import os
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')

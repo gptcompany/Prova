@@ -12,7 +12,7 @@ import sys
 import os
 from datetime import datetime, timezone
 from redis import asyncio as aioredis
-from Custom_Redis import CustomBookRedis, CustomTradeRedis, CustomBookStream, CustomLiquidationsRedis, CustomOpenInterestRedis, CustomFundingRedis
+from feed.custom_redis import CustomBookRedis, CustomTradeRedis, CustomBookStream, CustomLiquidationsRedis, CustomOpenInterestRedis, CustomFundingRedis
 from custom_timescaledb import BookTimeScale, TradesTimeScale, FundingTimeScale, OpenInterestTimeScale, LiquidationsTimeScale
 from statistics import mean
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
