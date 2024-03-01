@@ -1,18 +1,18 @@
-#from redis import Redis
+import redis
 from cryptofeed import FeedHandler
 from cryptofeed.callback import TradeCallback, BookCallback
 from cryptofeed.defines import BID, ASK,TRADES, L3_BOOK, L2_BOOK, TICKER, OPEN_INTEREST, FUNDING, LIQUIDATIONS, BALANCES, ORDER_INFO
-from cryptofeed.exchanges import BITFINEX, Bitfinex
-from cryptofeed.backends.postgres import CandlesPostgres, IndexPostgres, TickerPostgres, TradePostgres, OpenInterestPostgres, LiquidationsPostgres, FundingPostgres, BookPostgres
-#from app.Custom_Coinbase import CustomCoinbase
-#from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey
+from cryptofeed.exchanges import OKX
+from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey
 from decimal import Decimal
 import asyncio
 import logging
-from datetime import datetime
 import sys
+from datetime import datetime, timezone
+from redis import asyncio as aioredis
 from Custom_Redis import CustomBookRedis, CustomTradeRedis, CustomBookStream
 from custom_timescaledb import BookTimeScale, TradesTimeScale
+from statistics import mean
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
 async def funding(f, receipt_timestamp):
@@ -33,7 +33,7 @@ async def trade(t, receipt_timestamp):
     # Format the datetime object as a string and manually add milliseconds
     formatted_date = date_time.strftime('%Y-%m-%d %H:%M:%S.') + f'{milliseconds:03d}'
     print(f"Trade received at {formatted_date}: {t}")
-    #await asyncio.sleep(0.2)
+    await asyncio.sleep(0.5)
 
 async def book(book, receipt_timestamp):
     date_time = datetime.utcfromtimestamp(receipt_timestamp)
@@ -46,11 +46,7 @@ async def book(book, receipt_timestamp):
         print(f"Delta from last book contains {len(book.delta[BID]) + len(book.delta[ASK])} entries.")
     if book.sequence_number:
         assert isinstance(book.sequence_number, int)
-    await asyncio.sleep(0.5)
-async def aio_task():
-    while True:
-        print("Other task running")
-        await asyncio.sleep(10)       
+    await asyncio.sleep(0.5) 
 custom_columns = {
     'exchange': 'exchange',     # Maps Cryptofeed's 'exchange' field to the 'exchange' column in TimescaleDB
     'symbol': 'symbol',         # Maps Cryptofeed's 'symbol' field to the 'symbol' column in TimescaleDB
@@ -71,35 +67,40 @@ custom_columns_trades= {
     'id': 'id',                  # Maps Cryptofeed's 'id' field to the 'id' column in TimescaleDB
 }
 def main():
-    logger.info('Starting bitfinex feed')
+    logger.info('Starting binance feed')
     path_to_config = '/config_cf.yaml'
     snapshot_interval = 10000
-    ttl = 3600
+    ttl=3600
     try:
-        fh = FeedHandler(config=path_to_config)  
+        fh = FeedHandler(config=path_to_config)
         postgres_cfg = {
-            'host': '0.0.0.0', 
+            'host': fh.config.config['pg_host'], 
             'user': 'postgres', 
             'db': 'db0', 
             'pw': fh.config.config['timescaledb_password'], 
             'port': '5432',
                         }
-        pairs = Bitfinex.symbols()
+        print("still loading")
+        symbols = fh.config.config['bn_symbols']
+        pairs = OKX.symbols()[:]
         print(pairs)
-        symbols_fut = ['BTC-USDT-PERP','ETH-USDT-PERP', 'ETH-USDT-PERP']
+        
+        symbols_fut = ['BTC-USDT','ETH-USDT']
         #function to check if symbols are in the pairs list:
         [print(f"{symbol} is {'in' if symbol in pairs else 'not in'} pairs list") for symbol in symbols_fut]
-        symbols = fh.config.config['bf_symbols']
         fh.run(start_loop=False)
-        # fh.add_feed(BITFINEX,
-        #                 max_depth=50,
-        #                 subscription={
-        #                     L3_BOOK: symbols, 
-        #                 },
-        #                 callbacks={
-        #                     L3_BOOK:[
+        #fh.add_feed(OKX(checksum_validation=True, symbols=['BTC-USDT-PERP'], channels=[TRADES, FUNDING, OPEN_INTEREST, LIQUIDATIONS, L2_BOOK], callbacks={L2_BOOK: book, LIQUIDATIONS: liquidations, FUNDING: funding, OPEN_INTEREST: oi, TRADES: trade}))
+        print("ok loaded")
+        # fh.add_feed(Binance(
+        #             max_depth=50,
+        #             subscription={
+        #                 L2_BOOK: symbols,   
+        #             },
+        #             callbacks={
+        #                     L2_BOOK:[
         #                             CustomBookStream(
-        #                             host=fh.config.config['redis_host'], 
+        #                             #host=fh.config.config['redis_host'],
+        #                             host 
         #                             port=fh.config.config['redis_port'], 
         #                             snapshots_only=False,
         #                             ssl=True,
@@ -119,8 +120,8 @@ def main():
         #                 },
         #                 cross_check=True,
         #                 )
-                        
-        # fh.add_feed(Bitfinex(
+        #                 )
+        # fh.add_feed(Binance(
         #                 subscription={
         #                     TRADES: symbols,
         #                 },
@@ -146,16 +147,17 @@ def main():
         #                 #timeout=-1
         #                 )
         #                 )
-        fh.add_feed(BITFINEX,
+        fh.add_feed(OKX(timeout=5000,
+                           max_depth=50,
                         subscription={
-                            L3_BOOK: symbols_fut,
+                            L2_BOOK: symbols_fut, #l3_book is not supported on OKX
                             TRADES: symbols_fut,
-                            #FUNDING: symbols_fut,
+                            #FUNDING: symbols_fut,  
                             #OPEN_INTEREST: symbols_fut,
                             #LIQUIDATIONS: symbols_fut,
                         },
                         callbacks={
-                            L3_BOOK:[book], 
+                            L2_BOOK:[book], #l3_book is not supported on OKX
                             TRADES:[trade],
                             #FUNDING:[funding],
                             #OPEN_INTEREST:[oi],
@@ -164,15 +166,16 @@ def main():
                         #cross_check=True,
                         #timeout=-1
                         )
-                        
+                        )
         loop = asyncio.get_event_loop()
         # loop.create_task()
         loop.run_forever()
+        
     except Exception as e:
         logger.error(f"An error occurred: {e}")
         # Optionally, you can re-raise the exception if you want the program to stop in case of errors
         # raise
 
-
 if __name__ == '__main__':
     main()
+
