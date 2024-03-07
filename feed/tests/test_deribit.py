@@ -1,4 +1,5 @@
 import redis
+import os
 from cryptofeed import FeedHandler
 from cryptofeed.callback import TradeCallback, BookCallback
 from cryptofeed.defines import BID, ASK,TRADES, L3_BOOK, L2_BOOK, TICKER, OPEN_INTEREST, FUNDING, LIQUIDATIONS, BALANCES, ORDER_INFO
@@ -15,7 +16,7 @@ from redis import asyncio as aioredis
 from Custom_Redis import CustomBookRedis, CustomTradeRedis, CustomBookStream
 from custom_timescaledb import BookTimeScale, TradesTimeScale
 from statistics import mean
-logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format='%(asctime)s:%(levelname)s:%(message)s')
 logger = logging.getLogger(__name__)
 async def funding(f, receipt_timestamp):
     print(f"Funding update received at {receipt_timestamp}: {f}")
@@ -70,7 +71,13 @@ custom_columns_trades= {
 }
 def main():
     logger.info('Starting binance feed')
-    path_to_config = '/config_cf.yaml'
+    # Safely get the home directory, with a fallback if HOME is not set
+    home_directory = os.environ.get('HOME', '')
+    if not home_directory:
+        logger.error('The HOME environment variable is not set.')
+    path_to_config = os.path.join(home_directory, 'config_cf.yaml')
+    if os.path.isfile(path_to_config): print("Config exist") 
+    else: print("Config doesn't exist")
     snapshot_interval = 10000
     ttl=3600
     try:
@@ -85,7 +92,7 @@ def main():
         
         symbols = fh.config.config['bn_symbols']
         pairs = Deribit.symbols()[:]
-        print(pairs)
+        #print(pairs)
         print("still loading")
         symbols_fut = ['BTC-USD-PERP','ETH-USD-PERP', 'BTC-USD','ETH-USD']
         #function to check if symbols are in the pairs list:
