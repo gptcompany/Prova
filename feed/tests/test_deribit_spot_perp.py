@@ -7,6 +7,7 @@ from cryptofeed.exchanges import Binance, BinanceFutures
 from cryptofeed.exchanges.deribit import Deribit
 #from app.Custom_Coinbase import CustomCoinbase
 from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey
+from cryptofeed.defines import DERIBIT, ORDER_INFO, BALANCES, FILLS
 from decimal import Decimal
 import asyncio
 import logging
@@ -94,89 +95,48 @@ def main():
         pairs = Deribit.symbols()[:]
         #print(pairs)
         print("still loading")
-        symbols_fut = ['BTC-USD-PERP','ETH-USD-PERP', 'BTC-USD','ETH-USD']
+        symbols_spot = ['BTC-USDT','ETH-USDT']
+        symbols_fut = ['BTC-USD-PERP','ETH-USD-PERP']
         #function to check if symbols are in the pairs list:
         [print(f"{symbol} is {'in' if symbol in pairs else 'not in'} pairs list") for symbol in symbols_fut]
         fh.run(start_loop=False)
-        # fh.add_feed(Deribit(symbols=['BTC-USD-PERP'], 
-        #                     channels=[L2_BOOK, TRADES, TICKER, FUNDING, OPEN_INTEREST, LIQUIDATIONS], 
-        #                     callbacks={TRADES: trade, L2_BOOK: book, OPEN_INTEREST: oi, FUNDING: funding, LIQUIDATIONS: liquidations}))
+        fh.add_feed(DERIBIT, symbols=symbols_fut, 
+                            max_depth=50,
+                            channels=[L2_BOOK, TRADES, FUNDING, OPEN_INTEREST, LIQUIDATIONS], 
+                            callbacks={TRADES: trade, L2_BOOK: book, OPEN_INTEREST: oi, FUNDING: funding, LIQUIDATIONS: liquidations})
+        fh.add_feed(DERIBIT, symbols=symbols_spot, 
+                            max_depth=50,
+                            channels=[L2_BOOK, TRADES, 
+                                      #FUNDING, 
+                                      #OPEN_INTEREST, 
+                                      #LIQUIDATIONS
+                                      ], 
+                            callbacks={TRADES: trade, L2_BOOK: book, 
+                                       #OPEN_INTEREST: oi, 
+                                       #FUNDING: funding, 
+                                       #LIQUIDATIONS: liquidations
+                                       })
         print("ok loaded")
-        # fh.add_feed(Binance(
-        #             max_depth=50,
-        #             subscription={
-        #                 L2_BOOK: symbols,   
-        #             },
-        #             callbacks={
-        #                     L2_BOOK:[
-        #                             CustomBookStream(
-        #                             #host=fh.config.config['redis_host'],
-        #                             host 
-        #                             port=fh.config.config['redis_port'], 
-        #                             snapshots_only=False,
-        #                             ssl=True,
-        #                             decode_responses=True,
-        #                             snapshot_interval=snapshot_interval,
-        #                             ttl=ttl,
-        #                             #score_key='timestamp',
-        #                                 ),
-        #                             BookTimeScale(
-        #                                 snapshots_only=False,
-        #                                 snapshot_interval=snapshot_interval,
-        #                                 #table='book',
-        #                                 custom_columns=custom_columns, 
-        #                                 **postgres_cfg
-        #                                 )
-        #                     ]
-        #                 },
-        #                 cross_check=True,
-        #                 )
-        #                 )
-        # fh.add_feed(Binance(
+    
+        # fh.add_feed(Deribit(
         #                 subscription={
-        #                     TRADES: symbols,
+        #                     L2_BOOK: symbols_fut, # l3_book is not supported on DERIBIT
+        #                     TRADES: symbols_fut,
+        #                     FUNDING: symbols_fut,
+        #                     OPEN_INTEREST: symbols_fut,
+        #                     LIQUIDATIONS: symbols_fut,
         #                 },
         #                 callbacks={
-        #                     TRADES:[ 
-        #                             CustomTradeRedis(
-        #                             host=fh.config.config['redis_host'], 
-        #                             port=fh.config.config['redis_port'],
-        #                             score_key='timestamp',
-        #                             ssl=True,
-        #                             decode_responses=True,
-        #                             ttl=ttl,
-        #                                 ),
-        #                             TradesTimeScale(
-        #                                 custom_columns=custom_columns_trades,
-        #                                 #table='trades',
-        #                                 **postgres_cfg
-        #                                 )
-                                    
-        #                     ]
+        #                     L2_BOOK:[book], # l3_book is not supported on DERIBIT
+        #                     TRADES:[trade],
+        #                     FUNDING:[funding],
+        #                     OPEN_INTEREST:[oi],
+        #                     LIQUIDATIONS:[liquidations],
         #                 },
         #                 #cross_check=True,
         #                 #timeout=-1
         #                 )
         #                 )
-        fh.add_feed(Deribit(
-                        subscription={
-                            L2_BOOK: symbols_fut, # l3_book is not supported on DERIBIT
-                            TRADES: symbols_fut,
-                            FUNDING: symbols_fut,
-                            OPEN_INTEREST: symbols_fut,
-                            LIQUIDATIONS: symbols_fut,
-                        },
-                        callbacks={
-                            L2_BOOK:[book], # l3_book is not supported on DERIBIT
-                            TRADES:[trade],
-                            FUNDING:[funding],
-                            OPEN_INTEREST:[oi],
-                            LIQUIDATIONS:[liquidations],
-                        },
-                        #cross_check=True,
-                        #timeout=-1
-                        )
-                        )
         loop = asyncio.get_event_loop()
         # loop.create_task()
         loop.run_forever()
