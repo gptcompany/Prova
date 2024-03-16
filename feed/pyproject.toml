@@ -7,11 +7,12 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "3.9.16"
-cryptofeed = "^2.3.2"
+cryptofeed = { git = "https://github.com/bmoscon/cryptofeed.git", branch = "master" }
 redis = "^5.0.1"
 pyyaml = "^6.0.1"
 asyncpg = "^0.29.0"
 aioredis = "^2.0.1"
+numpy = "^1.26.4"
 
 
 [build-system]

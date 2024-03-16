@@ -4,13 +4,13 @@ from cryptofeed import FeedHandler
 from cryptofeed.backends.aggregate import Throttle
 from cryptofeed.callback import TradeCallback, BookCallback
 from cryptofeed.defines import BID, ASK,TRADES, L3_BOOK, L2_BOOK, TICKER, OPEN_INTEREST, FUNDING, LIQUIDATIONS, BALANCES, ORDER_INFO, COINBASE
-from cryptofeed.exchanges import Coinbase
+#from cryptofeed.exchanges import Coinbase
 #from app.Custom_Coinbase import CustomCoinbase
 from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey
 from decimal import Decimal
 import asyncio
 import logging
-from custom_coinbase import CustomCoinbase
+from custom_coinbase2 import Coinbase
 import sys
 import os
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
@@ -70,15 +70,15 @@ def main():
                     #timeout=-1
                     )
         )
-    fh.add_feed(CustomCoinbase(
+    fh.add_feed(Coinbase(
                         max_depth=100,
                         config=path_to_config,
                         subscription={
-                        L3_BOOK: symbols, 
+                        L2_BOOK: symbols, 
                         
                         },
                         callbacks={
-                            L3_BOOK: book,
+                            L2_BOOK: book,
                                 #[
                                 #BookCallback(book),
                                 
