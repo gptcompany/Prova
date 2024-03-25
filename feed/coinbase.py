@@ -4,13 +4,13 @@ from cryptofeed import FeedHandler
 from cryptofeed.backends.aggregate import Throttle
 from cryptofeed.callback import TradeCallback, BookCallback
 from cryptofeed.defines import BID, ASK,TRADES, L3_BOOK, L2_BOOK, TICKER, OPEN_INTEREST, FUNDING, LIQUIDATIONS, BALANCES, ORDER_INFO, COINBASE
-#from cryptofeed.exchanges import Coinbase
+from cryptofeed.exchanges import Coinbase
 #from app.Custom_Coinbase import CustomCoinbase
 from cryptofeed.backends.redis import BookRedis, BookStream, CandlesRedis, FundingRedis, OpenInterestRedis, TradeRedis, BookSnapshotRedisKey
 from decimal import Decimal
 import asyncio
 import logging
-from custom_coinbase2 import Coinbase
+#from custom_coinbase2 import Coinbase
 import sys
 import os
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format='%(asctime)s:%(levelname)s:%(message)s')
@@ -44,6 +44,7 @@ def main():
     path_to_config = os.path.join(home_directory, 'config_cf.yaml')
     #logger.info(f'Using config at {path_to_config}')
     fh = FeedHandler(config=path_to_config)
+    print(fh.config.config['redis_host'])
     #symbols = fh.config.config['cb_symbols']
     symbols = ['BTC-USDT','ETH-BTC']
     fh.run(start_loop=False)
